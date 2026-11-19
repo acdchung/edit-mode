@@ -320,7 +320,7 @@ function init() {
     if (Math.abs(w1 - w0) < 1) return;
     el.style.width = w0 + 'px';
     void el.offsetWidth;
-    el.style.transition = 'width 180ms cubic-bezier(.2, .8, .2, 1)';
+    el.style.transition = 'width 180ms var(--ease)';
     el.style.width = w1 + 'px';
     clearTimeout(el._morph);
     el._morph = setTimeout(() => { el.style.width = ''; el.style.transition = ''; }, 200);

@@ -39,6 +39,14 @@ Read this file first, then ROADMAP.md (what's next) and README.md (user-facing f
   - Lucide icons only (generated into `icons.js`)
   - quick morph transitions
   - Figma behavior is the reference for every interaction
+  - motion, following Emil Kowalski's rules (from the `/emil-design-eng` review, 2026-11-19):
+    - anything used constantly appears instantly: panels, toolbar, Layers, selection, hover, drag feedback, and anything opened from the keyboard
+    - only occasional UI animates: dialogs, toasts, menus opened by a click
+    - one easing for everything, `--ease` (strong ease-out), at 120–180ms
+    - popovers grow from their trigger (`transform-origin`)
+    - pressable controls scale to .97 on press (.95 for small icon buttons); menu items don't
+    - hover effects that move things are limited to mouse pointers (`hover: hover`)
+    - every animation is covered by `prefers-reduced-motion`
 
 ## Architecture
 

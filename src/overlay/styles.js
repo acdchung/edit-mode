@@ -14,7 +14,7 @@ export const STYLES = /* css */ `
   --danger: #ff7a6b;
   --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
-  --ease: cubic-bezier(.2, .8, .2, 1);
+  --ease: cubic-bezier(0.23, 1, 0.32, 1); /* strong ease-out (Emil Kowalski) */
   --pad: rgba(151, 71, 255, 0.22); --pad-edge: rgba(151, 71, 255, 0.6);
   --mar: rgba(255, 153, 0, 0.2); --mar-edge: rgba(255, 153, 0, 0.6);
   --lift: 0 0 0 0.5px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.05) inset, 0 12px 40px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.25);
@@ -76,9 +76,9 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .toggle[aria-pressed="true"] { color: var(--text); }
 .toggle:disabled { cursor: default; }
 .switch { position: relative; width: 26px; height: 16px; border-radius: 8px; background: rgba(255,255,255,.12);
-          box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); transition: background .2s; }
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); transition: background-color 160ms ease; }
 .switch i { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #d6d6da;
-            box-shadow: 0 1px 2px rgba(0,0,0,.4); transition: transform .2s cubic-bezier(.3,.7,.4,1), background .2s; }
+            box-shadow: 0 1px 2px rgba(0,0,0,.4); transition: transform 160ms var(--ease), background-color 160ms ease; }
 [aria-pressed="true"] .switch { background: var(--accent); box-shadow: 0 0 10px rgba(13,153,255,.45); }
 [aria-pressed="true"] .switch i { transform: translateX(10px); background: #fff; }
 .toggle kbd { margin-left: 1px; }
@@ -138,7 +138,6 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 /* ---------- Layers ---------- */
 .layers { position: fixed; top: 12px; left: 12px; width: 240px; max-height: calc(100vh - 24px);
           display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; pointer-events: auto; user-select: none; }
-.layers:not([hidden]) { animation: rise 160ms var(--ease); }
 .lh { display: flex; align-items: center; height: 40px; padding: 0 12px; border-bottom: 1px solid var(--hair); flex: none;
       font-weight: 600; font-size: 12px; }
 .lb { position: relative; overflow-y: auto; min-height: 0; padding: 4px; overscroll-behavior: contain;
@@ -256,8 +255,8 @@ input::selection { background: rgba(13,153,255,.4); }
 .pop:has(.sw-grid) { width: 224px; padding: 10px; }
 .pop-title { color: var(--muted); font-size: 11px; margin: 0 0 6px; }
 .sw-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin-bottom: 10px; }
-.sw { all: unset; aspect-ratio: 1; border-radius: 5px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); transition: transform .1s; }
-.sw:hover { transform: scale(1.15); }
+.sw { all: unset; aspect-ratio: 1; border-radius: 5px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); transition: transform 120ms var(--ease); }
+@media (hover: hover) and (pointer: fine) { .sw:hover { transform: scale(1.1); } }
 .sw.on { outline: 1.5px solid var(--accent); outline-offset: 1.5px; }
 .pop-row { display: flex; gap: 6px; }
 .btn { all: unset; cursor: pointer; height: 26px; padding: 0 10px; border-radius: 6px; background: var(--field); font-size: 11.5px;
@@ -280,8 +279,7 @@ input::selection { background: rgba(13,153,255,.4); }
 .tools button.layers-btn.on { background: var(--field-hover); color: var(--text); }
 .tools button.zoom-btn { width: auto; min-width: 44px; padding: 0 8px; font: 500 11.5px/30px var(--sans); font-variant-numeric: tabular-nums; }
 .tools button.zoom-btn.on { background: var(--field-hover); color: var(--text); }
-.zmenu { position: fixed; z-index: 2; min-width: 210px; padding: 4px; border-radius: 10px; pointer-events: auto; user-select: none; }
-.zmenu:not([hidden]) { animation: rise 120ms var(--ease); }
+.zmenu { position: fixed; z-index: 2; transform-origin: bottom left; min-width: 210px; padding: 4px; border-radius: 10px; pointer-events: auto; user-select: none; }
 .zmenu button { all: unset; display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; box-sizing: border-box;
                 height: 28px; padding: 0 8px; border-radius: 6px; font-size: 12px; color: var(--text); cursor: default; }
 .zmenu button:hover:not(:disabled) { background: var(--accent); }
@@ -305,18 +303,29 @@ input::selection { background: rgba(13,153,255,.4); }
 .grad .crow > .f { flex: 0 0 84px; }
 
 /* ---------- Motion: quick, small, and off when reduced motion is preferred ---------- */
+/* What animates is what you see occasionally: dialogs, toasts, menus you
+   click open. What you use constantly appears instantly: the panels, the
+   toolbar (⌥E), Layers (⌥1), selection, hover and drag feedback. */
 @keyframes rise { from { opacity: 0; transform: translateY(6px) scale(.98); } }
-@keyframes drop { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes grow { from { opacity: 0; transform: scale(.97); } }
 @keyframes fade { from { opacity: 0; } }
 .dialog, .toast { animation: rise 180ms var(--ease); }
-.tools:not([hidden]) { animation: rise 160ms var(--ease); }
-.side.enter { animation: drop 160ms var(--ease); }
-.pop { animation: drop 120ms var(--ease); }
+.zmenu:not([hidden]) { animation: grow 120ms var(--ease); } /* from the % button (origin: bottom left) */
+.pop { animation: grow 120ms var(--ease); } /* origin set in JS: the corner nearest its field */
 .pill-end > * { animation: fade 180ms var(--ease); }
 .pill { overflow: hidden; }
-.insert, .target { transition: left 80ms var(--ease), top 80ms var(--ease), width 120ms var(--ease), height 120ms var(--ease); }
+
+/* Press feedback: everything clickable gives a little (menu items don't, like native menus). */
+.toggle, .act, .pbtn, .btn, .tools button, .mbtn, .dd {
+  transition: background-color 120ms ease, color 120ms ease, transform 160ms var(--ease); }
+.icon, .pick, .lbtn, .seg button, .swatch {
+  transition: background-color 120ms ease, color 120ms ease, transform 160ms var(--ease); }
+.toggle:active, .act:active:not(:disabled), .pbtn:active, .btn:active, .tools button:active, .mbtn:active, .dd:active { transform: scale(.97); }
+.icon:active, .pick:active, .lbtn:active, .seg button:active, .swatch:active { transform: scale(.95); }
+.zmenu button:focus-visible, .mbtn:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 1px; }
+
 @media (prefers-reduced-motion: reduce) {
-  .dialog, .toast, .side.enter, .pop, .pill-end > * { animation: none; }
-  .insert, .target, .switch, .switch i { transition: none; }
+  .dialog, .toast, .pop, .zmenu, .pill-end > * { animation: none !important; }
+  .switch, .switch i, .caret .i, .sw { transition: none; }
 }
 `;

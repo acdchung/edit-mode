@@ -158,8 +158,10 @@ export function createPanel(ctx) {
     const r = anchor.getBoundingClientRect();
     const w = pop.offsetWidth;
     const ph = pop.offsetHeight;
+    const above = r.bottom + 4 + ph > innerHeight;
     pop.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
-    pop.style.top = (r.bottom + 4 + ph > innerHeight ? Math.max(8, r.top - 4 - ph) : r.bottom + 4) + 'px';
+    pop.style.top = (above ? Math.max(8, r.top - 4 - ph) : r.bottom + 4) + 'px';
+    pop.style.transformOrigin = `${above ? 'bottom' : 'top'} right`; // grows out of its field
   }
   function closePop() {
     pop.hidden = true;
@@ -1166,7 +1168,6 @@ export function createPanel(ctx) {
     multi.hidden = !many;
     for (const sec of [layout, appearance, typography, fill, strokeSec, effects]) sec.style.display = many ? 'none' : '';
     if (many && el) {
-      if (column.hidden) { column.classList.remove('enter'); void column.offsetWidth; column.classList.add('enter'); }
       column.hidden = false;
       nameEl.textContent = `${state.multi.length} selected`;
       const parents = new Set(state.multi.map((x) => x.parentElement));
@@ -1174,12 +1175,7 @@ export function createPanel(ctx) {
       openBtn.hidden = copyBtn.hidden = scopeSeg.hidden = true;
       return;
     }
-    if (el && column.hidden) {
-      column.classList.remove('enter');
-      void column.offsetWidth;
-      column.classList.add('enter');
-    }
-    column.hidden = !el;
+    column.hidden = !el; // appears instantly: it shows on almost every selection
     if (!el) return;
 
     const own = el.getAttribute(ATTR);
