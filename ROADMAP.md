@@ -63,6 +63,7 @@ Figma is the reference for every behavior. Where a live web page can't work like
 - Big change: plan it as its own phase, after items 3–9.
 
 ## Later / maybe
+- Movable panels: a grabber to place the properties panel and Layers wherever you like, remembered per browser (the user's idea, 2026-11-19). They still never move on their own.
 - ⌥-resize from the center.
 - Snapping and smart guides while dragging or resizing absolute elements.
 
@@ -80,13 +81,13 @@ Figma is the reference for every behavior. Where a live web page can't work like
   - stuck outlines: hover now follows the pointer after a pan or zoom, is cleared when the Layers panel rebuilds, and text editing ends if the page replaces the element being edited
 - 2026-11-18, zoom and pan (option B, added before item 3): `canvas.js`. ⌘+/⌘−/⌘0, ⇧0/⇧1/⇧2, ⌘-scroll and pinch zoom around the pointer; scroll, Space-drag and middle-drag pan; a % menu in the toolbar. Every size, label, field, resize, drawing and measurement stays in CSS px (`box()`, `view.z`). Known limit: fixed and sticky app elements scroll with the page while editing.
 - 2026-11-18, Layers fixes: the top row can collapse; hiding the top layer no longer surfaces `#root` as a new parent.
-- 2026-11-18, item 2: Layers panel (`layers.js`). Left side, open by default, toggled with ⌥1 or a toolbar button and remembered. Rows: select / ⌘ toggle / Shift range, two-way hover, auto-reveal of the selection, carets (⌥ for all), and drag to reorder, nest into a frame or drop as the first child of an open frame, through `changes.move`. Eye = hide (a pushed change), lock = can't pick on the canvas (overlay-only). Rows are in DOM order, not Figma's reversed z-order, because that's how a page reads. When the properties panel jumps left, it now sits beside Layers.
+- 2026-11-18, item 2: Layers panel (`layers.js`). Left side, open by default, toggled with ⌥1 or a toolbar button and remembered. Rows: select / ⌘ toggle / Shift range, two-way hover, auto-reveal of the selection, carets (⌥ for all), and drag to reorder, nest into a frame or drop as the first child of an open frame, through `changes.move`. Eye = hide (a pushed change), lock = can't pick on the canvas (overlay-only). Rows are in DOM order, not Figma's reversed z-order, because that's how a page reads. (The properties panel used to jump left over a selection; removed 2026-11-19, see DESIGN.md › Surfaces.)
 - 2026-11-18, item 1: Figma-style selection. Click picks the layer at the current level (top-level sections when nothing is selected, else siblings of the selection, walking up when you click outside); double-click drills one level and edits selected text; ⌘-click and ⌘-hover go deepest; Esc stops at the page's top frame and then deselects. Clicking the empty page deselects rather than selecting the page frame (unlike a Figma artboard), because the page fills the whole viewport.
 - Overlay, data-src tagging, properties panel, Push via the Claude CLI with snapshot + Undo.
 - Select / drag-to-move (reorder or reparent), delete, text editing, ⌘Z/⌘⇧Z, scope "This one" / "All like this".
 - Tools: Rectangle, Ellipse, Text; Shift draws perfect shapes; new elements follow the parent's spacing.
 - Copy, paste, cut, ⌘D, ⌥-drag duplicate.
 - Group (⌘G), auto layout (⇧A) with Fixed/Hug/Fill, gap "Auto" (space-between), per-side padding, per-corner radius.
-- Multi-select across containers with frames on each selected element. Tab/Shift-Tab between siblings, ⌘A, ⌘\ hides the UI, the panel moves off the selection, ⌥ measurement.
+- Multi-select across containers with frames on each selected element. Tab/Shift-Tab between siblings, ⌘A, ⌘\ hides the UI, ⌥ measurement.
 - Gradient fills, strokes inside/outside, shadows.
 - 2026-11-18: removed "Space between" from the auto-layout alignment buttons. The Gap field's "Auto" already covers it.

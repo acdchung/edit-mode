@@ -132,9 +132,7 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .mlabel { position: fixed; transform: translate(-50%, -50%); background: #f24822; color: #fff; padding: 1px 4px; border-radius: 3px;
           font: 500 10.5px/14px var(--sans); font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; }
 .mtarget { position: fixed; outline: 1px solid #f24822; pointer-events: none; }
-.side.left { right: auto; left: 12px; }
 .ui-hidden .side, .ui-hidden .tools, .ui-hidden .pop, .ui-hidden .layers, .ui-hidden .zmenu { display: none !important; }
-.layers-open .side.left { left: 264px; }
 
 /* ---------- Layers ---------- */
 .layers { position: fixed; top: 12px; left: 12px; width: 240px; max-height: calc(100vh - 24px);

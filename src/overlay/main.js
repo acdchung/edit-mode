@@ -1517,18 +1517,6 @@ function init() {
       sizeLabel.textContent = `${fmtSize(fr.width / view.z)} × ${fmtSize(fr.height / view.z)}`;
     }
 
-    // Keep the panel off the selection: if it covers it, move it to the other side.
-    if (fr && !panel.el.hidden) {
-      const pr = panel.el.getBoundingClientRect();
-      const overlaps = (r) => fr.left < r.right && fr.right > r.left && fr.top < r.bottom && fr.bottom > r.top;
-      if (overlaps(pr)) {
-        const left = panel.el.classList.contains('left');
-        const lx = layers.open ? layers.el.getBoundingClientRect().right + 8 : 12;
-        const other = { left: left ? innerWidth - 12 - pr.width : lx, right: left ? innerWidth - 12 : lx + pr.width, top: pr.top, bottom: pr.bottom };
-        if (!overlaps(other)) panel.el.classList.toggle('left', !left);
-      }
-    }
-
     const sibs = sel && !many && state.scope === 'all' ? family(sel).filter((x) => x !== sel && visible(x)) : [];
     drawFrames(sibLayer, sibs); // "All like this": each instance framed like a selected element (handles + size)
     drawFrames(multiLayer, shown);

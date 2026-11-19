@@ -6,6 +6,10 @@ The user's taste, written down so it isn't re-corrected. These rules cover Edit 
 
 - **Minimal, "high-class tech" dark UI.** Panels and bars use `.glassy`: `--glass` background, blur, `--lift` shadow and a `--hair` border.
 - **Figma is the reference for every interaction and every visual convention.** Where a live web page can't work like Figma, pick the closest natural behavior and say so.
+- **Panels stay where they are.** The properties panel, Layers, the toolbar and the pill never move on their own, not even when they cover the selection. You pan or zoom the canvas to see what's underneath.
+  Why: a panel that jumps sides breaks muscle memory; the canvas is what moves, as in Figma.
+  <!-- 2026-11-19: "one thing i want to change is any of the panels auto relocating to the other side of the screen ... since i can zoom out, the overlay should stay static (perhaps we add a grabber so users can place them wherever they want, but let's not auto move them)" -->
+  Checked by `tests/brutal2.mjs` › "the panel stays put".
 
 ## Typography
 

@@ -52,14 +52,13 @@ const allErrors = [];
   await p.keyboard.press('Meta+a'); check('⌘A selects all siblings', (await p.sel()).split(',').length === 4, await p.sel());
   allErrors.push(...p.errors); await p.close(); }
 
-// Panel moves off a selection under it
+// Panels never move on their own (DESIGN.md › Surfaces), even over the selection
 { const p = await page();
-  await p.tap('main .card:nth-child(3) .card-title'); await p.keyboard.press('Escape'); await p.waitForTimeout(100);
-  const side = await p.evaluate(() => document.querySelector('edit-mode-root').shadowRoot.querySelector('.side').classList.contains('left'));
-  check('panel jumps to the left when the selection is under it', side);
+  const at = () => p.evaluate(() => Math.round(document.querySelector('edit-mode-root').shadowRoot.querySelector('.side').getBoundingClientRect().left));
   await p.tap('main .card:nth-child(1) .card-title'); await p.keyboard.press('Escape'); await p.waitForTimeout(100);
-  const back = await p.evaluate(() => document.querySelector('edit-mode-root').shadowRoot.querySelector('.side').classList.contains('left'));
-  check('…and back to the right for a selection on the left', !back);
+  const x0 = await at();
+  await p.tap('main .card:nth-child(3) .card-title'); await p.keyboard.press('Escape'); await p.waitForTimeout(100);
+  check('the panel stays put when the selection is under it', (await at()) === x0, `${x0} → ${await at()}`);
   allErrors.push(...p.errors); await p.close(); }
 
 // Scroll + window resize keep the frame on the element
