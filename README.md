@@ -1,0 +1,81 @@
+# Edit Mode
+
+Figma-style visual editing layer for React + Vite projects (plain CSS). Edit the running page, click **Push**, and Claude Code rewrites your source to match. Dev server only — nothing ships in `vite build`.
+
+## Add to a project
+
+```sh
+npm install --save-dev ~/edit-mode
+```
+
+```js
+// vite.config.js
+import editMode from 'edit-mode';
+
+export default defineConfig({
+  plugins: [editMode(), react()],
+});
+```
+
+Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be installed and logged in.
+
+## Use
+
+| Key / action | What it does |
+| --- | --- |
+| Pill switch, or ⌥E | Edit mode on/off |
+| Click | Select the outermost layer at the current level, like Figma: top-level sections first, then siblings of whatever is selected. Clicking inside the selection keeps it |
+| Double-click | Go one level deeper. On selected text, edit it |
+| ⌘-click | Select the deepest element directly (hold ⌘ to preview it on hover) |
+| Esc / Enter | Select parent / first child (Enter on text starts editing it). Esc past the top level deselects |
+| ⌫ / Delete | Delete element |
+| Arrows / Shift + arrows | Nudge 1px / 10px (margin); inside auto layout, move earlier/later |
+| ⌘Z / ⌘⇧Z | Undo / redo |
+| ⌘↵ | Push |
+| Drag an element | Move it: reorder, or drop into another container |
+| V / R / O / T | Select, Rectangle, Ellipse, Text tools (toolbar above the pill). Hold Shift while drawing for a square or circle |
+| Shift-click | Add to / remove from the selection (at the selection's level; ⇧⌘-click for anything) |
+| Tab / Shift-Tab | Next / previous sibling |
+| ⌘A | Select all siblings |
+| Hold ⌥ | Measure distances to the hovered element (or to the parent) |
+| ⌥-drag | Duplicate and move the copy |
+| ⌘\ | Hide / show the Edit Mode UI |
+| ⌘C / ⌘V / ⌘X | Copy, paste (after the selection, or into an empty box you added), cut |
+| ⌘D | Duplicate |
+| ⌘G | Group the selection |
+| ⇧A | Auto layout: wraps a multi-selection or a single text/shape in a hugging frame; turns a container into auto layout |
+| Drag a handle | Resize (hold Shift to keep proportions) |
+| In a field: type, ↑/↓, or drag its label | Change a value (accepts %, and math like `8*2`) |
+
+**Panel:** Layout (size, gap, padding, margin), Appearance (opacity, roundness), Text, Fill, Stroke (inside = border, outside = outline), Effects (shadow). Fill shows solid colors and gradients (angle and stops) or images. Empty fill/stroke/effects show as **+**. Colors, sizes and CSS variables already on the page are offered as quick picks.
+
+**Width / height:** Fixed, Hug contents or Fill container (menu in the W and H fields), like Figma's resizing.
+
+**Gap:** a number, or **Auto** to push children to the ends of the frame (Figma's auto spacing).
+
+**This one / All like this:** for repeated elements (a card rendered 3 times). Defaults to This one.
+
+**Push:** shows the list of changes; **Proceed** snapshots your source, runs Claude in the background to apply them, then reloads the page. **Undo** (in the pill afterwards) restores the files Claude changed and brings your edits back so you can adjust and push again.
+
+While edit mode is on (and while Claude works), hot reload is paused so file saves can't wipe your edits.
+
+## Docs
+
+- `CLAUDE.md`: architecture, conventions and testing rules (for Claude sessions)
+- `ROADMAP.md`: what's next, in order
+
+## Files
+
+- `src/plugin.js`: the Vite plugin (tagging, overlay injection, hot-reload pause, push/undo endpoints)
+- `src/tag-source.js`: adds `data-src="file:line:col"` to every HTML-style JSX tag
+- `src/runner.js`: writes the handoff batch, runs Claude, snapshots and undo
+- `src/apply-edits.md`: the instructions Claude follows
+- `src/overlay/`: the in-browser UI (Shadow DOM)
+  - `main.js`: pill, dialogs, selection, keyboard, text editing
+  - `panel.js`: Selection card and properties panel
+  - `changes.js`: every edit, with undo/redo
+  - `tokens.js`: colors, sizes and variables used on the page
+- `tests/`: Playwright QA scripts (run against a copy of sample-app on port 5390)
+- `sample-app/`: test project (`cd sample-app && npm run dev`)
+
+Handoff batches are written to `.editmode/` in your project (git-ignored automatically).

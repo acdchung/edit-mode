@@ -1,0 +1,9 @@
+{
+  "name": "edit-mode-tests",
+  "private": true,
+  "type": "module",
+  "description": "Playwright QA scripts. They drive a copy of sample-app on port 5390 (see CLAUDE.md, Working rules).",
+  "dependencies": {
+    "playwright-core": "^1.65.1"
+  }
+}

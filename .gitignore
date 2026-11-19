@@ -1,0 +1,5 @@
+node_modules/
+.editmode/
+dist/
+.DS_Store
+*.log

@@ -1,0 +1,27 @@
+:root {
+  --ink: #1b1d1f;
+  --muted: #6b7075;
+  --accent: #e2572b;
+  --surface: #f6f3ee;
+  --radius: 8px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Georgia, serif; color: var(--ink); background: #fff; }
+.page { max-width: 960px; margin: 0 auto; padding: 48px 24px 120px; }
+.hero { padding: 48px; background: var(--surface); border-radius: 16px; }
+.eyebrow { margin: 0 0 8px; font: 600 12px/1 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.hero-title { margin: 0 0 12px; font-size: 44px; line-height: 1.1; }
+.hero-body { margin: 0 0 24px; color: var(--muted); font-size: 18px; }
+.btn { padding: 12px 20px; border: 0; border-radius: var(--radius); background: var(--ink); color: #fff; font: 600 15px system-ui, sans-serif; cursor: pointer; }
+.cta-primary { background: var(--accent); }
+.routes { margin-top: 56px; }
+.section-title { font-size: 24px; margin: 0 0 20px; }
+.card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.card { border: 1px solid #e6e2da; border-radius: 12px; padding: 12px; }
+.card-thumb { height: 120px; border-radius: var(--radius); background: linear-gradient(135deg, #c9d6df, #8aa1b1); }
+.card-thumb--featured { border-radius: 18px; }
+.card-title { font-size: 17px; margin: 12px 0 4px; }
+.card-meta { margin: 0; color: var(--muted); font: 14px system-ui, sans-serif; }
+.badge { background: var(--surface); padding: 2px 6px; border-radius: 4px; }
+.signup { display: flex; gap: 8px; margin-top: 56px; }
+.signup-input { flex: 1; padding: 12px; border: 1px solid #d6d2ca; border-radius: var(--radius); font-size: 15px; }

@@ -1,0 +1,14 @@
+{
+  "name": "edit-mode",
+  "version": "0.1.0",
+  "description": "Figma-style visual editing layer for React + Vite projects (dev only).",
+  "type": "module",
+  "main": "src/plugin.js",
+  "exports": { ".": "./src/plugin.js" },
+  "files": ["src"],
+  "peerDependencies": { "vite": ">=5" },
+  "dependencies": {
+    "@babel/parser": "^7.26.0",
+    "magic-string": "^0.30.17"
+  }
+}
