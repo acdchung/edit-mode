@@ -51,7 +51,6 @@ export function createCanvas({ onChange = () => {}, area = () => ({ left: 0, rig
     if (dx || dy) { tx += dx; ty += dy; setTransform(b); }
     onChange();
   }
-  const clamp = () => {}; // apply() clamps
 
   function enter() {
     if (on || !body()) return;
@@ -117,7 +116,6 @@ export function createCanvas({ onChange = () => {}, area = () => ({ left: 0, rig
     tx += nx - b.left;
     ty += ny - b.top;
     view.z = z;
-    clamp();
     apply();
   }
 
@@ -131,7 +129,6 @@ export function createCanvas({ onChange = () => {}, area = () => ({ left: 0, rig
     if (!on) return;
     tx += dx;
     ty += dy;
-    clamp();
     apply();
   }
 
@@ -159,7 +156,6 @@ export function createCanvas({ onChange = () => {}, area = () => ({ left: 0, rig
     const b1 = body().getBoundingClientRect();
     tx += left - px * z - b1.left;
     ty += topY - py * z - b1.top;
-    clamp();
     apply();
   }
 
@@ -183,7 +179,5 @@ export function createCanvas({ onChange = () => {}, area = () => ({ left: 0, rig
 
   return {
     enter, exit, zoomAt, step, panBy, fit, toSelection, reset,
-    get on() { return on; },
-    get z() { return view.z; },
   };
 }

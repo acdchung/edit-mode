@@ -1,5 +1,8 @@
 export const ATTR = 'data-src';
 
+// Tags that are never layers (Layers panel, page top level).
+export const NOT_LAYER = /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|LINK|META)$/;
+
 // Canvas zoom (see canvas.js). Screen pixels ÷ z = CSS pixels.
 export const view = { z: 1 };
 
@@ -60,14 +63,6 @@ export function parseColor(color) {
   return { hex: hex.toUpperCase(), a };
 }
 
-// How a computed color is shown in a field.
-export function colorText(color) {
-  const c = parseColor(color);
-  if (!c) return color;
-  if (c.a === 0) return 'None';
-  return c.a === 1 ? c.hex : `${c.hex} ${Math.round(c.a * 100)}%`;
-}
-
 // What the user typed in a color field → a CSS color, or null if invalid.
 export function colorFromText(text) {
   let t = text.trim();
@@ -99,6 +94,3 @@ export function resolveColor(value) {
   return out;
 }
 
-export function svg(path, size = 16) {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true">${path}</svg>`;
-}

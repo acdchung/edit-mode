@@ -47,7 +47,6 @@
 
 const PATHS = {
   chevron: '<path d="m6 9 6 6 6-6" />', // chevron-down
-  up: '<path d="m18 15-6-6-6 6" />', // chevron-up
   plus: '<path d="M5 12h14" /><path d="M12 5v14" />', // plus
   x: '<path d="M18 6 6 18" /><path d="m6 6 12 12" />', // x
   check: '<path d="M20 6 9 17l-5-5" />', // check
@@ -83,15 +82,12 @@ const PATHS = {
   angle: '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" />', // rotate-cw
   dirRow: '<path d="M5 12h14" /><path d="m12 5 7 7-7 7" />', // arrow-right
   dirCol: '<path d="M12 5v14" /><path d="m19 12-7 7-7-7" />', // arrow-down
-  wrap: '<path d="m16 16-3 3 3 3" /><path d="M3 12h14.5a1 1 0 0 1 0 7H13" /><path d="M3 19h6" /><path d="M3 5h18" />', // wrap-text
   mainStartRow: '<rect width="6" height="14" x="6" y="5" rx="2" /><rect width="6" height="10" x="16" y="7" rx="2" /><path d="M2 2v20" />', // align-horizontal-justify-start
   mainCenterRow: '<rect width="6" height="14" x="2" y="5" rx="2" /><rect width="6" height="10" x="16" y="7" rx="2" /><path d="M12 2v20" />', // align-horizontal-justify-center
   mainEndRow: '<rect width="6" height="14" x="2" y="5" rx="2" /><rect width="6" height="10" x="12" y="7" rx="2" /><path d="M22 2v20" />', // align-horizontal-justify-end
-  mainBetweenRow: '<rect width="6" height="14" x="3" y="5" rx="2" /><rect width="6" height="10" x="15" y="7" rx="2" /><path d="M3 2v20" /><path d="M21 2v20" />', // align-horizontal-space-between
   mainStartCol: '<rect width="14" height="6" x="5" y="16" rx="2" /><rect width="10" height="6" x="7" y="6" rx="2" /><path d="M2 2h20" />', // align-vertical-justify-start
   mainCenterCol: '<rect width="14" height="6" x="5" y="16" rx="2" /><rect width="10" height="6" x="7" y="2" rx="2" /><path d="M2 12h20" />', // align-vertical-justify-center
   mainEndCol: '<rect width="14" height="6" x="5" y="12" rx="2" /><rect width="10" height="6" x="7" y="2" rx="2" /><path d="M2 22h20" />', // align-vertical-justify-end
-  mainBetweenCol: '<rect width="14" height="6" x="5" y="15" rx="2" /><rect width="10" height="6" x="7" y="3" rx="2" /><path d="M2 21h20" /><path d="M2 3h20" />', // align-vertical-space-between
   crossStartRow: '<rect width="6" height="16" x="4" y="6" rx="2" /><rect width="6" height="9" x="14" y="6" rx="2" /><path d="M22 2H2" />', // align-start-horizontal
   crossCenterRow: '<path d="M2 12h20" /><path d="M10 16v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4" /><path d="M10 8V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v4" /><path d="M20 16v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1" /><path d="M14 8V7c0-1.1.9-2 2-2h2a2 2 0 0 1 2 2v1" />', // align-center-horizontal
   crossEndRow: '<rect width="6" height="16" x="4" y="2" rx="2" /><rect width="6" height="9" x="14" y="9" rx="2" /><path d="M22 22H2" />', // align-end-horizontal

@@ -6,7 +6,7 @@
 // `changes.set(...)`, which previews the edit as an inline style.
 
 import {
-  ATTR, box, colorFromText, describe, family, fmt, isNumber, num, parseColor, parseSrc, sameSource, svg,
+  ATTR, box, colorFromText, describe, family, fmt, isNumber, num, parseColor, parseSrc, sameSource,
 } from './util.js';
 import { textNodeOf } from './changes.js';
 import { ICON, KEY } from './icons.js';

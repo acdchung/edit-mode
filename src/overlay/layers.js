@@ -5,11 +5,10 @@
 // Order is DOM order, top to bottom, which matches how a page reads
 // (Figma lists the topmost layer first; on a web page that's usually last).
 
-import { describe } from './util.js';
+import { NOT_LAYER, describe } from './util.js';
 import { textNodeOf } from './changes.js';
 import { ICON } from './icons.js';
 
-const NOT_LAYER = /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|LINK|META)$/;
 const INDENT = 14;
 
 const h = (tag, cls, html) => {
@@ -33,14 +32,13 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   let dirty = true;
   let lastSel = null;
   let lastMulti = 0;
-  let lastMark = '';
+  let lastMark = null; // [selected, hovered, multi] last drawn
   let anchor = null; // where a Shift-click range starts
   let drag = null;
   let rowHover = null; // the element hovered through a row (rows get replaced on rebuild)
 
   // ---------- What's a layer ----------
   const hiddenByUs = (n) => n.style.getPropertyValue('display') === 'none';
-  const isHidden = (n) => { for (let x = n; x && x !== document.body; x = x.parentElement) if (hiddenByUs(x)) return true; return false; };
   const isLocked = (n) => { for (let x = n; x && x !== document.body; x = x.parentElement) if (state.locked.has(x)) return true; return false; };
 
   function kidsOf(n, underHidden) {
@@ -95,7 +93,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
       add(root, 0, false);
     }
     body.scrollTop = scroll;
-    lastMark = '';
+    lastMark = null;
     mark();
   }
 
@@ -110,7 +108,8 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     row.classList.toggle('dim', hidden);
     row.classList.toggle('locked', state.locked.has(n));
     const caret = h('span', 'caret' + (kids.length ? '' : ' none') + (open ? ' open' : ''), kids.length ? ICON.caret : '');
-    const icon = h('span', 'licon', iconOf(n));
+    const iconHtml = iconOf(n);
+    const icon = h('span', 'licon', iconHtml);
     const name = h('span', 'lname');
     name.textContent = nameOf(n);
     const lock = h('button', 'lbtn lock' + (state.locked.has(n) ? ' on' : ''), state.locked.has(n) ? ICON.lock : ICON.unlock);
@@ -120,7 +119,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     row.append(caret, icon, name, lock, eye);
     if (kids.length) row.setAttribute('aria-expanded', String(!!open));
     body.append(row);
-    const entry = { el: n, row, depth };
+    const entry = { el: n, row, depth, hidden: hiddenByUs(n), icon: iconHtml };
     rows.push(entry);
     rowOf.set(n, entry);
 
@@ -145,10 +144,10 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
 
   // Selection, hover and multi-selection marks, without rebuilding.
   function mark() {
-    const sel = state.selected;
-    const key = [sel, state.hovered, ...state.multi].map((x) => (x ? rows.findIndex((r) => r.el === x) : -1)).join(',');
-    if (key === lastMark) return;
-    lastMark = key;
+    // state.multi is replaced (never mutated) on every selection change.
+    const { selected, hovered, multi } = state;
+    if (lastMark && lastMark[0] === selected && lastMark[1] === hovered && lastMark[2] === multi) return;
+    lastMark = [selected, hovered, multi];
     for (const r of rows) {
       const picked = state.multi.includes(r.el);
       r.row.classList.toggle('sel', picked);
@@ -190,8 +189,15 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   }
 
   // Rebuild after anything changes the page.
+  // Inline style edits (resizing, scrubbing a field) fire every frame; rebuild
+  // only when they change what a row shows: hidden, or its layout icon.
   const observer = new MutationObserver((list) => {
-    if (list.some((m) => m.target !== body && !el.contains(m.target))) dirty = true;
+    if (dirty) return;
+    dirty = list.some((m) => {
+      if (m.attributeName !== 'style') return true;
+      const r = rowOf.get(m.target);
+      return !!r && rows.includes(r) && (hiddenByUs(m.target) !== r.hidden || iconOf(m.target) !== r.icon);
+    });
   });
   const watch = (on) => {
     if (on) observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style'] });
@@ -276,23 +282,20 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     if (n === root) where = 'into';
     if (where === 'after' && can && expanded.has(n) && kidsOf(n, false).length) {
       // Below an open frame's row is its first child's spot, as in Figma.
-      return place(n, 0, hitRow, 'first');
+      return { container: n, toIndex: 0, row: hitRow, where: 'first' };
     }
     if (where === 'into') {
       if (!can) return null;
       const others = [...n.children].filter((k) => k !== moving);
-      return place(n, others.length, hitRow, 'into');
+      return { container: n, toIndex: others.length, row: hitRow, where: 'into' };
     }
     const container = n.parentElement;
     if (!container || container === document.body || container === document.documentElement || !root.contains(container)) return null;
     const others = [...container.children].filter((k) => k !== moving);
     const i = others.indexOf(n);
-    return place(container, where === 'before' ? i : i + 1, hitRow, where);
+    return { container, toIndex: where === 'before' ? i : i + 1, row: hitRow, where };
   }
 
-  function place(container, toIndex, hitRow, where) {
-    return { container, toIndex, row: hitRow, where };
-  }
 
   function showDrop(drop) {
     for (const r of rows) r.row.classList.toggle('into', !!drop && drop.where === 'into' && r === drop.row);
@@ -335,9 +338,6 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     setOpen,
     get open() { return !el.hidden; },
     isLocked,
-    toggleHidden,
-    toggleLock,
-    refresh: () => { dirty = true; },
     rowFor: (n) => (rows.includes(rowOf.get(n)) ? rowOf.get(n).row : null), // for tests
   };
 }

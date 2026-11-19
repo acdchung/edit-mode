@@ -1,6 +1,6 @@
 # Edit Mode: notes for Claude
 
-Read this file first, then ROADMAP.md (what's next) and README.md (user-facing features and shortcuts).
+Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what's next) and README.md (user-facing features and shortcuts).
 
 ## Who and what
 
@@ -33,20 +33,7 @@ Read this file first, then ROADMAP.md (what's next) and README.md (user-facing f
   - one ⌘Z restores the DOM exactly (compare `#root` innerHTML, ignoring `style=""`)
   - no page errors
   - a screenshot, read back, for anything visual
-- The user's taste:
-  - minimal, "high-class tech" dark UI
-  - system sans font, mono only for the element name and meta in the panel header
-  - Lucide icons only (generated into `icons.js`)
-  - quick morph transitions
-  - Figma behavior is the reference for every interaction
-  - motion, following Emil Kowalski's rules (from the `/emil-design-eng` review, 2026-11-19):
-    - anything used constantly appears instantly: panels, toolbar, Layers, selection, hover, drag feedback, and anything opened from the keyboard
-    - only occasional UI animates: dialogs, toasts, menus opened by a click
-    - one easing for everything, `--ease` (strong ease-out), at 120–180ms
-    - popovers grow from their trigger (`transform-origin`)
-    - pressable controls scale to .97 on press (.95 for small icon buttons); menu items don't
-    - hover effects that move things are limited to mouse pointers (`hover: hover`)
-    - every animation is covered by `prefers-reduced-motion`
+- **Before building or changing UI, read DESIGN.md.** It holds the user's taste: surfaces, type, spacing, interaction and motion rules.
 
 ## Architecture
 
@@ -68,14 +55,14 @@ Read this file first, then ROADMAP.md (what's next) and README.md (user-facing f
   - reuse of CSS variables, no inline styles
   - **When the overlay starts emitting a new kind of change, update this file too.**
 - `src/overlay/`: browser UI inside a Shadow DOM host `<edit-mode-root>`.
-  - `main.js` (~1360 lines):
+  - `main.js` (~1600 lines):
     - state, glass pointer handling (select, drag-move, tools, Shift-click multi), keyboard, pill and dialogs, text editing
     - copy/paste/duplicate, group, auto layout, the rAF render loop (frames, hover, spacing hints, ⌥ measure)
     - selection levels: `pageRoot()` (skips single-child wrappers like `#root`), `hit(x, y, deep)` (layer at the selection's level; `deep` = ⌘), `deepHit`, `hitInside` (double-click drill)
     - key functions: `hit`, `select`, `dropAt`, `startDrag`/`finishDrag`, `finishDraw`, `rhythm`, `insertCopies`, `toggleMulti`, `autoLayoutSelection`, `startText`/`stopText`, `guardWhileEditing`, `render`, `drawFrames`, `drawMeasure`
   - `canvas.js`: zoom and pan. While edit mode is on, `<body>` gets `translate(tx, ty) scale(z)` with origin `0 0`. `<html>` gets `overflow: hidden` and the canvas gray, and the window never scrolls. Body margin becomes padding so the page background covers it. Every inline style it sets is saved and restored on `exit()`, which also scrolls the window back to the panned spot. `apply()` clamps so at least 80px of the page stays on screen. `fit()` and `toSelection()` use `area()`, the space between the panels and above the toolbar; it always reserves the properties panel.
   - **Zoom rule:** `getBoundingClientRect` gives screen pixels. Use it only to draw on screen or to compare against the pointer. For any size or distance that's shown to the user or written as CSS, use `box(el)` from `util.js` (CSS px), or divide by `view.z`. Going the other way, from CSS values to screen (as `spacingRects` does), multiply by `view.z`.
-  - `layers.js`: the Layers panel (left). It rebuilds rows from the DOM (MutationObserver + `changes` onChange, throttled to the render loop through `sync()`), so there's no parallel model. Row drag uses `changes.move`. The eye button uses `changes.set(el, 'one', 'display', 'none')`. Lock lives in `state.locked` (a WeakSet, overlay-only), and `deepHit` skips locked elements. `rowFor(el)` exists for tests. The open/closed state is in `localStorage['edit-mode:layers']`.
+  - `layers.js`: the Layers panel (left). It rebuilds rows from the DOM, so there's no parallel model. A MutationObserver marks it dirty, and the render loop's `sync()` rebuilds. Inline-style mutations only count when they change a row's hidden state or layout icon, so resizing doesn't rebuild every frame. Row drag uses `changes.move`. The eye button uses `changes.set(el, 'one', 'display', 'none')`. Lock lives in `state.locked` (a WeakSet, overlay-only), and `deepHit` skips locked elements. `rowFor(el)` exists for tests. Shared tag list: `NOT_LAYER` in `util.js`. The open/closed state is in `localStorage['edit-mode:layers']`.
   - `panel.js` (~1260 lines): properties panel, built from `section`/`row`/`numField`/`segField`/`splitToggle`/`listPop`.
     - `numField` supports `prefix`, `suffix`, `picks`, `modes`, `min`/`max`, `hint`, scrubbing and math.
     - Sizing helpers: `sizeMode`, `setSizing` (Fixed/Hug/Fill).
@@ -107,6 +94,11 @@ Read this file first, then ROADMAP.md (what's next) and README.md (user-facing f
 | Group | wrapper div |
 
 New elements copy the parent's spacing rhythm (`rhythm()`).
+
+## Keeping it lean
+
+- Delete what isn't used: icons, helpers, CSS rules, API members. Don't keep things "for later" (git has them).
+- Work that runs every frame (`render`, `layers.sync`) must not scan the DOM or rebuild lists unless something changed.
 
 ## Gotchas already hit
 

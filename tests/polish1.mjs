@@ -69,6 +69,25 @@ await esc(); await click('.card-title', 0, ['Meta']); await clickScopeAll(); awa
   check('other instances get the same frame as the selection: border, 8 handles, size', s.n === 2 && s.handles.every(h => h === 8) && s.border === s.mainBorder && /×/.test(s.label || ''), JSON.stringify(s)); }
 await clickScopeOne();
 
+// DESIGN.md › Spacing & layout: the panel stays dense
+await esc(); await click('.cta-primary', 0, ['Meta']); await p.waitForTimeout(80);
+{ const d = await st(() => { const r = document.querySelector('edit-mode-root').shadowRoot; const c = (q) => getComputedStyle(r.querySelector(q));
+    const icon = r.querySelector('.crow > .icon').getBoundingClientRect();
+    return { side: r.querySelector('.side').getBoundingClientRect().width, field: r.querySelector('.field').getBoundingClientRect().height,
+      row: c('.row').rowGap, crow: Math.min(...[...r.querySelectorAll('.crow')].filter(x => x.offsetParent).map(x => parseFloat(getComputedStyle(x).columnGap))),
+      tight: [...r.querySelectorAll('.crow')].filter(x => x.offsetParent && parseFloat(getComputedStyle(x).columnGap) < 4).map(x => x.className + ' in ' + x.closest('section')?.querySelector('h4')?.textContent), icon: [icon.width, icon.height] }; });
+  check('panel density (DESIGN.md): 252px panel, 28px fields, 8px rows, ≥4px in rows, 24×28 action slots',
+    d.side === 252 && d.field === 28 && d.row === '8px' && d.crow >= 4 && d.icon[0] === 24 && d.icon[1] === 28, JSON.stringify(d)); }
+
+// Efficiency: resizing (style edits every frame) doesn't rebuild the Layers tree
+await esc(); await click('.cta-primary', 0, ['Meta']); await p.waitForTimeout(80);
+{ await st(() => { window.__row0 = window.__editMode.layers.rowFor(document.querySelector('.cta-primary')); });
+  const h = await st(() => { const b = document.querySelector('edit-mode-root').shadowRoot.querySelector('.frame:not(.passive) .handle[data-dir="e"]').getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; });
+  await p.mouse.move(...h); await p.mouse.down(); await p.mouse.move(h[0] + 60, h[1], { steps: 12 }); await p.mouse.up(); await p.waitForTimeout(80);
+  const same1 = await st(() => window.__row0 === window.__editMode.layers.rowFor(document.querySelector('.cta-primary')));
+  check('resizing doesn’t rebuild Layers rows every frame', same1);
+  await p.keyboard.press('Meta+z'); await p.waitForTimeout(80); }
+
 // ---------- Shift-click at the same depth ----------
 await esc(); await click('.card-title', 0, ['Meta']);
 { const [x, y] = await ctr('.card-title', 2); await p.keyboard.down('Shift'); await p.mouse.move(x, y); await p.mouse.move(x + 1, y); await p.waitForTimeout(60);
@@ -76,6 +95,9 @@ await esc(); await click('.card-title', 0, ['Meta']);
   check('holding Shift previews the same-depth element (another title)', hv === 'card-title', hv); }
 await click('.card-title', 1, ['Shift']);
 check('Shift-click another card’s title adds that title', (await multi()).join() === 'card-title,card-title', (await multi()).join());
+{ const f = await st(() => { const r = document.querySelector('edit-mode-root').shadowRoot; const main = getComputedStyle(r.querySelector('.frame:not(.passive)'));
+    return [...r.querySelectorAll('.multis .frame')].map(x => ({ h: x.querySelectorAll('.handle').length, b: getComputedStyle(x).borderTopStyle + getComputedStyle(x).borderTopColor === main.borderTopStyle + main.borderTopColor, l: /×/.test(x.querySelector('.size').textContent) })); });
+  check('Shift-selected elements get the same frame as the selection (DESIGN.md)', f.length === 1 && f.every(x => x.h === 8 && x.b && x.l), JSON.stringify(f)); }
 { const r = await p.evaluate(() => { const t = document.querySelectorAll('.card-title')[1]; const row = window.__editMode.layers.rowFor(t); return row?.className; });
   check('Layers opens down to the added element too and marks it', !!r && r.includes('sel'), String(r)); }
 await click('.card-meta', 2, ['Shift']);

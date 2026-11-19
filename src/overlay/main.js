@@ -3,7 +3,7 @@
 // and its CSS can't touch the app.
 
 import { STYLES } from './styles.js';
-import { ATTR, box, describe, family, num, parseColor, sameSource, view } from './util.js';
+import { ATTR, NOT_LAYER, box, describe, family, num, parseColor, sameSource, view } from './util.js';
 import { createCanvas } from './canvas.js';
 import { createChanges, textNodeOf } from './changes.js';
 import { collectTokens } from './tokens.js';
@@ -101,8 +101,7 @@ function init() {
 
   const changes = createChanges(() => {
     renderPill();
-    if (state.selected) panel.refresh();
-    layers?.refresh();
+    if (state.selected) panel.refresh(); // Layers watches the page itself
   }, {
     // Undo/redo put the selection back to what it was at that point, like Figma.
     getSelection: () => [...state.multi],
@@ -141,7 +140,7 @@ function init() {
   const LAYERS_KEY = 'edit-mode:layers';
   const layersPref = () => { try { return localStorage.getItem(LAYERS_KEY) !== '0'; } catch { return true; } };
   const layersBtn = $('.layers-btn');
-  var layers = createLayers({
+  const layers = createLayers({
     state, changes, host,
     pageRoot: () => pageRoot(),
     select: (el) => select(el),
@@ -596,7 +595,6 @@ function init() {
   // The page's top level, like a Figma page's top-level frames: skip down
   // through wrappers with a single visible child (body > #root > main.page),
   // and the children of what's left are the top-level layers.
-  const NOT_LAYER = /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|LINK|META)$/;
   const layerKids = (n) => [...n.children].filter((k) => k !== host && !NOT_LAYER.test(k.tagName) &&
     (k.getClientRects().length || k.style.getPropertyValue('display') === 'none')); // hidden with the eye: still a layer
   function pageRoot() {
