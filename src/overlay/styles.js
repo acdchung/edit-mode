@@ -133,7 +133,7 @@ kbd .i { width: 11px; height: 11px; flex: none; }
           font: 500 10.5px/14px var(--sans); font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; }
 .mtarget { position: fixed; outline: 1px solid #f24822; pointer-events: none; }
 .side.left { right: auto; left: 12px; }
-.ui-hidden .side, .ui-hidden .tools, .ui-hidden .pop, .ui-hidden .layers { display: none !important; }
+.ui-hidden .side, .ui-hidden .tools, .ui-hidden .pop, .ui-hidden .layers, .ui-hidden .zmenu { display: none !important; }
 .layers-open .side.left { left: 264px; }
 
 /* ---------- Layers ---------- */
@@ -278,6 +278,17 @@ input::selection { background: rgba(13,153,255,.4); }
 .tools button:hover { background: var(--field); color: var(--text); }
 .tools button.on { background: var(--accent); color: #fff; }
 .tools button.layers-btn.on { background: var(--field-hover); color: var(--text); }
+.tools button.zoom-btn { width: auto; min-width: 44px; padding: 0 8px; font: 500 11.5px/30px var(--sans); font-variant-numeric: tabular-nums; }
+.tools button.zoom-btn.on { background: var(--field-hover); color: var(--text); }
+.zmenu { position: fixed; z-index: 2; min-width: 210px; padding: 4px; border-radius: 10px; pointer-events: auto; user-select: none; }
+.zmenu:not([hidden]) { animation: rise 120ms var(--ease); }
+.zmenu button { all: unset; display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; box-sizing: border-box;
+                height: 28px; padding: 0 8px; border-radius: 6px; font-size: 12px; color: var(--text); cursor: default; }
+.zmenu button:hover:not(:disabled) { background: var(--accent); }
+.zmenu button:hover:not(:disabled) kbd { color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.35); }
+.zmenu button:disabled { color: var(--dim); }
+.glass.grab { cursor: grab; }
+.glass.panning { cursor: grabbing; }
 .tools button:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 1px; }
 .glass[data-tool="rect"], .glass[data-tool="ellipse"] { cursor: crosshair; }
 .glass[data-tool="text"] { cursor: text; }

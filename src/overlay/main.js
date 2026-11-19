@@ -3,7 +3,8 @@
 // and its CSS can't touch the app.
 
 import { STYLES } from './styles.js';
-import { ATTR, describe, num, parseColor, sameSource } from './util.js';
+import { ATTR, box, describe, num, parseColor, sameSource, view } from './util.js';
+import { createCanvas } from './canvas.js';
 import { createChanges, textNodeOf } from './changes.js';
 import { collectTokens } from './tokens.js';
 import { createPanel } from './panel.js';
@@ -52,7 +53,9 @@ function init() {
           <button data-tool="text" title="Text (T)" aria-label="Text tool">${ICON.text}</button>
           <span class="tsep"></span>
           <button class="layers-btn" title="Layers (⌥1)" aria-label="Layers panel" aria-pressed="false">${ICON.layers}</button>
+          <button class="zoom-btn" title="Zoom" aria-label="Zoom" aria-haspopup="menu">100%</button>
         </div>
+        <div class="zmenu glassy" role="menu" hidden></div>
         <div class="pill glassy">
           <button class="toggle" aria-pressed="false" title="Edit mode (⌥E)">
             <span class="switch"><i></i></span><span>Edit</span><kbd>${GLYPH.option}E</kbd>
@@ -151,6 +154,60 @@ function init() {
     },
   });
   ui.append(layers.el);
+
+  // Canvas: zoom and pan the page (canvas.js). The free area is the space
+  // between the panels and above the toolbar.
+  const zoomBtn = $('.zoom-btn');
+  const zmenu = $('.zmenu');
+  ui.append(zmenu); // out of the dock: its transform would offset a fixed menu
+  const canvas = createCanvas({
+    onChange: () => { zoomBtn.textContent = `${Math.round(view.z * 100)}%`; },
+    area: () => ({
+      left: layers.open && !ui.classList.contains('ui-hidden') ? layers.el.getBoundingClientRect().right : 0,
+      // Always leave room for the properties panel: it appears as soon as something is selected.
+      right: ui.classList.contains('ui-hidden') ? innerWidth : innerWidth - 12 - 252,
+      top: 0,
+      bottom: innerHeight - 110, // the toolbar and pill
+    }),
+  });
+  const ZOOM_ITEMS = [
+    ['in', 'Zoom in', `${GLYPH.command}+`],
+    ['out', 'Zoom out', `${GLYPH.command}−`],
+    ['fit', 'Zoom to fit', `${GLYPH.shift}1`],
+    ['100', 'Zoom to 100%', `${GLYPH.shift}0`],
+    ['sel', 'Zoom to selection', `${GLYPH.shift}2`],
+  ];
+  function zoomAction(id) {
+    if (id === 'in') canvas.step(1);
+    else if (id === 'out') canvas.step(-1);
+    else if (id === 'fit') canvas.fit();
+    else if (id === '100') canvas.reset();
+    else if (id === 'sel') canvas.toSelection(state.selected);
+  }
+  zmenu.innerHTML = ZOOM_ITEMS.map(([id, label, keys]) => `<button role="menuitem" data-z="${id}"><span>${label}</span><kbd>${keys}</kbd></button>`).join('');
+  const closeZoomMenu = () => { zmenu.hidden = true; zoomBtn.classList.remove('on'); };
+  zoomBtn.addEventListener('click', () => {
+    if (!zmenu.hidden) return closeZoomMenu();
+    zmenu.querySelector('[data-z="sel"]').disabled = !state.selected;
+    zmenu.hidden = false;
+    zoomBtn.classList.add('on');
+    const b = zoomBtn.getBoundingClientRect();
+    zmenu.style.left = `${Math.min(innerWidth - zmenu.offsetWidth - 8, b.left)}px`;
+    zmenu.style.bottom = `${innerHeight - b.top + 8}px`;
+  });
+  zmenu.addEventListener('click', (e) => {
+    const b = e.composedPath().find((n) => n.dataset?.z);
+    if (!b || b.disabled) return;
+    closeZoomMenu();
+    zoomAction(b.dataset.z);
+  });
+  shadow.addEventListener('pointerdown', (e) => {
+    if (!zmenu.hidden && !e.composedPath().some((n) => n === zmenu || n === zoomBtn)) closeZoomMenu();
+  });
+  window.addEventListener('pointerdown', (e) => {
+    if (!zmenu.hidden && !e.composedPath().includes(host)) closeZoomMenu();
+  }, true);
+
   function toggleLayers() {
     const next = !layers.open;
     try { localStorage.setItem(LAYERS_KEY, next ? '1' : '0'); } catch {}
@@ -197,6 +254,7 @@ function init() {
     store.set(KEY.on, next ? '1' : null);
 
     if (next) {
+      canvas.enter();
       if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
       state.tokens = null;
       freeze(true);
@@ -204,6 +262,8 @@ function init() {
       loop();
     } else {
       changes.discardAll();
+      closeZoomMenu();
+      canvas.exit();
       select(null);
       state.hovered = null;
       clearInterval(pingTimer);
@@ -585,6 +645,45 @@ function init() {
   let drag = null;
   let draw = null; // a shape being placed with a tool
 
+  // Space-drag or middle-drag pans the canvas (Figma).
+  let pan = null;
+  let spaceDown = false;
+  glass.addEventListener('pointerdown', (e) => {
+    if (state.phase !== 'idle' || !(e.button === 1 || (e.button === 0 && spaceDown))) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    glass.setPointerCapture(e.pointerId);
+    pan = { x: e.clientX, y: e.clientY };
+    glass.classList.add('panning');
+  });
+  glass.addEventListener('pointermove', (e) => {
+    if (!pan) return;
+    e.stopImmediatePropagation();
+    canvas.panBy(e.clientX - pan.x, e.clientY - pan.y);
+    pan = { x: e.clientX, y: e.clientY };
+  });
+  const endPan = (e) => {
+    if (!pan) return;
+    e.stopImmediatePropagation();
+    pan = null;
+    glass.classList.remove('panning');
+  };
+  glass.addEventListener('pointerup', endPan);
+  glass.addEventListener('pointercancel', endPan);
+  const trackSpace = (e) => {
+    if (e.code !== 'Space' || state.editing) return;
+    const path = e.composedPath();
+    if (path.includes(host) && /^(INPUT|SELECT|TEXTAREA)$/.test(path[0].tagName)) return;
+    if (!state.on) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    spaceDown = e.type === 'keydown';
+    glass.classList.toggle('grab', spaceDown);
+  };
+  window.addEventListener('keydown', trackSpace, true);
+  window.addEventListener('keyup', trackSpace, true);
+  window.addEventListener('blur', () => { spaceDown = false; glass.classList.remove('grab'); });
+
   glass.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || state.phase !== 'idle') return;
     e.preventDefault();
@@ -766,12 +865,22 @@ function init() {
 
   // The glass covers the page, so pass scrolling through to whatever scrollable
   // element is underneath. (Over plain page areas the window scrolls by itself.)
+  // Wheel: ⌘-scroll or pinch zooms around the pointer (Figma). Otherwise a
+  // scrollable element under the pointer scrolls; if there isn't one, the
+  // canvas pans (Shift turns vertical scrolling sideways).
   glass.addEventListener('wheel', (e) => {
-    const scroller = scrollableAt(deepHit(e.clientX, e.clientY), e);
-    if (!scroller) return;
     e.preventDefault();
     const k = e.deltaMode === 1 ? 16 : 1;
-    scroller.scrollBy(e.deltaX * k, e.deltaY * k);
+    if (e.ctrlKey || e.metaKey) {
+      canvas.zoomAt(view.z * Math.exp(-e.deltaY * k * (e.ctrlKey && !e.metaKey ? 0.01 : 0.005)), e.clientX, e.clientY);
+      return;
+    }
+    let dx = e.deltaX * k;
+    let dy = e.deltaY * k;
+    if (e.shiftKey && !dx) [dx, dy] = [dy, 0];
+    const scroller = scrollableAt(deepHit(e.clientX, e.clientY), { deltaX: dx, deltaY: dy });
+    if (scroller) scroller.scrollBy(dx / view.z, dy / view.z);
+    else canvas.panBy(-dx, -dy);
   }, { passive: false });
 
   function scrollableAt(el, e) {
@@ -820,9 +929,9 @@ function init() {
     endDragUI();
     ghostBox.classList.remove('round');
     const box = drawBox(x, y, square);
-    let w = Math.round(box.width);
-    let h = Math.round(box.height);
-    if (w < 4 && h < 4) w = h = 100; // a click makes a 100 × 100 shape
+    let w = Math.round(box.width / view.z); // screen → CSS px
+    let h = Math.round(box.height / view.z);
+    if (box.width < 4 && box.height < 4) w = h = 100; // a click makes a 100 × 100 shape
 
     let el;
     let info;
@@ -852,7 +961,7 @@ function init() {
     const cs = getComputedStyle(container);
     if (/flex|grid/.test(cs.display)) return {};
     const kids = flowKids(container);
-    const rects = kids.map((k) => k.getBoundingClientRect());
+    const rects = kids.map((k) => box(k)); // CSS px, whatever the zoom
     const gaps = rects.slice(1).map((r, i) => r.top - rects[i].bottom).filter((g) => g > 0.5);
     if (!gaps.length) return {};
     const gap = Math.round(gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)]);
@@ -1084,8 +1193,8 @@ function init() {
           else w = h * ratio;
         }
         changes.batch(group, () => {
-          if (lock || /[ew]/.test(dir)) panel.setSize('width', Math.max(0, Math.round(w)));
-          if (lock || /[ns]/.test(dir)) panel.setSize('height', Math.max(0, Math.round(h)));
+          if (lock || /[ew]/.test(dir)) panel.setSize('width', Math.max(0, Math.round(w / view.z))); // screen → CSS px
+          if (lock || /[ns]/.test(dir)) panel.setSize('height', Math.max(0, Math.round(h / view.z)));
         });
       };
       const up = () => {
@@ -1147,7 +1256,8 @@ function init() {
 
     if (e.key === 'Escape') {
       stop();
-      if (state.tool !== 'select') setTool('select');
+      if (!zmenu.hidden) closeZoomMenu();
+      else if (state.tool !== 'select') setTool('select');
       else if (panel.menuOpen()) panel.closeMenu();
       else if (slot.querySelector('.dialog')) closeDialog(); // notices don't swallow Esc
       else if (state.selected) {
@@ -1187,6 +1297,15 @@ function init() {
       return;
     }
     if (e.altKey && !mod && e.code === 'Digit1') { stop(); toggleLayers(); return; } // ⌥1, as in Figma
+    // Zoom (Figma): ⌘+ / ⌘− / ⌘0, ⇧0 100%, ⇧1 fit, ⇧2 selection.
+    if (mod && !e.altKey && /^(Equal|NumpadAdd)$/.test(e.code)) { stop(); canvas.step(1); return; }
+    if (mod && !e.altKey && /^(Minus|NumpadSubtract)$/.test(e.code)) { stop(); canvas.step(-1); return; }
+    if (mod && !e.altKey && !e.shiftKey && e.code === 'Digit0') { stop(); canvas.reset(); return; }
+    if (e.shiftKey && !mod && !e.altKey && /^Digit[012]$/.test(e.code)) {
+      stop();
+      zoomAction({ Digit0: '100', Digit1: 'fit', Digit2: 'sel' }[e.code]);
+      return;
+    }
     if (mod && e.code === 'Backslash') { stop(); ui.classList.toggle('ui-hidden'); return; } // ⌘\ hides the panel and tools, like Figma
     if (mod && !e.shiftKey && !e.altKey) {
       const action = { KeyC: copySelection, KeyV: pasteClipboard, KeyD: duplicateSelection, KeyX: cutSelection }[e.code];
@@ -1271,7 +1390,7 @@ function init() {
       const r = x.getBoundingClientRect();
       const f = layer.children[i];
       place(f, r);
-      f.lastChild.textContent = `${fmtSize(r.width)} × ${fmtSize(r.height)}`;
+      f.lastChild.textContent = `${fmtSize(r.width / view.z)} × ${fmtSize(r.height / view.z)}`;
     });
   }
 
@@ -1288,7 +1407,7 @@ function init() {
     if (!frame.hidden) {
       const r = sel.getBoundingClientRect();
       place(frame, r);
-      sizeLabel.textContent = `${fmtSize(r.width)} × ${fmtSize(r.height)}`;
+      sizeLabel.textContent = `${fmtSize(r.width / view.z)} × ${fmtSize(r.height / view.z)}`;
     }
 
     // Keep the panel off the selection: if it covers it, move it to the other side.
@@ -1354,7 +1473,7 @@ function init() {
       line.className = 'mline';
       place(line, l);
       label.className = 'mlabel';
-      label.textContent = fmtSize(Math.round(l.d * 10) / 10);
+      label.textContent = fmtSize(Math.round((l.d / view.z) * 10) / 10);
       label.style.left = l.left + l.width / 2 + 'px';
       label.style.top = l.top + l.height / 2 + 'px';
     });
@@ -1370,7 +1489,7 @@ function init() {
   function spacingRects(el, kind) {
     const r = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
-    const v = (p) => num(cs[p]);
+    const v = (p) => num(cs[p]) * view.z; // CSS px → screen
     const rect = (left, top, width, height) => ({ left, top, width, height });
     let out = [];
 

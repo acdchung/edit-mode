@@ -40,6 +40,11 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 | Hold ⌥ | Measure distances to the hovered element (or to the parent) |
 | ⌥-drag | Duplicate and move the copy |
 | ⌥1, or the Layers button in the toolbar | Show / hide the Layers panel |
+| ⌘+ / ⌘− / ⌘0 | Zoom in / out / to 100% (or use the % menu in the toolbar) |
+| ⇧1 / ⇧2 / ⇧0 | Zoom to fit the page between the panels / to the selection / to 100% |
+| Scroll, Shift-scroll | Pan the page (inside a scrollable box, scrolls that box) |
+| ⌘-scroll or pinch | Zoom around the pointer |
+| Space-drag, or middle-drag | Pan |
 | ⌘\ | Hide / show the Edit Mode UI |
 | ⌘C / ⌘V / ⌘X | Copy, paste (after the selection, or into an empty box you added), cut |
 | ⌘D | Duplicate |
@@ -51,6 +56,8 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 **Panel:** Layout (size, gap, padding, margin), Appearance (opacity, roundness), Text, Fill, Stroke (inside = border, outside = outline), Effects (shadow). Fill shows solid colors and gradients (angle and stops) or images. Empty fill/stroke/effects show as **+**. Colors, sizes and CSS variables already on the page are offered as quick picks.
 
 **Layers panel (left):** the page's element tree, top to bottom in page order. Click a row to select, ⌘-click to add or remove, Shift-click for a range. Hovering a row highlights the element on the page, and the tree opens to whatever you select on the canvas. Drag rows to reorder or to move into another frame (drop on the middle of a frame's row). The arrow opens or closes a row (⌥-click opens everything inside). On hover, each row shows **eye** (hide: a change that Push applies as CSS) and **lock** (can't be clicked on the page; only for this session, not pushed). Open or closed is remembered.
+
+**Canvas:** while editing, the page sits on a gray canvas like a Figma frame, and you can zoom and pan it so nothing is stuck under a panel. Sizes, fields and measurements always show real CSS pixels, whatever the zoom. Turning edit mode off puts the page back as it was. One limit: while editing, sticky and fixed headers scroll with the page.
 
 **Width / height:** Fixed, Hug contents or Fill container (menu in the W and H fields), like Figma's resizing.
 
@@ -77,6 +84,7 @@ While edit mode is on (and while Claude works), hot reload is paused so file sav
   - `main.js`: pill, dialogs, selection, keyboard, text editing
   - `panel.js`: Selection card and properties panel
   - `layers.js`: Layers panel
+  - `canvas.js`: zoom and pan
   - `changes.js`: every edit, with undo/redo
   - `tokens.js`: colors, sizes and variables used on the page
 - `tests/`: Playwright QA scripts (run against a copy of sample-app on port 5390)

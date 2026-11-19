@@ -6,7 +6,7 @@
 // `changes.set(...)`, which previews the edit as an inline style.
 
 import {
-  ATTR, colorFromText, describe, fmt, isNumber, num, parseColor, parseSrc, sameSource, svg,
+  ATTR, box, colorFromText, describe, fmt, isNumber, num, parseColor, parseSrc, sameSource, svg,
 } from './util.js';
 import { textNodeOf } from './changes.js';
 import { ICON, KEY } from './icons.js';
@@ -537,18 +537,18 @@ export function createPanel(ctx) {
     if (/px$/.test(own)) return 'fixed';
     if (own === 'fit-content') return 'hug';
     if ((own === 'auto' || own === '100%') && (flex || axis === 'width')) return 'fill';
-    const now = el.getBoundingClientRect()[axis];
+    const now = box(el)[axis];
     // What would "hug" measure? Try it for a moment, then put the style back.
     const saved = [el.style.getPropertyValue(axis), el.style.getPropertyPriority(axis)];
     el.style.setProperty(axis, 'fit-content', 'important');
-    const hug = el.getBoundingClientRect()[axis];
+    const hug = box(el)[axis];
     if (saved[0]) el.style.setProperty(axis, saved[0], saved[1]);
     else el.style.removeProperty(axis);
     if (el.getAttribute('style') === '') el.removeAttribute('style');
     if (Math.abs(hug - now) < 0.5) return 'hug';
     if (p && !main) {
       const [a, b] = axis === 'width' ? ['Left', 'Right'] : ['Top', 'Bottom'];
-      const avail = p.getBoundingClientRect()[axis] - num(pcs['padding' + a]) - num(pcs['padding' + b]) -
+      const avail = box(p)[axis] - num(pcs['padding' + a]) - num(pcs['padding' + b]) -
         num(pcs[`border${a}Width`]) - num(pcs[`border${b}Width`]) - num(cs['margin' + a]) - num(cs['margin' + b]);
       if (Math.abs(now - avail) < 0.5 && (flex || axis === 'width')) return 'fill';
     }
@@ -577,7 +577,7 @@ export function createPanel(ctx) {
     if (cs.display === 'inline') apply('display', 'inline-block'); // inline ignores width/height
     const { flex, main } = flow(el, axis);
     if (mode === 'fixed') {
-      const px = el.getBoundingClientRect()[axis];
+      const px = box(el)[axis];
       stopGrowing(el, axis);
       apply(axis, cssSize(el, axis, px));
     } else if (mode === 'hug') {
@@ -767,7 +767,7 @@ export function createPanel(ctx) {
     row('two',
       ...['width', 'height'].map((axis) => numField({
         prefix: axis === 'width' ? 'W' : 'H', title: axis === 'width' ? 'Width' : 'Height',
-        read: (el) => fmt(el.getBoundingClientRect()[axis]),
+        read: (el) => fmt(box(el)[axis]),
         write: (t) => setSize(axis, t),
         modes: { options: (el) => sizeOptions(el, axis), read: (el) => sizeMode(el, axis), write: (m) => setSizing(axis, m) },
       }))),
@@ -785,7 +785,7 @@ export function createPanel(ctx) {
       // start. Their margins move off the children (so spacing isn't counted
       // twice) and the frame takes over the outer ones, so nothing jumps.
       const kids = [...el.children].filter((k) => k.getClientRects().length);
-      const rects = kids.map((k) => k.getBoundingClientRect());
+      const rects = kids.map((k) => box(k));
       const row = rects.length > 1 && rects[1].left >= rects[0].right - 1;
       const gaps = rects.slice(1).map((r, i) => (row ? r.left - rects[i].right : r.top - rects[i].bottom)).filter((g) => g >= 0);
       const gap = gaps.length ? Math.round(gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)]) : 0;
@@ -810,7 +810,7 @@ export function createPanel(ctx) {
       return;
     }
     const kids = [...el.children].filter((k) => k.getClientRects().length);
-    const rects = kids.map((k) => k.getBoundingClientRect());
+    const rects = kids.map((k) => box(k));
     const row = rects.length > 1 && rects[1].left >= rects[0].right - 1;
     const gaps = rects.slice(1).map((r, i) => (row ? r.left - rects[i].right : r.top - rects[i].bottom)).filter((g) => g >= 0);
     const gap = gaps.length ? Math.round(gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)]) : 0;

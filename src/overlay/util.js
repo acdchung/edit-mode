@@ -1,5 +1,16 @@
 export const ATTR = 'data-src';
 
+// Canvas zoom (see canvas.js). Screen pixels ÷ z = CSS pixels.
+export const view = { z: 1 };
+
+// An element's box in CSS pixels, unaffected by the canvas zoom. Use it for
+// sizes and distances; use getBoundingClientRect for drawing on screen.
+export function box(el) {
+  const r = el.getBoundingClientRect();
+  const z = view.z;
+  return { left: r.left / z, top: r.top / z, right: r.right / z, bottom: r.bottom / z, width: r.width / z, height: r.height / z };
+}
+
 export const fmt = (n) => String(Math.round(n * 10) / 10);
 export const num = (v) => {
   const n = parseFloat(v);

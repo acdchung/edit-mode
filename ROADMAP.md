@@ -61,12 +61,20 @@ Figma is the reference for every behavior. Where a live web page can't work like
 | ⇧⌘G | Ungroup: unwrap the frame, keeping its children where they were |
 | ⌥⇧A | Remove auto layout |
 
+## Later (agreed with the user, 2026-11-18)
+
+### Breakpoint frames: a full canvas (option C)
+- Edit Mode becomes its own canvas page, and the app runs inside one or more iframes shown as frames, e.g. Desktop 1440, Tablet 768 and Mobile 375 side by side. Each frame is a real copy of the page with its own responsive layout.
+- Reuse the zoom and pan from `canvas.js`. The overlay moves to the parent page and reaches into the frames (same origin), so selection, panels and Push need to know which frame an element is in.
+- Big change: plan it as its own phase, after items 3–9.
+
 ## Later / maybe
 - ⌥-resize from the center.
 - Snapping and smart guides while dragging or resizing absolute elements.
-- Zoom and pan. Probably not worth it on a live page.
 
 ## Done (highlights)
+- 2026-11-18, zoom and pan (option B, added before item 3): `canvas.js`. ⌘+/⌘−/⌘0, ⇧0/⇧1/⇧2, ⌘-scroll and pinch zoom around the pointer; scroll, Space-drag and middle-drag pan; a % menu in the toolbar. Every size, label, field, resize, drawing and measurement stays in CSS px (`box()`, `view.z`). Known limit: fixed and sticky app elements scroll with the page while editing.
+- 2026-11-18, Layers fixes: the top row can collapse; hiding the top layer no longer surfaces `#root` as a new parent.
 - 2026-11-18, item 2: Layers panel (`layers.js`). Left side, open by default, toggled with ⌥1 or a toolbar button and remembered. Rows: select / ⌘ toggle / Shift range, two-way hover, auto-reveal of the selection, carets (⌥ for all), and drag to reorder, nest into a frame or drop as the first child of an open frame, through `changes.move`. Eye = hide (a pushed change), lock = can't pick on the canvas (overlay-only). Rows are in DOM order, not Figma's reversed z-order, because that's how a page reads. When the properties panel jumps left, it now sits beside Layers.
 - 2026-11-18, item 1: Figma-style selection. Click picks the layer at the current level (top-level sections when nothing is selected, else siblings of the selection, walking up when you click outside); double-click drills one level and edits selected text; ⌘-click and ⌘-hover go deepest; Esc stops at the page's top frame and then deselects. Clicking the empty page deselects rather than selecting the page frame (unlike a Figma artboard), because the page fills the whole viewport.
 - Overlay, data-src tagging, properties panel, Push via the Claude CLI with snapshot + Undo.
