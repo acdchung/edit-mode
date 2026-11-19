@@ -259,6 +259,7 @@ function init() {
 
     if (next) {
       canvas.enter();
+      calmPage(true);
       if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
       state.tokens = null;
       freeze(true);
@@ -268,6 +269,7 @@ function init() {
       changes.discardAll();
       closeZoomMenu();
       canvas.exit();
+      calmPage(false);
       select(null);
       state.hovered = null;
       clearInterval(pingTimer);
@@ -276,6 +278,22 @@ function init() {
       render();
     }
     renderPill();
+  }
+
+  // The page's own looping animations (a drifting gradient, a pulse) run at a
+  // quarter speed while editing, so the canvas stays calm; put back on exit.
+  let slowed = [];
+  function calmPage(on) {
+    for (const [a, rate] of slowed) a.playbackRate = rate;
+    slowed = [];
+    if (!on) return;
+    for (const a of document.getAnimations()) {
+      const t = a.effect?.target;
+      if (!t || t.getRootNode() !== document) continue; // Edit Mode's own UI lives in a shadow root
+      if (a.effect.getTiming().iterations !== Infinity) continue; // loops only, not hovers or transitions
+      slowed.push([a, a.playbackRate]);
+      a.playbackRate /= 4;
+    }
   }
 
   // Tell the dev server to hold hot-reload updates while editing.

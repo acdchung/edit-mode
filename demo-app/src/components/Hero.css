@@ -1,0 +1,120 @@
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: var(--space-9) 0 var(--space-8);
+  margin-top: calc(var(--nav-height) * -1); /* runs under the glass nav */
+  padding-top: calc(var(--nav-height) + var(--space-9));
+}
+
+/* The moving gradient: a skewed band behind the top right, fading out
+   toward the copy so the headline stays on white. */
+.hero-gradient {
+  position: absolute;
+  top: -30%;
+  left: 30%;
+  width: 90%;
+  height: 95%;
+  transform: skewY(-10deg);
+  background:
+    radial-gradient(40% 55% at 20% 40%, var(--gradient-1), transparent 70%),
+    radial-gradient(45% 50% at 60% 30%, var(--gradient-2), transparent 70%),
+    radial-gradient(40% 60% at 80% 70%, var(--gradient-3), transparent 70%),
+    radial-gradient(35% 45% at 45% 80%, var(--gradient-4), transparent 70%);
+  background-size: 160% 160%;
+  opacity: 0.85;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 35%);
+  mask-image: linear-gradient(to right, transparent, #000 35%);
+  animation: hero-drift 24s ease-in-out infinite alternate;
+}
+
+@keyframes hero-drift {
+  from { background-position: 0% 30%; }
+  to   { background-position: 100% 70%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-gradient { animation: none; }
+}
+
+.hero-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: var(--space-7);
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 12px 4px 4px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.hero-pill-tag {
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hero-title {
+  margin-top: var(--space-5);
+  font-size: var(--text-display);
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  color: var(--color-ink);
+}
+
+.hero-lede {
+  max-width: 30em;
+  margin-top: var(--space-5);
+  font-size: var(--text-lg);
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.hero-trust {
+  margin-top: var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.hero-visual {
+  position: relative;
+  height: 500px;
+}
+
+/* Stacked: the shot gets the full width, the gradient runs edge to edge */
+@media (max-width: 1199px) {
+  .hero { padding-bottom: var(--space-7); }
+  .hero-inner { grid-template-columns: 1fr; gap: var(--space-7); }
+  .hero-gradient { left: -15%; width: 130%; height: 75%; -webkit-mask-image: none; mask-image: none; opacity: 0.55; }
+  .hero-visual { height: 480px; }
+}
+
+@media (max-width: 600px) {
+  .hero-visual { height: 620px; }
+}

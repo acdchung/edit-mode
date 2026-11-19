@@ -1,0 +1,36 @@
+.logos {
+  padding: var(--space-7) 0 var(--space-8);
+}
+
+.logos-label {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.logos-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  align-items: center;
+  gap: var(--space-5);
+  margin-top: var(--space-6);
+}
+
+.logo {
+  justify-self: center;
+  color: var(--color-faint);
+  font-size: 22px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.logo--serif  { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; letter-spacing: -0.01em; }
+.logo--wide   { font-size: 17px; font-weight: 700; letter-spacing: 0.24em; }
+.logo--round  { font-family: ui-rounded, 'SF Pro Rounded', system-ui, sans-serif; font-weight: 800; letter-spacing: -0.03em; }
+.logo--italic { font-family: Georgia, serif; font-style: italic; font-size: 24px; }
+.logo--mono   { font-family: var(--font-mono); font-size: 16px; font-weight: 700; letter-spacing: 0.04em; }
+.logo--heavy  { font-weight: 800; letter-spacing: -0.05em; }
+
+@media (max-width: 760px) {
+  .logos-grid { grid-template-columns: repeat(3, 1fr); row-gap: var(--space-6); }
+}

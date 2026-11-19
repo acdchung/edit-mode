@@ -1,0 +1,30 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px 0 20px;
+  border-radius: var(--radius-pill);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.button--primary {
+  background: var(--color-accent);
+  color: #fff;
+}
+.button--primary:hover { background: var(--color-accent-hover); }
+
+.button--secondary {
+  padding-left: 12px;
+  color: var(--color-ink);
+}
+.button--secondary:hover { color: var(--color-accent); }
+
+.button-arrow {
+  flex: none;
+  transition: transform 150ms ease;
+}
+.button:hover .button-arrow { transform: translateX(2px); }
