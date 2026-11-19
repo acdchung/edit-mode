@@ -62,11 +62,11 @@ await clickScopeOne();
 for (let i = 0; i < 4; i++) { await p.keyboard.press('Meta+z'); await p.waitForTimeout(80); }
 check('undo removes them all', await same());
 
-// "All like this" outlines are solid, like the selection
+// "All like this" instances are framed exactly like the selection (handles + size label)
 await esc(); await click('.card-title', 0, ['Meta']); await clickScopeAll(); await p.waitForTimeout(80);
-{ const s = await st(() => { const b = document.querySelector('edit-mode-root').shadowRoot.querySelector('.box.sib'); const cs = b && getComputedStyle(b); return cs && [cs.borderTopStyle, cs.borderTopColor, cs.opacity]; });
-  const f = await st(() => getComputedStyle(document.querySelector('edit-mode-root').shadowRoot.querySelector('.frame')).borderTopColor);
-  check('other instances get a solid outline in the selection color', s && s[0] === 'solid' && s[1] === f && s[2] === '1', JSON.stringify(s)); }
+{ const s = await st(() => { const r = document.querySelector('edit-mode-root').shadowRoot; const fs = [...r.querySelectorAll('.sibs .frame')]; const main = r.querySelector('.frame:not(.passive)');
+    return { n: fs.length, handles: fs.map(f => f.querySelectorAll('.handle').length), border: fs[0] && getComputedStyle(fs[0]).borderTopStyle + ' ' + getComputedStyle(fs[0]).borderTopColor, mainBorder: getComputedStyle(main).borderTopStyle + ' ' + getComputedStyle(main).borderTopColor, label: fs[0]?.querySelector('.size')?.textContent }; });
+  check('other instances get the same frame as the selection: border, 8 handles, size', s.n === 2 && s.handles.every(h => h === 8) && s.border === s.mainBorder && /×/.test(s.label || ''), JSON.stringify(s)); }
 await clickScopeOne();
 
 // ---------- Shift-click at the same depth ----------

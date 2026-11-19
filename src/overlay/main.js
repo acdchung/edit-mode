@@ -1453,7 +1453,7 @@ function init() {
     }
 
     const sibs = sel && state.scope === 'all' ? family(sel).filter((x) => x !== sel && visible(x)) : [];
-    drawBoxes(sibLayer, sibs.map((x) => x.getBoundingClientRect()), 'sib');
+    drawFrames(sibLayer, sibs); // "All like this": each instance framed like a selected element (handles + size)
     const others = state.multi.filter((x) => x !== sel && x.isConnected && visible(x));
     drawFrames(multiLayer, others);
 
