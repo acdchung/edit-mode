@@ -179,15 +179,15 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .scope { margin-top: 10px; }
 
 .pb { overflow-y: auto; min-height: 0; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.15) transparent; }
-section { padding: 10px 12px 4px; border-top: 1px solid var(--hair); }
+section { padding: 12px 12px 4px; border-top: 1px solid var(--hair); }
 section:first-child { border-top: 0; }
 section.empty { padding-bottom: 8px; }
-.sh { display: flex; align-items: center; justify-content: space-between; height: 22px; margin-bottom: 6px; }
+.sh { display: flex; align-items: center; justify-content: space-between; height: 24px; margin-bottom: 8px; }
 section.empty .sh { margin-bottom: 0; }
 h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--text); }
-.sub { display: flex; align-items: center; justify-content: space-between; height: 22px; margin: 2px 0 4px; }
+.sub { display: flex; align-items: center; justify-content: space-between; height: 22px; margin: 0 0 6px; }
 .cap { color: var(--muted); font-size: 11.5px; }
-.row { display: grid; gap: 6px; margin-bottom: 6px; }
+.row { display: grid; gap: 8px; margin-bottom: 8px; } /* 8px rhythm (the "Tight" density, picked 2026-11-19) */
 .row.two { grid-template-columns: 1fr 1fr; }
 .row.four { grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .f { min-width: 0; }
@@ -228,16 +228,17 @@ input::selection { background: rgba(13,153,255,.4); }
 .seg button.on { background: rgba(255,255,255,.1); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.3), inset 0 0 0 1px rgba(255,255,255,.05); }
 .row .seg button { padding: 0; }
 
-.crow { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
+.crow { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
+.crow > .icon { width: 24px; height: 28px; } /* row actions (eye, ×): fixed slots, as tall as the field */
 .crow > .field, .crow > .f { flex: 1; }
 .crow.off .field, .off .crow .field, .off .row { opacity: .4; }
-.color { padding-left: 7px; }
+.color { padding-left: 8px; }
 .swatch { all: unset; flex: none; width: 14px; height: 14px; border-radius: 4px; cursor: pointer; overflow: hidden;
           background: repeating-conic-gradient(#bbb 0 25%, #fff 0 50%) 0 0 / 6px 6px; }
 .swatch i { display: block; width: 100%; height: 100%; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
 .color .hex { padding-left: 8px; text-transform: uppercase; }
-.divider { width: 1px; align-self: stretch; background: var(--hair); margin: 7px 0; }
-.color .alpha { flex: none; width: 36px; padding-left: 7px; }
+.divider { width: 1px; align-self: stretch; background: var(--hair); margin: 8px 0; }
+.color .alpha { flex: none; width: 34px; padding-left: 8px; }
 .color .sfx { padding: 0 7px 0 1px; }
 
 .spacing .icon { width: 22px; height: 22px; }
