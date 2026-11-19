@@ -88,6 +88,34 @@ await esc(); await click('.cta-primary', 0, ['Meta']); await p.waitForTimeout(80
   check('resizing doesn’t rebuild Layers rows every frame', same1);
   await p.keyboard.press('Meta+z'); await p.waitForTimeout(80); }
 
+// Gap is a plain input (no preset list); typing "auto" still works
+await esc(); await click('.card-grid', 0, ['Meta']); await p.waitForTimeout(80);
+{ const pick = await st(() => { const r = document.querySelector('edit-mode-root').shadowRoot; const f = r.querySelector('input[aria-label="Gap between children"]')?.closest('.field'); return f ? f.querySelectorAll('.pick').length : 'no gap field'; });
+  check('Gap has no preset list', pick === 0, String(pick)); }
+
+// Constrain proportions
+await esc(); await click('.card-thumb', 1, ['Meta']); await p.waitForTimeout(80);
+{ const ratioBtn = async () => { const b = await p.locator('edit-mode-root button[title="Constrain proportions"]').boundingBox(); await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await p.waitForTimeout(60); };
+  const size = () => st(() => { const n = document.querySelectorAll('.card-thumb')[1]; return [n.offsetWidth, n.offsetHeight]; }); // CSS px (the canvas is zoomed)
+  const [w0, h0] = await size(); const before = await st(() => window.__editMode.changes.count);
+  await ratioBtn();
+  check('constrain proportions turns on (and isn’t a pushed change)', await st(() => document.querySelector('edit-mode-root').shadowRoot.querySelector('button[title="Constrain proportions"]').getAttribute('aria-pressed')) === 'true' && (await st(() => window.__editMode.changes.count)) === before);
+  const W = p.locator('edit-mode-root input[aria-label="Width"]'); await W.fill(String(Math.round(w0 / 2))); await W.press('Enter'); await p.waitForTimeout(80);
+  const [w1, h1] = await size();
+  check('typing W also sets H, keeping the ratio', Math.abs(w1 / h1 - w0 / h0) < 0.02 && Math.abs(w1 - Math.round(w0 / 2)) < 1, `${w0}×${h0} → ${w1}×${h1}`);
+  await p.keyboard.press('Escape'); await p.keyboard.press('Meta+z'); await p.waitForTimeout(80);
+  const [w2, h2] = await size();
+  check('one ⌘Z undoes both W and H', Math.abs(w2 - w0) < 0.5 && Math.abs(h2 - h0) < 0.5, `${w2}×${h2}`);
+  const hd = await st(() => { const b = document.querySelector('edit-mode-root').shadowRoot.querySelector('.frame:not(.passive) .handle[data-dir="e"]').getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; });
+  await p.mouse.move(...hd); await p.mouse.down(); await p.mouse.move(hd[0] - 40, hd[1], { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(80);
+  const [w3, h3] = await size();
+  check('dragging a side handle keeps the ratio too', Math.abs(w3 / h3 - w0 / h0) < 0.03 && w3 < w0, `${w3}×${h3}`);
+  await p.keyboard.press('Meta+z'); await ratioBtn();
+  const H = p.locator('edit-mode-root input[aria-label="Height"]'); await H.fill('50'); await H.press('Enter'); await p.waitForTimeout(80);
+  const [w4] = await size();
+  check('turned off: H changes alone', Math.abs(w4 - w0) < 0.5, String(w4));
+  await p.keyboard.press('Escape'); await p.keyboard.press('Meta+z'); await p.waitForTimeout(80); }
+
 // ---------- Shift-click at the same depth ----------
 await esc(); await click('.card-title', 0, ['Meta']);
 { const [x, y] = await ctr('.card-title', 2); await p.keyboard.down('Shift'); await p.mouse.move(x, y); await p.mouse.move(x + 1, y); await p.waitForTimeout(60);

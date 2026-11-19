@@ -110,6 +110,8 @@ const PATHS = {
   stackRow: '<rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 3v18" /><path d="M15 3v18" />', // columns-3
   vector: '<path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z" /><rect x="3" y="14" width="7" height="7" rx="1" /><circle cx="17.5" cy="17.5" r="3.5" />', // shapes
   caret: '<path d="m9 18 6-6-6-6" />', // chevron-right
+  ratioOn: '<path d="M9 17H7A5 5 0 0 1 7 7h2" /><path d="M15 7h2a5 5 0 1 1 0 10h-2" /><line x1="8" x2="16" y1="12" y2="12" />', // link-2
+  ratioOff: '<path d="M15 7h2a5 5 0 0 1 0 10h-2m-6 0H7A5 5 0 0 1 7 7h2" />', // unlink-2
 };
 
 // <svg> markup for a Lucide icon, sized for the UI (Lucide's 24px grid scaled down).

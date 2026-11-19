@@ -95,6 +95,7 @@ function init() {
     phase: 'idle', // idle | running (Claude is applying) | undoing
     server: null, // last /status response
     locked: new WeakSet(), // locked in the Layers panel: not pickable on the canvas (overlay-only)
+    ratio: new WeakMap(), // constrain proportions: element → width / height (overlay-only)
   };
   let raf = 0;
   let pingTimer = 0;
@@ -1205,7 +1206,7 @@ function init() {
         const dy = ev.clientY - y0;
         let w = r0.width + (dir.includes('e') ? dx : dir.includes('w') ? -dx : 0);
         let h = r0.height + (dir.includes('s') ? dy : dir.includes('n') ? -dy : 0);
-        const lock = ev.shiftKey && r0.width && r0.height; // Shift keeps the proportions
+        const lock = (ev.shiftKey || state.ratio.has(el)) && r0.width && r0.height; // Shift or constrain proportions
         if (lock) {
           const ratio = r0.width / r0.height;
           const corner = /[ew]/.test(dir) && /[ns]/.test(dir);

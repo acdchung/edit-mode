@@ -1,5 +1,5 @@
 // Collects values already used on the page (colors, CSS variables, font sizes,
-// spacing, radii, fonts) to offer as quick picks in the panel.
+// radii, fonts) to offer as quick picks in the panel.
 
 import { num, resolveColor } from './util.js';
 
@@ -8,7 +8,6 @@ const MAX_ELEMENTS = 4000;
 export function collectTokens() {
   const colors = new Map();
   const fontSizes = new Map();
-  const spacing = new Map();
   const radii = new Map();
   const fonts = new Map();
   const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
@@ -31,10 +30,6 @@ export function collectTokens() {
     }
     if (!isClear(cs.backgroundColor)) bump(colors, cs.backgroundColor);
     if (num(cs.borderTopWidth) > 0 && cs.borderTopStyle !== 'none') bump(colors, cs.borderTopColor);
-    for (const p of ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-                     'marginTop', 'marginRight', 'marginBottom', 'marginLeft', 'rowGap', 'columnGap']) {
-      bumpPx(spacing, cs[p]);
-    }
     bumpPx(radii, cs.borderTopLeftRadius);
   }
 
@@ -56,7 +51,6 @@ export function collectTokens() {
     colorVars: vars,
     colors: byUse(colors).filter((c) => !seen.has(c) && !isClear(c)).slice(0, 16),
     fontSizes: byValue(fontSizes),
-    spacing: byValue(spacing),
     radii: byValue(radii),
     fonts: byUse(fonts).slice(0, 8),
   };

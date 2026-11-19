@@ -189,6 +189,7 @@ h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--text); }
 .row { display: grid; gap: 8px; margin-bottom: 8px; } /* 8px rhythm (the "Tight" density, picked 2026-11-19) */
 .row.two { grid-template-columns: 1fr 1fr; }
 .row.four { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.sh-acts { display: flex; align-items: center; gap: 4px; }
 .f { min-width: 0; }
 .f > .cap { display: block; margin-bottom: 4px; }
 
@@ -201,11 +202,13 @@ h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--text); }
 .pre.scrub, .cap.scrub { cursor: ew-resize; }
 .pre.scrub:hover { color: var(--text); }
 .row.four .pre { width: 18px; }
+.pre.txt { width: 20px; }
+.mode-tag + .pick { margin-right: 0; }
 input { border: 0; outline: none; background: transparent; font: inherit; font-size: 12px; font-variant-numeric: tabular-nums;
         color: inherit; padding: 0 0 0 8px; margin: 0; min-width: 0; width: 100%; height: 100%; }
 input::selection { background: rgba(13,153,255,.4); }
 .pre + input { padding-left: 0; }
-.mode-tag { color: var(--muted); font-size: 11px; padding-right: 2px; white-space: nowrap; }
+.mode-tag { color: var(--muted); font-size: 11px; padding: 0 2px 0 3px; white-space: nowrap; }
 .mode-tag:empty { display: none; }
 .sfx { color: var(--dim); padding-right: 8px; font-size: 11px; }
 .dd { all: unset; box-sizing: border-box; display: flex; align-items: center; width: 100%; height: 28px; padding: 0 4px 0 8px;

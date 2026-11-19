@@ -59,9 +59,9 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 
 **Canvas:** while editing, the page sits on a gray canvas like a Figma frame, and you can zoom and pan it so nothing is stuck under a panel. Sizes, fields and measurements always show real CSS pixels, whatever the zoom. Turning edit mode off puts the page back as it was. One limit: while editing, sticky and fixed headers scroll with the page.
 
-**Width / height:** Fixed, Hug contents or Fill container (menu in the W and H fields), like Figma's resizing.
+**Width / height:** Fixed, Hug contents or Fill container (menu in the W and H fields), like Figma's resizing. The **link** button in the Layout title row constrains proportions: setting W also sets H (and the reverse), and resize handles keep the ratio. It's per element and only for this session, not pushed.
 
-**Gap:** a number, or **Auto** to push children to the ends of the frame (Figma's auto spacing).
+**Gap:** a plain number field. Type `auto` to push children to the ends of the frame (Figma's auto spacing).
 
 **This one / All like this:** for repeated elements. Defaults to This one. "All like this" covers a *family*:
 - every element rendered from the same line of code (a card rendered 3 times = 3)

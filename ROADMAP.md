@@ -73,6 +73,7 @@ Figma is the reference for every behavior. Where a live web page can't work like
 - Snapping and smart guides while dragging or resizing absolute elements.
 
 ## Done (highlights)
+- 2026-11-19: the Gap field is a plain input (no preset list; type `auto` for auto spacing). Constrain proportions is a link button in the Layout title row (`state.ratio`, overlay-only); with it on, W/H edits and resize handles keep the ratio. Letter prefixes (W, H) use a narrower slot so values like 1327.5 fit beside Hug/Fill.
 - 2026-11-19, motion and press polish (`/emil-design-eng` review): panels, toolbar and Layers appear instantly; one strong ease-out; press feedback on buttons; menus grow from their trigger; drop line and target snap to the pointer; missing focus rings added; reduced-motion coverage completed.
 - 2026-11-19, panel density: the "Tight" direction, chosen with /prototype over "Grouped" and "Airy". The panel stays 252px with 28px fields, on a strict 8px rhythm (row and section spacing), and row actions (eye, ×) get fixed 24×28 slots.
 - 2026-11-18, fixes before item 3:

@@ -243,7 +243,7 @@ export function createPanel(ctx) {
     if (def.cap) outer.append((caption = cap(def.cap)));
     let prefix;
     if (def.prefix) {
-      prefix = h('span', 'pre', def.prefix);
+      prefix = h('span', def.prefix.startsWith('<') ? 'pre' : 'pre txt', def.prefix); // a letter (W, H, X…) needs less room than an icon
       prefix.title = def.title;
       wrap.append(prefix);
     }
@@ -711,8 +711,7 @@ export function createPanel(ctx) {
 
   const gapRow = row('two',
     numField({ prefix: ICON.gap, title: 'Gap between children', hint: 'gap',
-      // "Auto" = Figma's auto spacing: children pushed to the ends, space shared between them.
-      picks: () => (/flex/.test(getComputedStyle(sel()).display) ? ['Auto', ...ctx.tokens().spacing] : ctx.tokens().spacing),
+      // Type "auto" for Figma's auto spacing: children pushed to the ends, space shared between them.
       read: (el, cs) => {
         if (/flex/.test(cs.display) && cs.justifyContent === 'space-between') return 'Auto';
         const v = cs.flexDirection.startsWith('column') ? cs.rowGap : cs.columnGap;
@@ -764,20 +763,49 @@ export function createPanel(ctx) {
   autoAdd.setAttribute('aria-label', 'Add auto layout');
   autoAdd.addEventListener('click', () => act(null, () => autoLayout(sel())));
 
+  // Constrain proportions (Figma): a link in the Layout title row. With it on, setting W also sets H,
+  // and the reverse; resize handles keep the ratio as if Shift were held.
+  // Kept per element in state.ratio (overlay-only, not pushed).
+  const ratioBtn = h('button', 'icon', ICON.ratioOff);
+  ratioBtn.title = 'Constrain proportions';
+  ratioBtn.addEventListener('click', () => {
+    const el = sel();
+    const b = box(el);
+    if (state.ratio.has(el)) state.ratio.delete(el);
+    else if (b.width && b.height) state.ratio.set(el, b.width / b.height);
+    syncRatio();
+  });
+  const syncRatio = () => {
+    const on = state.ratio.has(sel());
+    ratioBtn.innerHTML = on ? ICON.ratioOn : ICON.ratioOff;
+    ratioBtn.classList.toggle('on', on);
+    ratioBtn.setAttribute('aria-pressed', String(on));
+  };
+  fields.push(syncRatio);
+  const writeSize = (axis, t) => {
+    const ok = setSize(axis, t);
+    const ratio = state.ratio.get(sel());
+    if (ok === false || !ratio || !isNumber(String(t))) return ok;
+    const other = axis === 'width' ? 'height' : 'width';
+    setSize(other, fmt(axis === 'width' ? +t / ratio : +t * ratio));
+  };
+  const sizeRow = row('two',
+    ...['width', 'height'].map((axis) => numField({
+      prefix: axis === 'width' ? 'W' : 'H', title: axis === 'width' ? 'Width' : 'Height',
+      read: (el) => fmt(box(el)[axis]),
+      write: (t) => writeSize(axis, t),
+      modes: { options: (el) => sizeOptions(el, axis), read: (el) => sizeMode(el, axis), write: (m) => setSizing(axis, m) },
+    })));
+
   const layout = section('Layout',
     autoBlock,
-    row('two',
-      ...['width', 'height'].map((axis) => numField({
-        prefix: axis === 'width' ? 'W' : 'H', title: axis === 'width' ? 'Width' : 'Height',
-        read: (el) => fmt(box(el)[axis]),
-        write: (t) => setSize(axis, t),
-        modes: { options: (el) => sizeOptions(el, axis), read: (el) => sizeMode(el, axis), write: (m) => setSizing(axis, m) },
-      }))),
+    sizeRow,
     gapRow,
     spacing('padding', 'padding', 0),
     spacing('margin', 'margin', -9999));
 
-  layout.head.append(autoAdd);
+  layout.head.append(h('span', 'sh-acts')); // W/H keep their full width; the link lives in the title row
+  layout.head.lastChild.append(ratioBtn, autoAdd);
 
   // Turn an element into a flex container that keeps its current look.
   function autoLayout(el, { wrapper = false } = {}) {
