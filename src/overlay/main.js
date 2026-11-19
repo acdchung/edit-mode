@@ -533,7 +533,8 @@ function init() {
   // through wrappers with a single visible child (body > #root > main.page),
   // and the children of what's left are the top-level layers.
   const NOT_LAYER = /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|LINK|META)$/;
-  const layerKids = (n) => [...n.children].filter((k) => k !== host && !NOT_LAYER.test(k.tagName) && k.getClientRects().length);
+  const layerKids = (n) => [...n.children].filter((k) => k !== host && !NOT_LAYER.test(k.tagName) &&
+    (k.getClientRects().length || k.style.getPropertyValue('display') === 'none')); // hidden with the eye: still a layer
   function pageRoot() {
     let n = document.body;
     for (let kids = layerKids(n); kids.length === 1 && !LEAF.test(kids[0].tagName); kids = layerKids(n)) n = kids[0];

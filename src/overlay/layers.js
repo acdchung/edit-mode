@@ -27,6 +27,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   const dropLine = el.querySelector('.ldrop');
 
   const expanded = new WeakSet();
+  const seen = new WeakSet(); // tops already opened once by default (after that, the user decides)
   let rows = []; // [{ el, row, depth }]
   const rowOf = new WeakMap();
   let dirty = true;
@@ -84,7 +85,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     if (!root || root === document.body) {
       for (const k of kidsOf(document.body, false)) add(k, 0, false);
     } else {
-      expanded.add(root);
+      if (!seen.has(root)) { seen.add(root); expanded.add(root); }
       add(root, 0, false);
     }
     body.scrollTop = scroll;

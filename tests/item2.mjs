@@ -135,6 +135,23 @@ await btn('.hero', 'lock'); await esc();
 { const [x, y] = await ctr('.hero-title'); await p.mouse.click(x, y); await p.waitForTimeout(80);
   check('unlocked: canvas picks it again', (await sel()) === 'hero'); }
 
+// The top row collapses, and stays collapsed
+await esc();
+{ await caret('main.page');
+  const collapsed = !(await row('.hero'));
+  await p.waitForTimeout(150); // a rebuild (render loop) mustn't reopen it
+  const stays = !(await row('.hero'));
+  await caret('main.page');
+  check('top row collapses and stays collapsed, then reopens', collapsed && stays && !!(await row('.hero')), `${collapsed}/${stays}`); }
+
+// Hiding the whole page doesn't make a wrapper (#root) appear as a new top layer
+{ await btn('main.page', 'eye');
+  const rootRow = await row('#root');
+  const pageRow = await row('main.page');
+  check('hiding the top layer keeps the same tree (no #root row)', !rootRow && !!pageRow && pageRow.cls.includes('dim'), `root=${!!rootRow} page=${pageRow?.cls}`);
+  await btn('main.page', 'eye');
+  check('…and showing it again restores the page', await same()); }
+
 // Inserts and undo keep the tree right
 await esc();
 { const c = await p.locator('.cta-primary').boundingBox();
