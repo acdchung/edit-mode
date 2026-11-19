@@ -780,6 +780,7 @@ export function createPanel(ctx) {
     ratioBtn.innerHTML = on ? ICON.ratioOn : ICON.ratioOff;
     ratioBtn.classList.toggle('on', on);
     ratioBtn.setAttribute('aria-pressed', String(on));
+    sizeRow.classList.toggle('linked', on);
   };
   fields.push(syncRatio);
   const writeSize = (axis, t) => {

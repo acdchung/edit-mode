@@ -36,6 +36,13 @@ The user's taste, written down so it isn't re-corrected. These rules cover Edit 
   <!-- 2026-11-18: "change the dashed outline to look the same as the original selected element"; 2026-11-19: "add the handles like the main selected element has too? so it look like how it would if you manually selected all three"; group frame confirmed: "rule 1 yes" -->
   Checked by `tests/polish1.mjs` › "same frame as the selection" (All like this and Shift-selection).
 
+- **Fields that change together read as one linked pair.** With constrain proportions on, W and H get a `--accent` outline at 45% opacity, joined by an 8px accent line across the gap (`.row.linked`).
+  Why: the link should be visible where you type, not only on the button.
+  <!-- 2026-11-19: "it would also be nice when you lock the ratio for the W and H input field to be visually connected somehow" -->
+
+- **Spacing fields (gap, padding, margin) are plain number inputs, with no preset lists.**
+  <!-- 2026-11-19: "Let's remove the default options in spacing, just leave it as an input field" -->
+
 ## Motion
 
 From the `/emil-design-eng` review, accepted 2026-11-19 ("write all").

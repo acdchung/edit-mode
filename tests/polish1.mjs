@@ -99,6 +99,7 @@ await esc(); await click('.card-thumb', 1, ['Meta']); await p.waitForTimeout(80)
   const size = () => st(() => { const n = document.querySelectorAll('.card-thumb')[1]; return [n.offsetWidth, n.offsetHeight]; }); // CSS px (the canvas is zoomed)
   const [w0, h0] = await size(); const before = await st(() => window.__editMode.changes.count);
   await ratioBtn();
+  check('locked W and H are visually linked', await st(() => { const f = document.querySelector('edit-mode-root').shadowRoot.querySelector('input[aria-label="Width"]').closest('.row'); return f.classList.contains('linked') && getComputedStyle(f, '::after').width === '8px'; }));
   check('constrain proportions turns on (and isn’t a pushed change)', await st(() => document.querySelector('edit-mode-root').shadowRoot.querySelector('button[title="Constrain proportions"]').getAttribute('aria-pressed')) === 'true' && (await st(() => window.__editMode.changes.count)) === before);
   const W = p.locator('edit-mode-root input[aria-label="Width"]'); await W.fill(String(Math.round(w0 / 2))); await W.press('Enter'); await p.waitForTimeout(80);
   const [w1, h1] = await size();

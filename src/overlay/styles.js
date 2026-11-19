@@ -190,6 +190,11 @@ h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--text); }
 .row.two { grid-template-columns: 1fr 1fr; }
 .row.four { grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .sh-acts { display: flex; align-items: center; gap: 4px; }
+/* Constrain proportions on: W and H read as one linked pair */
+.row.linked { position: relative; }
+.row.linked > .field { box-shadow: inset 0 0 0 1px rgba(13,153,255,.45); }
+.row.linked::after { content: ""; position: absolute; left: 50%; top: 50%; width: 8px; height: 1.5px; border-radius: 1px;
+                     transform: translate(-50%, -50%); background: var(--accent); pointer-events: none; }
 .f { min-width: 0; }
 .f > .cap { display: block; margin-bottom: 4px; }
 
@@ -245,7 +250,7 @@ input::selection { background: rgba(13,153,255,.4); }
 
 .spacing .icon { width: 22px; height: 22px; }
 .icon.split.on { background: var(--accent-soft); color: var(--accent-text); }
-.crow.tight { margin-bottom: 0; gap: 2px; }
+.crow.tight { margin-bottom: 0; gap: 4px; }
 .crow.tight > .f { flex: 1; min-width: 0; }
 .foot { flex: none; display: flex; justify-content: center; align-items: center; gap: 14px; padding: 9px 12px;
         border-top: 1px solid var(--hair); color: var(--dim); font-size: 11px; }

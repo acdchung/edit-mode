@@ -2,6 +2,17 @@
 
 Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what's next) and README.md (user-facing features and shortcuts).
 
+## Where things stand (2026-11-19)
+
+- Done: roadmap items 1 (Figma-style selection) and 2 (Layers panel), canvas zoom/pan, "All like this" families, same-depth Shift-click, the Tight panel density, a motion/press polish pass, Gap as a plain input, and constrain proportions. See ROADMAP.md › Done.
+- **Next: item 3, moving and resizing several elements at once.** ROADMAP.md has the plan and the notes that apply.
+- All suites pass (175 checks). The last commit is pushed to GitHub.
+- **Starting a session:** the scratchpad changes every session, so the test copy usually needs recreating:
+  1. copy the app: `cp -R ~/edit-mode/sample-app <scratchpad>/sample-copy`
+  2. in the copy, delete `.editmode` and replace `node_modules` with a symlink to `~/edit-mode/sample-app/node_modules`
+  3. run `npx vite --port 5390 --strictPort` in it, in the background
+  4. run the suites to confirm a clean baseline
+
 ## Who and what
 
 - The user is a designer, not an engineer, so explain anything they need to run. They want Figma's **canvas** behavior on a live localhost page. Components and variables are out of scope.
@@ -23,11 +34,11 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
   - start it with `npx vite --port 5390 --strictPort`
   - drive it with `playwright-core` + system Chrome (`chromium.launch({ channel: 'chrome' })`)
   - if the scratchpad was wiped, recreate the copy: `cp -R sample-app <dir>/sample-copy`, delete its `.editmode`, and symlink `node_modules`
-- **Git:** the project is a local git repo. Commit a checkpoint after each roadmap item passes QA (and before risky changes). Never commit `node_modules`, `.editmode/` or `dist/` (see `.gitignore`).
-- **Tests live in `tests/`:** `item1.mjs`, `item2.mjs`, `zoom.mjs`, `polish1.mjs`, `brutal1.mjs` and `brutal2.mjs`. Every suite except `item2.mjs` starts with the Layers panel closed, through `addInitScript` setting `localStorage['edit-mode:layers'] = '0'`. Otherwise the panels cover the spots those tests click on. Run them with `cd tests && node <file>` while the copy runs on 5390 (`npm install` in `tests/` if `node_modules` is missing). Add an `itemN.mjs` for each roadmap item.
+- **Git:** branch `main`, pushed to the private GitHub repo after every checkpoint. Commit after each roadmap item passes QA (and before risky changes). Never commit `node_modules`, `.editmode/` or `dist/` (see `.gitignore`).
+- **Tests live in `tests/`:** `item1.mjs`, `item2.mjs`, `zoom.mjs`, `polish1.mjs`, `brutal1.mjs` and `brutal2.mjs`. `item2.mjs` and `polish1.mjs` run with the Layers panel open; the others start with it closed, through `addInitScript` setting `localStorage['edit-mode:layers'] = '0'`. Otherwise the panels cover the spots those tests click on. Run them with `cd tests && node <file>` while the copy runs on 5390 (`npm install` in `tests/` if `node_modules` is missing). Add an `itemN.mjs` for each roadmap item.
 - Use **mouse clicks** in tests (`page.mouse.click(x, y)`), not `locator.click()`: the glass layer intercepts pointer events.
 - A plain click selects at the current level (Figma). To select a specific nested element in a test, hold Meta while clicking (`brutal*.mjs`'s `p.tap` does this); `tests/item1.mjs` covers the level rules.
-- In the browser console, `window.__editMode` gives `{ state, changes }`.
+- In the browser console, `window.__editMode` gives `{ state, changes, layers }`.
 - QA every feature as it lands. Check:
   - the behavior itself
   - one ⌘Z restores the DOM exactly (compare `#root` innerHTML, ignoring `style=""`)
@@ -67,12 +78,14 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
     - `numField` supports `prefix`, `suffix`, `picks`, `modes`, `min`/`max`, `hint`, scrubbing and math.
     - Sizing helpers: `sizeMode`, `setSizing` (Fixed/Hug/Fill).
     - `autoLayout(el, {wrapper})` turns an element into auto layout.
+    - Constrain proportions: a link button in the Layout title row (`.sh-acts`). The ratio is kept in `state.ratio` (WeakMap, overlay-only). `writeSize` keeps W/H in step, and the resize handles in `main.js` treat it like Shift. When it's on, the W/H row gets `.linked`.
+    - Letter prefixes (W, H, X…) get `.pre.txt` (20px); icon prefixes keep 26px.
   - `changes.js`: every edit is an inline `!important` style, a DOM move/insert, or text. It keeps a snapshot-based undo/redo stack:
     - `batch(group, fn)` merges several edits into one undo step
     - each step stores the selection
     - `list()` produces what Push sends
   - `styles.js`: CSS variables (`--accent #0d99ff`, `--glass`, `--text`, `--muted`, `--dim`).
-  - `tokens.js`: colors, sizes and CSS variables already on the page, offered as quick picks.
+  - `tokens.js`: colors, CSS variables, font sizes, radii and fonts already on the page, offered as quick picks (spacing fields have none, at the user's request).
   - `icons.js`: Lucide paths plus the `icon()`, `ICON` and `KEY` glyphs.
   - `util.js`: helpers.
 
