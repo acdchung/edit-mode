@@ -166,10 +166,9 @@ export function createCanvas({ onChange = () => {}, area = () => ({ left: 0, rig
     fitRect({ left: b.left, top: b.top, width: b.width, height: b.height }, { maxZ: 1, top: true });
   }
 
-  function toSelection(el) {
-    if (!on || !el) return;
-    const r = el.getBoundingClientRect();
-    if (!r.width && !r.height) return;
+  // `r`: the selection's screen rect.
+  function toSelection(r) {
+    if (!on || !r || (!r.width && !r.height)) return;
     fitRect({ left: r.left, top: r.top, width: r.width || 1, height: r.height || 1 }, { maxZ: 4 });
   }
 

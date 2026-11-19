@@ -4,9 +4,9 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
 
 ## Where things stand (2026-11-19)
 
-- Done: roadmap items 1 (Figma-style selection) and 2 (Layers panel), canvas zoom/pan, "All like this" families, same-depth Shift-click, the Tight panel density, a motion/press polish pass, Gap as a plain input, and constrain proportions. See ROADMAP.md › Done.
-- **Next: item 3, moving and resizing several elements at once.** ROADMAP.md has the plan and the notes that apply.
-- All suites pass (175 checks). The last commit is pushed to GitHub.
+- Done: roadmap items 1 (Figma-style selection), 2 (Layers panel) and 3 (multi-element move/resize/panel), canvas zoom/pan, "All like this" families, same-depth Shift-click, the Tight panel density, a motion/press polish pass, Gap as a plain input, and constrain proportions. See ROADMAP.md › Done.
+- **Next: item 4, padding and gap handles on the canvas.** ROADMAP.md has the plan.
+- All suites pass (216 checks). The last commit is pushed to GitHub.
 - **Starting a session:** the scratchpad changes every session, so the test copy usually needs recreating:
   1. copy the app: `cp -R ~/edit-mode/sample-app <scratchpad>/sample-copy`
   2. in the copy, delete `.editmode` and replace `node_modules` with a symlink to `~/edit-mode/sample-app/node_modules`
@@ -35,7 +35,7 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
   - drive it with `playwright-core` + system Chrome (`chromium.launch({ channel: 'chrome' })`)
   - if the scratchpad was wiped, recreate the copy: `cp -R sample-app <dir>/sample-copy`, delete its `.editmode`, and symlink `node_modules`
 - **Git:** branch `main`, pushed to the private GitHub repo after every checkpoint. Commit after each roadmap item passes QA (and before risky changes). Never commit `node_modules`, `.editmode/` or `dist/` (see `.gitignore`).
-- **Tests live in `tests/`:** `item1.mjs`, `item2.mjs`, `zoom.mjs`, `polish1.mjs`, `brutal1.mjs` and `brutal2.mjs`. `item2.mjs` and `polish1.mjs` run with the Layers panel open; the others start with it closed, through `addInitScript` setting `localStorage['edit-mode:layers'] = '0'`. Otherwise the panels cover the spots those tests click on. Run them with `cd tests && node <file>` while the copy runs on 5390 (`npm install` in `tests/` if `node_modules` is missing). Add an `itemN.mjs` for each roadmap item.
+- **Tests live in `tests/`:** `item1.mjs`, `item2.mjs`, `item3.mjs`, `zoom.mjs`, `polish1.mjs`, `brutal1.mjs` and `brutal2.mjs`. `item2.mjs` and `polish1.mjs` run with the Layers panel open; the others start with it closed, through `addInitScript` setting `localStorage['edit-mode:layers'] = '0'`. Otherwise the panels cover the spots those tests click on. Run them with `cd tests && node <file>` while the copy runs on 5390 (`npm install` in `tests/` if `node_modules` is missing). Add an `itemN.mjs` for each roadmap item.
 - Use **mouse clicks** in tests (`page.mouse.click(x, y)`), not `locator.click()`: the glass layer intercepts pointer events.
 - A plain click selects at the current level (Figma). To select a specific nested element in a test, hold Meta while clicking (`brutal*.mjs`'s `p.tap` does this); `tests/item1.mjs` covers the level rules.
 - In the browser console, `window.__editMode` gives `{ state, changes, layers }`.
@@ -70,6 +70,7 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
     - state, glass pointer handling (select, drag-move, tools, Shift-click multi), keyboard, pill and dialogs, text editing
     - copy/paste/duplicate, group, auto layout, the rAF render loop (frames, hover, spacing hints, ⌥ measure)
     - selection levels: `pageRoot()` (skips single-child wrappers like `#root`), `hit(x, y, deep)` (layer at the selection's level; `deep` = ⌘), `deepHit`, `hitInside` (double-click drill)
+    - multi-selection: the main `.frame` (class `group`) goes around `unionRect` of all selected elements and its handles resize them all; each element also gets a passive frame in `.multis`. `startDrag(els, press)` drags them all; `dropAt(x, y, el, moving)` ignores everything moving
     - key functions: `hit`, `select`, `dropAt`, `startDrag`/`finishDrag`, `finishDraw`, `rhythm`, `insertCopies`, `toggleMulti`, `autoLayoutSelection`, `startText`/`stopText`, `guardWhileEditing`, `render`, `drawFrames`, `drawMeasure`
   - `canvas.js`: zoom and pan. While edit mode is on, `<body>` gets `translate(tx, ty) scale(z)` with origin `0 0`. `<html>` gets `overflow: hidden` and the canvas gray, and the window never scrolls. Body margin becomes padding so the page background covers it. Every inline style it sets is saved and restored on `exit()`, which also scrolls the window back to the panned spot. `apply()` clamps so at least 80px of the page stays on screen. `fit()` and `toSelection()` use `area()`, the space between the panels and above the toolbar; it always reserves the properties panel.
   - **Zoom rule:** `getBoundingClientRect` gives screen pixels. Use it only to draw on screen or to compare against the pointer. For any size or distance that's shown to the user or written as CSS, use `box(el)` from `util.js` (CSS px), or divide by `view.z`. Going the other way, from CSS values to screen (as `spacingRects` does), multiply by `view.z`.
@@ -80,6 +81,7 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
     - `autoLayout(el, {wrapper})` turns an element into auto layout.
     - Constrain proportions: a link button in the Layout title row (`.sh-acts`). The ratio is kept in `state.ratio` (WeakMap, overlay-only). `writeSize` keeps W/H in step, and the resize handles in `main.js` treat it like Shift. When it's on, the W/H row gets `.linked`.
     - Letter prefixes (W, H, X…) get `.pre.txt` (20px); icon prefixes keep 26px.
+    - Multi-selection: `act` runs each edit once per selected element through `each()`, with `withEl(el, fn)` pointing `sel()` (and scope "one") at that element, so writers work unchanged. Fields read through `common(read)`, which returns `MIXED` when values differ. `refresh` is skipped while `busy` (inside `each`). Anything that must run once, not per element, goes through `changes.batch` directly (see the `autoLayout` export). `sizeOf(el, scope, axis, px)` is what the resize handles call.
   - `changes.js`: every edit is an inline `!important` style, a DOM move/insert, or text. It keeps a snapshot-based undo/redo stack:
     - `batch(group, fn)` merges several edits into one undo step
     - each step stores the selection

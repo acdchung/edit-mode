@@ -186,7 +186,7 @@ function init() {
     else if (id === 'out') canvas.step(-1);
     else if (id === 'fit') canvas.fit();
     else if (id === '100') canvas.reset();
-    else if (id === 'sel') canvas.toSelection(state.selected);
+    else if (id === 'sel' && state.selected) canvas.toSelection(unionRect(selection()));
   }
   zmenu.innerHTML = ZOOM_ITEMS.map(([id, label, keys]) => `<button role="menuitem" data-z="${id}"><span>${label}</span><kbd>${keys}</kbd></button>`).join('');
   const closeZoomMenu = () => { zmenu.hidden = true; zoomBtn.classList.remove('on'); };
@@ -711,7 +711,13 @@ function init() {
       if (add) toggleMulti(add);
       return;
     }
-    const el = hit(e.clientX, e.clientY, e.metaKey || e.ctrlKey);
+    const mod = e.metaKey || e.ctrlKey;
+    let el = hit(e.clientX, e.clientY, mod);
+    if (state.multi.length > 1 && !mod) {
+      // Pressing anywhere inside one of several selected elements grabs them all, even across containers.
+      const d = deepHit(e.clientX, e.clientY);
+      el = (d && state.multi.find((x) => x.contains(d))) || el;
+    }
     const keep = !!(el && state.multi.length > 1 && state.multi.includes(el));
     if (!keep) select(el);
     press = { x: e.clientX, y: e.clientY, el, target: el, keep };
@@ -723,13 +729,15 @@ function init() {
     pointer = { x, y, shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey };
     if (draw) return showDraw(x, y, e.shiftKey);
     if (state.tool !== 'select') { state.hovered = null; return showDrop(dropAt(x, y, null), true); }
-    if (press && !drag && Math.hypot(x - press.x, y - press.y) > 4 && state.multi.length <= 1) {
-      if (e.altKey && press.target) {
-        // ⌥-drag: drag a copy and leave the original where it was (Figma).
+    if (press && !drag && press.target && Math.hypot(x - press.x, y - press.y) > 4) {
+      // Several selected: they all move (pressed one leads), in page order.
+      const els = press.keep ? [press.target, ...state.multi.filter((k) => k !== press.target)] : [press.target];
+      if (e.altKey) {
+        // ⌥-drag: drag copies and leave the originals where they were (Figma).
         const g = `altdrag:${Date.now()}`;
-        const copy = insertCopies([{ clone: cloneFor(press.target), from: press.target }], press.target, g, { duplicate: true })[0];
-        if (copy) { select(copy); startDrag(copy, press); drag && (drag.group = g); }
-      } else startDrag(press.target, press);
+        const copies = els.map((k) => insertCopies([{ clone: cloneFor(k), from: k }], k, g, { duplicate: true })[0]);
+        if (copies.every(Boolean)) { selectAll(copies); startDrag(copies, press); drag && (drag.group = g); }
+      } else startDrag(els, press);
     }
     if (drag) return updateDrag(x, y);
     if (!press) state.hovered = hoverAt(x, y, e);
@@ -760,17 +768,19 @@ function init() {
 
   // Where something would land at (x, y): a container and an index among its
   // element children, plus the insertion line to draw. `el` is the element
-  // being moved (null when adding a new one). Look-alike siblings (other
-  // cards) only reorder; other siblings take a drop when you're well inside.
-  // Empty boxes only accept drops if they were added in this session.
-  function dropAt(x, y, el) {
+  // being moved (null when adding a new one); `moving` is everything moving
+  // with it (a multi-selection), which is never a drop spot. Look-alike
+  // siblings (other cards) only reorder; other siblings take a drop when
+  // you're well inside. Empty boxes only accept drops if they were added in
+  // this session. toIndex counts the container's children minus `moving`.
+  function dropAt(x, y, el, moving = el ? [el] : []) {
     const origin = el?.parentElement ?? null;
     const src = el?.getAttribute(ATTR);
-    const hitEl = document.elementsFromPoint(x, y).find((n) => n !== host && !(el && el.contains(n)));
+    const hitEl = document.elementsFromPoint(x, y).find((n) => n !== host && !moving.some((m) => m.contains(n)));
     let container = null;
     for (let n = hitEl; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
       if (n === origin) { container = origin; break; }
-      const kids = flowKids(n).filter((k) => k !== el);
+      const kids = flowKids(n).filter((k) => !moving.includes(k));
       if (!canContain(n) || (!kids.length && !n.dataset.emNew)) continue;
       if (origin && n.parentElement === origin) {
         if (src && n.getAttribute(ATTR) === src) continue;
@@ -785,7 +795,7 @@ function init() {
     container ||= origin;
     if (!container) return null;
 
-    const sibs = flowKids(container).filter((k) => k !== el);
+    const sibs = flowKids(container).filter((k) => !moving.includes(k));
     if (!sibs.length) return { container, toIndex: 0, line: null };
     const cs = getComputedStyle(container);
     const horizontal = (/flex/.test(cs.display) && cs.flexDirection.startsWith('row')) ||
@@ -799,7 +809,7 @@ function init() {
     }
     const { s, r } = best;
     const after = horizontal ? x > r.left + r.width / 2 : y > r.top + r.height / 2;
-    const others = [...container.children].filter((k) => k !== el);
+    const others = [...container.children].filter((k) => !moving.includes(k));
     const toIndex = others.indexOf(s) + (after ? 1 : 0);
 
     // Insertion line, centred in the gap to the neighbour when there is one.
@@ -825,18 +835,21 @@ function init() {
     if (!targetBox.hidden) place(targetBox, drop.container.getBoundingClientRect());
   }
 
-  function startDrag(el, p) {
+  // `els`: what moves; the first one leads (it picks the drop spot).
+  function startDrag(els, p) {
+    const el = els[0];
     const parent = el?.parentElement;
     if (!parent || parent === document.documentElement || el === document.body) { press = null; return; }
-    const r = el.getBoundingClientRect();
-    drag = { el, parent, rect: r, dx: p.x - r.left, dy: p.y - r.top, drop: null };
+    const r = unionRect(els);
+    drag = { el, els: inOrder(els), parent, rect: r, dx: p.x - r.left, dy: p.y - r.top, drop: null };
     state.hovered = null;
     glass.classList.add('dragging');
     frame.classList.add('moving');
+    multiLayer.classList.add('moving');
   }
 
   function updateDrag(x, y) {
-    drag.drop = dropAt(x, y, drag.el);
+    drag.drop = dropAt(x, y, drag.el, drag.els);
     showDrop(drag.drop);
     place(ghostBox, { left: x - drag.dx, top: y - drag.dy, width: drag.rect.width, height: drag.rect.height });
     ghostBox.hidden = false;
@@ -846,18 +859,32 @@ function init() {
     ghostBox.hidden = insertLine.hidden = targetBox.hidden = true;
     glass.classList.remove('dragging');
     frame.classList.remove('moving');
+    multiLayer.classList.remove('moving');
   }
 
+  // Drop: everything dragged lands together, in page order, before `anchor`
+  // (the container's child that was at toIndex). One undo step.
   function finishDrag() {
-    const { el, drop, group } = drag;
+    const { els, drop, group } = drag;
     drag = null;
     endDragUI();
     if (!drop) return;
-    const others = [...drop.container.children].filter((k) => k !== el);
-    if (drop.container !== el.parentElement || others[drop.toIndex] !== el.nextElementSibling) {
-      changes.batch(group ?? null, () => changes.move(el, state.scope, drop.toIndex, drop.container));
+    const { container } = drop;
+    const anchor = [...container.children].filter((k) => !els.includes(k))[drop.toIndex] ?? null;
+    const kids = [...container.children];
+    const at = els.map((k) => kids.indexOf(k));
+    const end = anchor ? kids.indexOf(anchor) : kids.length;
+    const inPlace = at.every((i, n) => i === end - els.length + n); // already there, side by side
+    if (!inPlace) {
+      const scope = els.length > 1 ? 'one' : state.scope;
+      changes.batch(group ?? `move:${Date.now()}`, () => {
+        for (const k of els) {
+          const rest = [...container.children].filter((c) => c !== k);
+          changes.move(k, scope, anchor ? rest.indexOf(anchor) : rest.length, container);
+        }
+      });
     }
-    panel.show(el);
+    panel.show(state.selected);
   }
 
   // Double-click goes one level deeper (Figma). On text that's already the
@@ -1188,7 +1215,11 @@ function init() {
   }
 
   // ---------- Resize handles ----------
-  for (const handle of shadow.querySelectorAll('.handle')) {
+  // One element: set its size. Several: the handles sit on the frame around
+  // all of them, and each element's size scales by the same factor as that
+  // frame (they stay in the page's flow, so their positions don't scale).
+  // Shift, or constrain proportions on the primary, keeps proportions.
+  for (const handle of frame.querySelectorAll('.handle')) {
     handle.addEventListener('pointerdown', (e) => {
       const el = state.selected;
       if (!el || e.button !== 0) return;
@@ -1196,7 +1227,10 @@ function init() {
       e.stopPropagation();
       handle.setPointerCapture(e.pointerId);
       const dir = handle.dataset.dir;
-      const r0 = el.getBoundingClientRect();
+      const els = state.multi.length > 1 ? state.multi.filter((k) => k.isConnected && visible(k)) : [el];
+      const scope = els.length > 1 ? 'one' : state.scope;
+      const start = els.map((k) => [k, box(k)]); // CSS px
+      const r0 = unionRect(els);
       const x0 = e.clientX;
       const y0 = e.clientY;
       const group = `resize:${Date.now()}`;
@@ -1206,16 +1240,20 @@ function init() {
         const dy = ev.clientY - y0;
         let w = r0.width + (dir.includes('e') ? dx : dir.includes('w') ? -dx : 0);
         let h = r0.height + (dir.includes('s') ? dy : dir.includes('n') ? -dy : 0);
-        const lock = (ev.shiftKey || state.ratio.has(el)) && r0.width && r0.height; // Shift or constrain proportions
+        const lock = (ev.shiftKey || state.ratio.has(el)) && r0.width && r0.height; // el: the primary // Shift or constrain proportions
         if (lock) {
           const ratio = r0.width / r0.height;
           const corner = /[ew]/.test(dir) && /[ns]/.test(dir);
           if (corner ? Math.abs(w / r0.width - 1) > Math.abs(h / r0.height - 1) : /[ew]/.test(dir)) h = w / ratio;
           else w = h * ratio;
         }
+        // New size of each element: scaled with the frame (or, from nothing, the frame's own size).
+        const size = (b0, frame0, now) => Math.max(0, Math.round(frame0 ? b0 * (now / frame0) : now / view.z)); // screen → CSS px
         changes.batch(group, () => {
-          if (lock || /[ew]/.test(dir)) panel.setSize('width', Math.max(0, Math.round(w / view.z))); // screen → CSS px
-          if (lock || /[ns]/.test(dir)) panel.setSize('height', Math.max(0, Math.round(h / view.z)));
+          for (const [k, b] of start) {
+            if (lock || /[ew]/.test(dir)) panel.sizeOf(k, scope, 'width', size(b.width, r0.width, w));
+            if (lock || /[ns]/.test(dir)) panel.sizeOf(k, scope, 'height', size(b.height, r0.height, h));
+          }
         });
       };
       const up = () => {
@@ -1358,22 +1396,29 @@ function init() {
       const arrows = { ArrowLeft: ['margin-left', -1], ArrowRight: ['margin-left', 1], ArrowUp: ['margin-top', -1], ArrowDown: ['margin-top', 1] };
       if (arrows[e.key]) {
         stop();
-        // Inside auto layout, arrows move the element earlier/later (Figma);
-        // elsewhere they nudge it with margin.
-        const pcs = sel.parentElement && getComputedStyle(sel.parentElement);
-        if (pcs && /flex/.test(pcs.display)) {
-          const along = pcs.flexDirection.startsWith('column') ? ['ArrowUp', 'ArrowDown'] : ['ArrowLeft', 'ArrowRight'];
-          if (along.includes(e.key)) {
-            const kids = [...sel.parentElement.children].filter((k) => k !== sel);
-            const at = [...sel.parentElement.children].indexOf(sel);
-            const to = Math.max(0, Math.min(kids.length, at + (e.key === along[0] ? -1 : 1)));
-            if (to !== at) changes.move(sel, state.scope, to, sel.parentElement);
-          }
-          return;
-        }
+        // Inside auto layout, arrows move each selected element earlier/later
+        // (Figma); elsewhere they nudge it with margin. Several selected move
+        // as a block: one that hits the end (or a stuck neighbour) stays put.
+        const els = inOrder(selection());
+        const scope = els.length > 1 ? 'one' : state.scope;
+        const back = e.key === 'ArrowUp' || e.key === 'ArrowLeft';
         const [prop, dir] = arrows[e.key];
-        const now = num(getComputedStyle(sel).getPropertyValue(prop));
-        changes.set(sel, state.scope, prop, `${now + dir * (e.shiftKey ? 10 : 1)}px`);
+        const stuck = new Set();
+        changes.batch(`nudge:${Date.now()}`, () => {
+          for (const k of back ? els : els.reverse()) {
+            const pcs = k.parentElement && getComputedStyle(k.parentElement);
+            if (pcs && /flex/.test(pcs.display)) {
+              const along = pcs.flexDirection.startsWith('column') ? ['ArrowUp', 'ArrowDown'] : ['ArrowLeft', 'ArrowRight'];
+              if (!along.includes(e.key)) continue;
+              const nb = back ? k.previousElementSibling : k.nextElementSibling;
+              if (!nb || stuck.has(nb)) { stuck.add(k); continue; }
+              changes.move(k, scope, [...k.parentElement.children].indexOf(k) + (back ? -1 : 1), k.parentElement);
+            } else {
+              const now = num(getComputedStyle(k).getPropertyValue(prop));
+              changes.set(k, scope, prop, `${now + dir * (e.shiftKey ? 10 : 1)}px`);
+            }
+          }
+        });
         return;
       }
     }
@@ -1402,8 +1447,19 @@ function init() {
 
   const visible = (el) => el.getClientRects().length > 0;
 
-  // Extra selection frames (multi-select): same look as the main one, with
-  // handles and a size label, but only the main frame's handles resize.
+  // Screen rect around several elements.
+  function unionRect(els) {
+    const rs = els.map((k) => k.getBoundingClientRect());
+    const left = Math.min(...rs.map((r) => r.left));
+    const top = Math.min(...rs.map((r) => r.top));
+    const right = Math.max(...rs.map((r) => r.right));
+    const bottom = Math.max(...rs.map((r) => r.bottom));
+    return { left, top, right, bottom, width: right - left, height: bottom - top };
+  }
+
+  // Extra selection frames (each element of a multi-selection, "All like
+  // this"): same look as the main one, with handles and a size label, but
+  // only the main frame's handles resize.
   const FRAME_HTML = ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'].map((d) => `<i class="handle" data-dir="${d}"></i>`).join('') + '<div class="size"></div>';
   function drawFrames(layer, els) {
     while (layer.children.length > els.length) layer.lastChild.remove();
@@ -1428,19 +1484,23 @@ function init() {
     if (state.editing && !state.editing.isConnected) stopText(); // don't stay stuck in text editing
     const sel = state.selected;
 
-    hoverBox.hidden = !state.on || !state.hovered || state.hovered === sel || !!state.editing;
+    hoverBox.hidden = !state.on || !state.hovered || state.multi.includes(state.hovered) || !!state.editing;
     if (!hoverBox.hidden) place(hoverBox, state.hovered.getBoundingClientRect());
 
-    frame.hidden = !sel || !visible(sel);
-    if (!frame.hidden) {
-      const r = sel.getBoundingClientRect();
-      place(frame, r);
-      sizeLabel.textContent = `${fmtSize(r.width / view.z)} × ${fmtSize(r.height / view.z)}`;
+    // Several selected: the main frame (with the working handles) goes around
+    // all of them, and each one also gets its own frame (DESIGN.md › Interaction).
+    const many = state.multi.length > 1;
+    const shown = many ? state.multi.filter((x) => x.isConnected && visible(x)) : [];
+    frame.hidden = many ? !shown.length : !sel || !visible(sel);
+    frame.classList.toggle('group', many);
+    const fr = frame.hidden ? null : many ? unionRect(shown) : sel.getBoundingClientRect();
+    if (fr) {
+      place(frame, fr);
+      sizeLabel.textContent = `${fmtSize(fr.width / view.z)} × ${fmtSize(fr.height / view.z)}`;
     }
 
     // Keep the panel off the selection: if it covers it, move it to the other side.
-    if (sel && !frame.hidden && !panel.el.hidden) {
-      const fr = sel.getBoundingClientRect();
+    if (fr && !panel.el.hidden) {
       const pr = panel.el.getBoundingClientRect();
       const overlaps = (r) => fr.left < r.right && fr.right > r.left && fr.top < r.bottom && fr.bottom > r.top;
       if (overlaps(pr)) {
@@ -1451,12 +1511,11 @@ function init() {
       }
     }
 
-    const sibs = sel && state.scope === 'all' ? family(sel).filter((x) => x !== sel && visible(x)) : [];
+    const sibs = sel && !many && state.scope === 'all' ? family(sel).filter((x) => x !== sel && visible(x)) : [];
     drawFrames(sibLayer, sibs); // "All like this": each instance framed like a selected element (handles + size)
-    const others = state.multi.filter((x) => x !== sel && x.isConnected && visible(x));
-    drawFrames(multiLayer, others);
+    drawFrames(multiLayer, shown);
 
-    drawMeasure(sel);
+    drawMeasure(sel, fr);
     layers.sync();
 
     const hint = sel && state.hint;
@@ -1465,13 +1524,13 @@ function init() {
 
   // ⌥ measurement: red lines with distances between the selection and the
   // hovered element (or its parent when hovering it / nothing).
-  function drawMeasure(sel) {
+  function drawMeasure(sel, selRect) {
     const lines = [];
-    if (state.on && state.alt && sel && !drag && !state.editing) {
+    if (state.on && state.alt && sel && selRect && !drag && !state.editing) {
       let other = state.hovered && state.hovered !== sel ? state.hovered : sel.parentElement;
       if (other && sel.contains(other)) other = sel.parentElement;
       if (other) {
-        const a = sel.getBoundingClientRect();
+        const a = selRect; // the frame around the whole selection
         const b = other.getBoundingClientRect();
         const mx = (a.left + a.right) / 2;
         const my = (a.top + a.bottom) / 2;

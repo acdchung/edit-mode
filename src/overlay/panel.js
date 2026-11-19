@@ -6,7 +6,7 @@
 // `changes.set(...)`, which previews the edit as an inline style.
 
 import {
-  ATTR, box, colorFromText, describe, family, fmt, isNumber, num, parseColor, parseSrc, sameSource,
+  ATTR, box, colorFromText, describe, family, fmt, isNumber, num, parseColor, parseSrc, resolveColor, sameSource,
 } from './util.js';
 import { textNodeOf } from './changes.js';
 import { ICON, KEY } from './icons.js';
@@ -64,7 +64,7 @@ export function cssSize(el, axis, px) {
 const alphaOf = (c) => parseColor(c)?.a ?? 1;
 const isClear = (c) => alphaOf(c) === 0;
 function withAlpha(color, a) {
-  const c = parseColor(color);
+  const c = parseColor(color) ?? parseColor(resolveColor(color)); // typed hex (#FF0000) too, not just rgb()
   if (!c) return color;
   if (a >= 1) return c.hex;
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.hex.slice(i, i + 2), 16));
@@ -124,8 +124,42 @@ export function createPanel(ctx) {
   const { shadow, changes, state } = ctx;
   const sel = () => state.selected;
   const apply = (prop, value) => changes.set(sel(), state.scope, prop, value);
+
+  // Several elements selected: every field reads all of them ("Mixed" when
+  // they differ) and every edit runs once per element, with sel() pointing at
+  // that element. So writers that build on the current value (a shadow's X,
+  // a color's opacity) keep each element's other values.
+  const MIXED = 'Mixed';
+  const many = () => state.multi.length > 1;
+  const picked = () => (many() ? state.multi.filter((x) => x.isConnected) : [sel()]);
+  function withEl(el, fn, scope = many() ? 'one' : state.scope) {
+    const prev = [state.selected, state.scope];
+    state.selected = el;
+    state.scope = scope;
+    try { return fn(); } finally { [state.selected, state.scope] = prev; }
+  }
+  let busy = false; // inside a multi edit: refresh once at the end, not after every element
+  function each(fn) {
+    if (!many()) return fn();
+    let ok;
+    busy = true;
+    try {
+      for (const el of picked()) if (withEl(el, fn) === false) ok = false;
+    } finally { busy = false; }
+    return ok;
+  }
+  // The value `read` gives for every selected element, or MIXED.
+  function common(read) {
+    let first;
+    for (const [i, el] of picked().entries()) {
+      const v = String(withEl(el, () => read(el, getComputedStyle(el))));
+      if (!i) first = v;
+      else if (v !== first) return MIXED;
+    }
+    return first;
+  }
   const act = (group, fn) => {
-    const r = changes.batch(group, fn);
+    const r = changes.batch(group, () => each(fn));
     ctx.onEdit();
     return r;
   };
@@ -297,9 +331,17 @@ export function createPanel(ctx) {
       const ok = act(group, () => def.write(text));
       wrap.classList.toggle('bad', ok === false);
     };
+    // Mixed values: shift each element's own value by the same amount (Figma).
+    const shiftEach = (group, from, d) => act(group, () => {
+      const v = from(sel());
+      if (isNumber(v)) def.write(fmt(clamp(+v + d)));
+    });
+    const readOne = (el) => def.read(el, getComputedStyle(el));
     const nudge = (dir, big) => {
+      const d = dir * (big ? 10 : def.step ?? 1);
+      if (input.value.trim() === MIXED) return shiftEach(focusGroup, readOne, d);
       const n = isNumber(input.value.trim()) ? +input.value : num(input.value);
-      input.value = fmt(clamp(n + dir * (big ? 10 : def.step ?? 1)));
+      input.value = fmt(clamp(n + d));
       commit(focusGroup);
     };
 
@@ -331,9 +373,11 @@ export function createPanel(ctx) {
         handle.setPointerCapture(e.pointerId);
         const x0 = e.clientX;
         const start = num(input.value);
+        const starts = input.value.trim() === MIXED ? new Map(picked().map((el) => [el, withEl(el, () => readOne(el))])) : null;
         const group = `f${id}:scrub:${Date.now()}`;
         const move = (ev) => {
           const d = Math.round((ev.clientX - x0) / 2) * (ev.shiftKey ? 10 : def.step ?? 1);
+          if (starts) return shiftEach(group, (el) => starts.get(el), d);
           input.value = fmt(clamp(start + d));
           commit(group);
         };
@@ -352,11 +396,11 @@ export function createPanel(ctx) {
     function refreshField(force) {
       const el = sel();
       if (!el || (!force && shadow.activeElement === input)) return;
-      input.value = def.read(el, getComputedStyle(el));
+      input.value = common(def.read);
       wrap.classList.remove('bad');
       if (modeTag) {
-        const m = def.modes.read(el);
-        modeTag.textContent = m === 'fixed' ? '' : m === 'hug' ? 'Hug' : 'Fill';
+        const m = common((x) => def.modes.read(x));
+        modeTag.textContent = { hug: 'Hug', fill: 'Fill' }[m] ?? '';
       }
     }
     fields.push(refreshField);
@@ -380,9 +424,8 @@ export function createPanel(ctx) {
     fields.push(() => {
       const el = sel();
       if (!el) return;
-      const cs = getComputedStyle(el);
-      current = def.read(el, cs);
-      const opt = def.options(el, cs).find(([v]) => v === current);
+      current = common(def.read);
+      const opt = def.options(el, getComputedStyle(el)).find(([v]) => v === current);
       label.textContent = opt ? opt[1] : current;
     });
     return outer;
@@ -399,9 +442,8 @@ export function createPanel(ctx) {
       return [value, b];
     });
     fields.push(() => {
-      const el = sel();
-      if (!el) return;
-      const v = def.read(el, getComputedStyle(el));
+      if (!sel()) return;
+      const v = common(def.read);
       for (const [value, b] of buttons) b.classList.toggle('on', value === v);
     });
     return wrap;
@@ -437,7 +479,8 @@ export function createPanel(ctx) {
     }
 
     const current = () => def.read(sel(), getComputedStyle(sel()));
-    const write = (value, group) => act(group, () => def.write(value));
+    // `value` can be a function: worked out per element (each keeps its own opacity or color).
+    const write = (value, group) => act(group, () => def.write(typeof value === 'function' ? value() : value));
     let pickerGroup = 0;
     sw.addEventListener('click', () =>
       colorPop(sw, current(), (v, from) => write(v, from === 'picker' ? `c${id}:picker:${pickerGroup}` : null)));
@@ -451,7 +494,7 @@ export function createPanel(ctx) {
     hex.addEventListener('change', () => {
       const v = colorFromText(hex.value);
       wrap.classList.toggle('bad', !v);
-      if (v) write(isClear(v) || alphaOf(v) < 1 ? v : withAlpha(v, alphaOf(current())));
+      if (v) write(isClear(v) || alphaOf(v) < 1 ? v : () => withAlpha(v, alphaOf(current())));
     });
 
     let alphaGroup = null;
@@ -469,17 +512,23 @@ export function createPanel(ctx) {
       if (!isNumber(alpha.value.trim())) return;
       if (+alpha.value > 100) alpha.value = '100';
       const a = Math.min(100, Math.max(0, +alpha.value)) / 100;
-      write(withAlpha(current(), a), alphaGroup);
+      write(() => withAlpha(current(), a), alphaGroup);
     });
 
     function refreshRow(force) {
       const el = sel();
       if (!el || !row.isConnected) return;
-      const c = def.read(el, getComputedStyle(el));
+      const c = common(def.read);
+      const mixed = c === MIXED;
       const p = parseColor(c);
-      sw.firstChild.style.background = c;
-      if (force || shadow.activeElement !== hex) hex.value = p ? p.hex.slice(1) : c;
-      if (force || shadow.activeElement !== alpha) alpha.value = String(Math.round((p?.a ?? 1) * 100));
+      sw.firstChild.style.background = mixed ? '' : c;
+      sw.classList.toggle('mixed', mixed);
+      wrap.classList.toggle('mixed', mixed);
+      if (force || shadow.activeElement !== hex) hex.value = mixed ? MIXED : p ? p.hex.slice(1) : c;
+      if (force || shadow.activeElement !== alpha) {
+        const a = common((x, cs) => Math.round(alphaOf(def.read(x, cs)) * 100));
+        alpha.value = a === MIXED ? '' : a;
+      }
       wrap.classList.remove('bad');
       if (eye) {
         const off = def.eye.hidden();
@@ -776,7 +825,8 @@ export function createPanel(ctx) {
     syncRatio();
   });
   const syncRatio = () => {
-    const on = state.ratio.has(sel());
+    ratioBtn.hidden = many(); // kept per element; for a multi-selection the handles follow the primary's
+    const on = !many() && state.ratio.has(sel());
     ratioBtn.innerHTML = on ? ICON.ratioOn : ICON.ratioOff;
     ratioBtn.classList.toggle('on', on);
     ratioBtn.setAttribute('aria-pressed', String(on));
@@ -1009,7 +1059,8 @@ export function createPanel(ctx) {
     const list = layers();
     const g = parseGradient(list[0]);
     const off = gradHidden();
-    gradBlock.hidden = !list.length;
+    // Several selected: only when they share the same layers (stops are edited by position).
+    gradBlock.hidden = !list.length || (many() && common((x, cs) => cs.backgroundImage) === MIXED);
     gradKind.textContent = g ? `${g.type[0].toUpperCase()}${g.type.slice(1)}` : /^url\(/.test(list[0] || '') ? 'Image' : 'Pattern';
     angleField.hidden = g?.type !== 'linear' || (g.dir && !/deg$/.test(g.dir));
     stopRows.forEach((r, i) => (r.hidden = !g || i >= g.stops.length));
@@ -1173,7 +1224,7 @@ export function createPanel(ctx) {
   const footer = h('div', 'foot');
   footer.innerHTML = `<span><kbd>esc</kbd> parent</span><span><kbd>${KEY.enter}</kbd> child</span>`;
 
-  // Several siblings selected: structure actions only.
+  // Several selected: structure actions, above the shared properties.
   const multi = h('section', 'multi');
   const multiBtn = (iconName, text, keys, fn) => {
     const b = h('button', 'mbtn', `${ICON[iconName]}<span>${text}</span><kbd>${keys}</kbd>`);
@@ -1193,15 +1244,16 @@ export function createPanel(ctx) {
   // ---------- Public ----------
   function show(el) {
     closePop();
-    const many = state.multi.length > 1;
-    multi.hidden = !many;
-    for (const sec of [layout, appearance, typography, fill, strokeSec, effects]) sec.style.display = many ? 'none' : '';
-    if (many && el) {
+    multi.hidden = !many();
+    if (many() && el) {
       column.hidden = false;
       nameEl.textContent = `${state.multi.length} selected`;
+      nameEl.title = nameEl.textContent;
       const parents = new Set(state.multi.map((x) => x.parentElement));
       metaEl.textContent = parents.size === 1 ? `in ${describe(state.multi[0].parentElement)}` : `in ${parents.size} containers`;
+      metaEl.title = '';
       openBtn.hidden = copyBtn.hidden = scopeSeg.hidden = true;
+      refresh(true);
       return;
     }
     column.hidden = !el; // appears instantly: it shows on almost every selection
@@ -1237,15 +1289,20 @@ export function createPanel(ctx) {
     refresh(true);
   }
 
-  // Which sections/rows apply to this element right now.
+  // Which sections/rows apply right now. Several selected: Text, Gap and Auto
+  // layout need every element to have them; Fill, Stroke and Effects show
+  // when any of them has one (an edit then reaches the ones that have it).
   function arrange(el) {
     const cs = getComputedStyle(el);
-    typography.hidden = !(/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || textNodeOf(el) ||
-      [...el.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim()));
-    gapRow.hidden = !/flex|grid/.test(cs.display);
-    const flex = /flex/.test(cs.display);
+    const els = picked();
+    const all = (f) => els.every((x) => withEl(x, () => f(x, getComputedStyle(x))));
+    const any = (f) => els.some((x) => withEl(x, () => f(x, getComputedStyle(x))));
+    typography.hidden = !all((x) => /^(INPUT|TEXTAREA|SELECT)$/.test(x.tagName) || textNodeOf(x) ||
+      [...x.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim()));
+    gapRow.hidden = !all((x, s) => /flex|grid/.test(s.display));
+    const flex = all((x, s) => /flex/.test(s.display));
     autoBlock.hidden = !flex;
-    autoAdd.hidden = flex || !el.children.length || /grid/.test(cs.display);
+    autoAdd.hidden = many() || flex || !el.children.length || /grid/.test(cs.display); // several: the ⇧A button above
     const col = isCol(cs);
     segRowMain.hidden = segRowCross.hidden = col;
     segColMain.hidden = segColCross.hidden = !col;
@@ -1255,18 +1312,17 @@ export function createPanel(ctx) {
       add.hidden = !isEmpty;
       sec.classList.toggle('empty', isEmpty);
     };
-    const solid = !isClear(cs.backgroundColor) || fillHidden();
+    const solid = any((x, s) => !isClear(s.backgroundColor) || fillHidden());
     fillRow.hidden = !solid;
-    empty(fill, fillAdd, !solid && cs.backgroundImage === 'none' && !gradHidden());
+    empty(fill, fillAdd, !solid && !any((x, s) => s.backgroundImage !== 'none' || gradHidden()));
     fillAdd.hidden = solid;
-    empty(strokeSec, strokeAdd, !strokeOf(cs) && !strokeHidden());
-    empty(effects, shadowAdd, cs.boxShadow === 'none' && !shadowHidden());
+    empty(strokeSec, strokeAdd, !any((x, s) => strokeOf(s) || strokeHidden()));
+    empty(effects, shadowAdd, !any((x, s) => s.boxShadow !== 'none' || shadowHidden()));
   }
 
   function refresh(force) {
     const el = sel();
-    if (!el) return;
-    if (state.multi.length > 1) return;
+    if (!el || busy) return;
     arrange(el);
     for (const f of fields) f(force);
   }
@@ -1276,8 +1332,13 @@ export function createPanel(ctx) {
     pop,
     show,
     refresh,
-    setSize,
-    autoLayout: (el, group, opts) => act(group ?? null, () => autoLayout(el, opts)),
+    // Resize handles: set one element's size (CSS px), whatever is selected.
+    sizeOf: (el, scope, axis, px) => withEl(el, () => setSize(axis, String(px)), scope),
+    autoLayout: (el, group, opts) => {
+      const r = changes.batch(group ?? null, () => autoLayout(el, opts)); // once, not once per selected element
+      ctx.onEdit();
+      return r;
+    },
     menuOpen: () => !pop.hidden,
     closeMenu: closePop,
   };

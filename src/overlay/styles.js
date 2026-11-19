@@ -42,7 +42,8 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .frame { border: 1px solid var(--accent); }
 .frame.editing { border-width: 2px; }
 .frame.editing .handle, .frame.editing .size { display: none; }
-.frame.moving { opacity: .35; }
+.frame.moving, .multis.moving { opacity: .35; }
+.frame.group .size { transform: translate(-50%, 27px); } /* below the selected elements' own labels */
 .box.padding { background: var(--pad); outline: 1px dashed var(--pad-edge); outline-offset: -1px; }
 .box.gap { background: repeating-linear-gradient(45deg, var(--pad) 0 3px, transparent 3px 6px); outline: 1px dashed var(--pad-edge); outline-offset: -1px; }
 .box.margin { background: var(--mar); outline: 1px dashed var(--mar-edge); outline-offset: -1px; }
@@ -300,6 +301,8 @@ input::selection { background: rgba(13,153,255,.4); }
 .glass[data-tool="text"] { cursor: text; }
 .ghost.round { border-radius: 50%; }
 .frame.passive .handle { pointer-events: none; }
+.field.mixed .hex { text-transform: none; }
+.swatch.mixed i { background: linear-gradient(135deg, var(--text) 0 50%, var(--dim) 50%); }
 .multi { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; }
 .mbtn { all: unset; display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 8px; border-radius: 7px; cursor: pointer; }
 .mbtn:hover { background: var(--field); }

@@ -12,18 +12,6 @@ Figma is the reference for every behavior. Where a live web page can't work like
 
 ## Next up
 
-### 3. Move and resize several elements at once
-- Dragging any element in a multi-selection moves them all, keeping their relative order, into the drop target.
-- One bounding frame around the whole selection, with handles. Resizing scales each element's size proportionally; Shift keeps proportions.
-- Arrow keys nudge or reorder all of them.
-- Panel: for a multi-selection, show shared fields (fill, radius, opacity, stroke…) with "Mixed" where values differ. An edit applies to every selected element as one undo step.
-- Notes for building it:
-  - **DESIGN.md › Interaction:** each selected element keeps its own full selection frame (border, 8 handles, size label). The group bounding frame uses the same style, not a different look. Constrain proportions (`state.ratio`) should behave like Shift for the group, if the primary has it on.
-  - Today `glass` pointermove only starts a drag when `state.multi.length <= 1`, so multi-drag is the gap to fill. Moves go through `changes.move` inside one `changes.batch`, so one ⌘Z undoes all of them.
-  - The multi-selection panel (`multi` block in `panel.js`: Group, Auto layout, Delete) is where shared fields go.
-  - Sizes must stay in CSS px at any zoom (`box()`, `view.z`; see CLAUDE.md › Zoom rule).
-  - Tests: `tests/item3.mjs`.
-
 ### 4. Padding and gap handles on the canvas
 - When an auto-layout frame is selected, show draggable padding zones (pink/purple, as in Figma) and gap zones between the children.
 - Drag to change the value. Hover shows the value. Shift drags snap to steps of 8. ⌥ drags change the opposite sides symmetrically.
@@ -79,6 +67,7 @@ Figma is the reference for every behavior. Where a live web page can't work like
 - Snapping and smart guides while dragging or resizing absolute elements.
 
 ## Done (highlights)
+- 2026-11-19, item 3: several elements at once. Drag any selected element to move them all (page order kept, one undo; ⌥-drag copies them all). One group frame with working handles goes around the selection, and each element keeps its own frame; the group's size label sits a row lower. Group resize scales each element's size by the frame's factor (Shift, or the primary's constrain proportions, keeps proportions). Arrows nudge all of them, or move them as a block inside auto layout. Panel: shared sections with "Mixed"; edits run once per element (`each`/`withEl`/`common` in `panel.js`). Also fixed: typing a hex color into a semi-transparent color dropped its opacity.
 - 2026-11-19: W/H look linked while constrain proportions is on; the corner-radius row's split button is 4px from its field (DESIGN.md minimum).
 - 2026-11-19: the Gap field is a plain input (no preset list; type `auto` for auto spacing). Constrain proportions is a link button in the Layout title row (`state.ratio`, overlay-only); with it on, W/H edits and resize handles keep the ratio. Letter prefixes (W, H) use a narrower slot so values like 1327.5 fit beside Hug/Fill.
 - 2026-11-19, motion and press polish (`/emil-design-eng` review): panels, toolbar and Layers appear instantly; one strong ease-out; press feedback on buttons; menus grow from their trigger; drop line and target snap to the pointer; missing focus rings added; reduced-motion coverage completed.

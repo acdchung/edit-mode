@@ -126,7 +126,7 @@ await click('.card-title', 1, ['Shift']);
 check('Shift-click another card’s title adds that title', (await multi()).join() === 'card-title,card-title', (await multi()).join());
 { const f = await st(() => { const r = document.querySelector('edit-mode-root').shadowRoot; const main = getComputedStyle(r.querySelector('.frame:not(.passive)'));
     return [...r.querySelectorAll('.multis .frame')].map(x => ({ h: x.querySelectorAll('.handle').length, b: getComputedStyle(x).borderTopStyle + getComputedStyle(x).borderTopColor === main.borderTopStyle + main.borderTopColor, l: /×/.test(x.querySelector('.size').textContent) })); });
-  check('Shift-selected elements get the same frame as the selection (DESIGN.md)', f.length === 1 && f.every(x => x.h === 8 && x.b && x.l), JSON.stringify(f)); }
+  check('Shift-selected elements get the same frame as the selection (DESIGN.md)', f.length === 2 && f.every(x => x.h === 8 && x.b && x.l), JSON.stringify(f)); }
 { const r = await p.evaluate(() => { const t = document.querySelectorAll('.card-title')[1]; const row = window.__editMode.layers.rowFor(t); return row?.className; });
   check('Layers opens down to the added element too and marks it', !!r && r.includes('sel'), String(r)); }
 await click('.card-meta', 2, ['Shift']);

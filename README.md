@@ -29,16 +29,16 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 | ⌘-click | Select the deepest element directly (hold ⌘ to preview it on hover) |
 | Esc / Enter | Select parent / first child (Enter on text starts editing it). Esc past the top level deselects |
 | ⌫ / Delete | Delete element |
-| Arrows / Shift + arrows | Nudge 1px / 10px (margin); inside auto layout, move earlier/later |
+| Arrows / Shift + arrows | Nudge 1px / 10px (margin); inside auto layout, move earlier/later. With several selected, all of them (as a block in auto layout) |
 | ⌘Z / ⌘⇧Z | Undo / redo |
 | ⌘↵ | Push |
-| Drag an element | Move it: reorder, or drop into another container |
+| Drag an element | Move it: reorder, or drop into another container. With several selected, drag any of them to move them all, in page order |
 | V / R / O / T | Select, Rectangle, Ellipse, Text tools (toolbar above the pill). Hold Shift while drawing for a square or circle |
 | Shift-click | Add to / remove from the selection, at the same depth as what's selected (title selected → Shift-click another card's title adds that title). Holding Shift previews it. ⇧⌘-click adds exactly the deepest element |
 | Tab / Shift-Tab | Next / previous sibling |
 | ⌘A | Select all siblings |
 | Hold ⌥ | Measure distances to the hovered element (or to the parent) |
-| ⌥-drag | Duplicate and move the copy |
+| ⌥-drag | Duplicate and move the copy (or copies) |
 | ⌥1, or the Layers button in the toolbar | Show / hide the Layers panel |
 | ⌘+ / ⌘− / ⌘0 | Zoom in / out / to 100% (or use the % menu in the toolbar) |
 | ⇧1 / ⇧2 / ⇧0 | Zoom to fit the page between the panels / to the selection / to 100% |
@@ -50,10 +50,12 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 | ⌘D | Duplicate |
 | ⌘G | Group the selection |
 | ⇧A | Auto layout: wraps a multi-selection or a single text/shape in a hugging frame; turns a container into auto layout |
-| Drag a handle | Resize (hold Shift to keep proportions) |
+| Drag a handle | Resize (hold Shift to keep proportions). With several selected, the handles are on the frame around all of them, and each element's size scales by the same amount |
 | In a field: type, ↑/↓, or drag its label | Change a value (accepts %, and math like `8*2`) |
 
 **Panel:** Layout (size, gap, padding, margin), Appearance (opacity, roundness), Text, Fill, Stroke (inside = border, outside = outline), Effects (shadow). Fill shows solid colors and gradients (angle and stops) or images. Empty fill/stroke/effects show as **+**. Colors, sizes and CSS variables already on the page are offered as quick picks.
+
+**Several selected:** the panel shows Group / Auto layout / Delete, then the properties they share. Text, Gap and Auto layout show when every selected element has them; Fill, Stroke and Effects when any of them does. A field reads **Mixed** when the values differ. Typing a value sets it on all of them; ↑/↓ or dragging the label on a Mixed field shifts each one's own value by the same amount. Every edit is one ⌘Z.
 
 **Layers panel (left):** the page's element tree, top to bottom in page order. Click a row to select, ⌘-click to add or remove, Shift-click for a range. Hovering a row highlights the element on the page, and the tree opens to whatever you select on the canvas. Drag rows to reorder or to move into another frame (drop on the middle of a frame's row). The arrow opens or closes a row (⌥-click opens everything inside). On hover, each row shows **eye** (hide: a change that Push applies as CSS) and **lock** (can't be clicked on the page; only for this session, not pushed). Open or closed is remembered.
 
