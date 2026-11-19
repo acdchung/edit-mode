@@ -10,6 +10,14 @@ Read this file first, then ROADMAP.md (what's next) and README.md (user-facing f
 
 ## Working rules
 
+- **After each roadmap item (or batch of fixes):**
+  - commit a checkpoint and push to the private GitHub repo (https://github.com/acdchung/edit-mode)
+  - give the user a detailed, plain-language update covering:
+    - what changed and how to use it
+    - where it differs from Figma, and why
+    - what was tested, with the results
+    - what was committed
+
 - **Never run automated tests against the user's server** (sample-app on port 5288, which they use live, including real pushes). Test on a copy:
   - scratchpad `sample-copy/`: a copy of sample-app with `node_modules` symlinked, running on **port 5390** with its own `.editmode/`
   - start it with `npx vite --port 5390 --strictPort`
