@@ -10,7 +10,7 @@
 // old inline value is saved. Calls made inside the same `group` (one typing
 // session in a field, one drag) merge into a single undo step.
 
-import { ATTR, describe, sameSource } from './util.js';
+import { ATTR, describe, family, familyKey, sameSource } from './util.js';
 
 export const TEXT = '#text';
 export const POS = '#pos'; // position in the DOM: [parent, nextSibling]
@@ -79,10 +79,11 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
   }
 
   function targets(el, scope) {
-    const all = sameSource(el);
-    if (scope === 'all' && all.length > 1) {
-      return { key: `all:${el.getAttribute(ATTR)}`, els: all, scope: 'all', count: all.length };
+    const fam = family(el);
+    if (scope === 'all' && fam.length > 1) {
+      return { key: `all:${familyKey(el)}`, els: fam, scope: 'all', count: fam.length, family: familyKey(el) };
     }
+    const all = sameSource(el); // index among the code instances, for Claude
     return { key: `one:${idOf(el)}`, els: [el], scope: 'one', index: all.indexOf(el), count: all.length };
   }
 
@@ -93,6 +94,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
     insideNew: el.dataset?.emNew ? undefined : el.parentElement?.closest('[data-em-new]')?.dataset.emNew,
     copyOf: el.dataset?.emCopyOf,
     scope: t.scope,
+    family: t.family, // scope "all": the JSX line (or "new #N") whose elements and copies this covers
     index: t.index,
     count: t.count,
   });

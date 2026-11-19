@@ -7,7 +7,8 @@ Batch folder: {{BATCH}}
   - `kind`: `style`, `text` or `delete`
   - `element`: tag and classes, e.g. `button.btn.cta-primary`
   - `source`: `file:line:col` of the JSX tag that renders the element
-  - `scope`: `all` = every element rendered from that JSX line (e.g. all cards); `one` = only the instance at `index` (0-based) among the `count` rendered from that line
+  - `scope`: `all` = the element's whole `family`; `one` = only this element (for code elements, the instance at `index` (0-based) among the `count` rendered from that line)
+  - `family` (with `scope: "all"`): a JSX `file:line:col`, or `new #N` for something the designer added. The family is every element rendered from that line, plus every copy of them made in this batch (`copyOf` = the family). Copies get the same styling as the originals.
   - `property`, `from`, `to`: CSS property and its computed value before and after
   - `value`: what the designer actually picked. It may be a CSS variable such as `var(--ink)`; use it as-is when it is.
 - `{{BATCH}}/context.json`: for each changed element, its classes, text, HTML and parent. Inline `style` attributes were stripped; they were only the preview.
@@ -15,7 +16,7 @@ Batch folder: {{BATCH}}
 Rules:
 1. Apply every change in the project's source. Don't ask questions. Only stop if a change truly can't be done, and say why.
 2. Styling is plain CSS. Edit the CSS rule that styles the element (find it through the element's classes). Inline styles are never the final result.
-3. `scope: "all"`: change the shared CSS rule.
+3. `scope: "all"`: change the shared CSS rule (or, for a `new #N` family, the class that the new element and its copies share). Render copies so that they use the same rule.
    `scope: "one"`: add a modifier class for just that instance (e.g. `.card--featured`) and style it. If the element is rendered from a list (`.map`), apply the class conditionally using the item's data or index, whichever is cleanest.
 4. Prefer existing CSS variables and values. If a new value is very close to an existing variable or a value used elsewhere (15px next to a 16px scale), use the existing one. Don't change values that are clearly deliberate.
 5. `kind: "text"`: change the text in the JSX, or in the data it comes from.

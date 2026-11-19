@@ -32,9 +32,11 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   const rowOf = new WeakMap();
   let dirty = true;
   let lastSel = null;
+  let lastMulti = 0;
   let lastMark = '';
   let anchor = null; // where a Shift-click range starts
   let drag = null;
+  let rowHover = null; // the element hovered through a row (rows get replaced on rebuild)
 
   // ---------- What's a layer ----------
   const hiddenByUs = (n) => n.style.getPropertyValue('display') === 'none';
@@ -82,6 +84,10 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     const scroll = body.scrollTop;
     body.textContent = '';
     rows = [];
+    // The hovered row is about to be replaced without a pointerleave: drop its
+    // hover so the outline on the page doesn't get stuck.
+    if (rowHover && state.hovered === rowHover) state.hovered = null;
+    rowHover = null;
     if (!root || root === document.body) {
       for (const k of kidsOf(document.body, false)) add(k, 0, false);
     } else {
@@ -130,8 +136,8 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     for (const b of [lock, eye]) b.addEventListener('pointerdown', (e) => e.stopPropagation());
     lock.addEventListener('click', (e) => { e.stopPropagation(); toggleLock(n); });
     eye.addEventListener('click', (e) => { e.stopPropagation(); toggleHidden(n); });
-    row.addEventListener('pointerenter', () => { if (!drag) state.hovered = n; });
-    row.addEventListener('pointerleave', () => { if (!drag && state.hovered === n) state.hovered = null; });
+    row.addEventListener('pointerenter', () => { if (!drag) state.hovered = rowHover = n; });
+    row.addEventListener('pointerleave', () => { if (!drag && state.hovered === n) state.hovered = rowHover = null; });
     row.addEventListener('pointerdown', (e) => pressRow(e, entry));
 
     if (open) for (const k of kids) add(k, depth + 1, hidden);
@@ -153,10 +159,12 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   }
 
   // Open the tree down to the selection and scroll it into view.
-  function reveal(n) {
+  function reveal(n, others = []) {
     let changed = false;
-    for (let x = n.parentElement; x && x !== document.body; x = x.parentElement) {
-      if (!expanded.has(x)) { expanded.add(x); changed = true; }
+    for (const m of [n, ...others]) {
+      for (let x = m.parentElement; x && x !== document.body; x = x.parentElement) {
+        if (!expanded.has(x)) { expanded.add(x); changed = true; }
+      }
     }
     if (changed || !rowOf.get(n) || !rows.includes(rowOf.get(n))) build();
     const r = rowOf.get(n);
@@ -171,9 +179,12 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   function sync() {
     if (el.hidden) return;
     if (dirty && !drag) build();
-    if (state.selected !== lastSel) {
+    // Open the tree to every selected element (Shift-click adds reveal too).
+    const multiKey = state.multi.length;
+    if (state.selected !== lastSel || multiKey !== lastMulti) {
       lastSel = state.selected;
-      if (lastSel?.isConnected) reveal(lastSel);
+      lastMulti = multiKey;
+      if (lastSel?.isConnected) reveal(state.multi.at(-1)?.isConnected ? state.multi.at(-1) : lastSel, state.multi.filter((m) => m.isConnected));
     }
     mark();
   }
@@ -245,6 +256,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     select(d.el);
     dirty = true;
   };
+  el.addEventListener('pointerleave', () => { if (!drag && rowHover && state.hovered === rowHover) state.hovered = rowHover = null; });
   el.addEventListener('pointerup', endDrag);
   el.addEventListener('pointercancel', endDrag);
 

@@ -34,7 +34,7 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 | ⌘↵ | Push |
 | Drag an element | Move it: reorder, or drop into another container |
 | V / R / O / T | Select, Rectangle, Ellipse, Text tools (toolbar above the pill). Hold Shift while drawing for a square or circle |
-| Shift-click | Add to / remove from the selection (at the selection's level; ⇧⌘-click for anything) |
+| Shift-click | Add to / remove from the selection, at the same depth as what's selected (title selected → Shift-click another card's title adds that title). Holding Shift previews it. ⇧⌘-click adds exactly the deepest element |
 | Tab / Shift-Tab | Next / previous sibling |
 | ⌘A | Select all siblings |
 | Hold ⌥ | Measure distances to the hovered element (or to the parent) |
@@ -63,7 +63,12 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 
 **Gap:** a number, or **Auto** to push children to the ends of the frame (Figma's auto spacing).
 
-**This one / All like this:** for repeated elements (a card rendered 3 times). Defaults to This one.
+**This one / All like this:** for repeated elements. Defaults to This one. "All like this" covers a *family*:
+- every element rendered from the same line of code (a card rendered 3 times = 3)
+- plus any copies you make of them with ⌘D, paste or ⌥-drag, including the elements inside those copies
+- a shape or text you add is its own family, and its copies join it
+
+Push styles a family through one shared CSS rule, so the copies match the originals once they're in the code.
 
 **Push:** shows the list of changes; **Proceed** snapshots your source, runs Claude in the background to apply them, then reloads the page. **Undo** (in the pill afterwards) restores the files Claude changed and brings your edits back so you can adjust and push again.
 

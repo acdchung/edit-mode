@@ -3,7 +3,7 @@
 // and its CSS can't touch the app.
 
 import { STYLES } from './styles.js';
-import { ATTR, box, describe, num, parseColor, sameSource, view } from './util.js';
+import { ATTR, box, describe, family, num, parseColor, sameSource, view } from './util.js';
 import { createCanvas } from './canvas.js';
 import { createChanges, textNodeOf } from './changes.js';
 import { collectTokens } from './tokens.js';
@@ -161,7 +161,11 @@ function init() {
   const zmenu = $('.zmenu');
   ui.append(zmenu); // out of the dock: its transform would offset a fixed menu
   const canvas = createCanvas({
-    onChange: () => { zoomBtn.textContent = `${Math.round(view.z * 100)}%`; },
+    onChange: () => {
+      zoomBtn.textContent = `${Math.round(view.z * 100)}%`;
+      // The page moved under a still pointer: hover what's under it now.
+      if (pointer && !press && !drag && !draw && !pan && state.tool === 'select') state.hovered = hoverAt(pointer.x, pointer.y, pointer);
+    },
     area: () => ({
       left: layers.open && !ui.classList.contains('ui-hidden') ? layers.el.getBoundingClientRect().right : 0,
       // Always leave room for the properties panel: it appears as soon as something is selected.
@@ -654,6 +658,7 @@ function init() {
     e.stopImmediatePropagation();
     glass.setPointerCapture(e.pointerId);
     pan = { x: e.clientX, y: e.clientY };
+    state.hovered = null;
     glass.classList.add('panning');
   });
   glass.addEventListener('pointermove', (e) => {
@@ -702,8 +707,12 @@ function init() {
       if (drop) draw = { x: e.clientX, y: e.clientY, drop };
       return;
     }
+    if (e.shiftKey && state.selected) {
+      const add = multiTarget(e.clientX, e.clientY, e.metaKey || e.ctrlKey);
+      if (add) toggleMulti(add);
+      return;
+    }
     const el = hit(e.clientX, e.clientY, e.metaKey || e.ctrlKey);
-    if (e.shiftKey && el && state.selected) { toggleMulti(el); return; }
     const keep = !!(el && state.multi.length > 1 && state.multi.includes(el));
     if (!keep) select(el);
     press = { x: e.clientX, y: e.clientY, el, target: el, keep };
@@ -712,7 +721,7 @@ function init() {
   glass.addEventListener('pointermove', (e) => {
     const x = e.clientX;
     const y = e.clientY;
-    pointer = { x, y };
+    pointer = { x, y, shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey };
     if (draw) return showDraw(x, y, e.shiftKey);
     if (state.tool !== 'select') { state.hovered = null; return showDrop(dropAt(x, y, null), true); }
     if (press && !drag && Math.hypot(x - press.x, y - press.y) > 4 && state.multi.length <= 1) {
@@ -724,7 +733,7 @@ function init() {
       } else startDrag(press.target, press);
     }
     if (drag) return updateDrag(x, y);
-    if (!press) state.hovered = hit(x, y, e.metaKey || e.ctrlKey);
+    if (!press) state.hovered = hoverAt(x, y, e);
   });
 
   glass.addEventListener('pointerup', (e) => {
@@ -983,11 +992,13 @@ function init() {
   const inOrder = (els) => [...els].sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
 
   // A clone that no longer claims to be the original: data-src becomes
-  // data-em-copy-of, so it isn't treated as another instance of that JSX line.
+  // data-em-copy-of. It isn't a code instance, but it joins the original's
+  // family for "All like this" (see family() in util.js). A copy of a copy
+  // keeps the first original's family.
   function cloneFor(el) {
     const c = el.cloneNode(true);
     for (const n of [c, ...c.querySelectorAll('*')]) {
-      const from = n.getAttribute(ATTR) ?? (n.dataset.emNew ? `new #${n.dataset.emNew}` : null);
+      const from = n.getAttribute(ATTR) ?? n.dataset.emCopyOf ?? (n.dataset.emNew ? `new #${n.dataset.emNew}` : null);
       n.removeAttribute(ATTR);
       delete n.dataset.emNew;
       if (from) n.dataset.emCopyOf = from;
@@ -1058,14 +1069,25 @@ function init() {
   }
 
   // ---------- Multi-select, group, auto layout ----------
-  // Shift-click: add to / remove from the selection. Clicking inside a
-  // sibling of the selection picks that sibling (so clicking a card's title
-  // adds the card); otherwise the element itself is added, wherever it is.
-  function toggleMulti(el) {
-    const parent = state.selected.parentElement;
-    let n = el;
-    while (n && n.parentElement !== parent) n = n.parentElement;
-    if (!n) n = el;
+  // What Shift-click adds: the element under the pointer at the same depth
+  // as the selection, so with one card's title selected, Shift-clicking
+  // another card's title adds that title (and Shift-clicking a card adds
+  // the card when a card is selected). Shallower than the selection: the
+  // element itself. ⇧⌘-click: exactly the deepest element.
+  function multiTarget(x, y, deep) {
+    const d = deepHit(x, y);
+    if (deep || !d || !state.selected) return d;
+    const root = pageRoot();
+    if (d === root || !root.contains(d)) return null;
+    const depth = (n) => { let k = 0; for (; n && n !== root; n = n.parentElement) k++; return k; };
+    const want = depth(state.selected);
+    let n = d;
+    while (n && n !== root && depth(n) > want) n = n.parentElement;
+    return n && n !== root ? pickable(n) || n : d;
+  }
+
+  // Shift-click: add to / remove from the selection.
+  function toggleMulti(n) {
     if (state.multi.includes(n)) {
       state.multi = state.multi.filter((x) => x !== n);
       if (n === state.selected) state.selected = state.multi[0] ?? null;
@@ -1160,9 +1182,9 @@ function init() {
     e.preventDefault();
     if (e.type === 'pointerdown') {
       stopText();
-      const el = hit(e.clientX, e.clientY, e.metaKey || e.ctrlKey);
-      if (e.shiftKey && el && state.selected) toggleMulti(el); // Shift-click adds, even mid-typing
-      else select(el);
+      const mod = e.metaKey || e.ctrlKey;
+      if (e.shiftKey && state.selected) { const add = multiTarget(e.clientX, e.clientY, mod); if (add) toggleMulti(add); } // Shift-click adds, even mid-typing
+      else select(hit(e.clientX, e.clientY, mod));
     }
   }
 
@@ -1220,10 +1242,16 @@ function init() {
   };
   window.addEventListener('keyup', redrawOnShift, true);
 
-  // Holding ⌘ switches hover to the deepest element right away (Figma).
+  // Hover shows what a click would pick: Shift previews what it would add,
+  // ⌘ the deepest element. Pressing or releasing those keys updates it.
+  function hoverAt(x, y, keys) {
+    const deep = keys.metaKey || keys.ctrlKey;
+    if (keys.shiftKey && state.selected) return multiTarget(x, y, deep);
+    return hit(x, y, deep);
+  }
   const rehover = (e) => {
-    if (e.key !== 'Meta' && e.key !== 'Control') return;
-    if (pointer && !press && !drag && !draw && state.tool === 'select') state.hovered = hit(pointer.x, pointer.y, e.type === 'keydown');
+    if (!/^(Meta|Control|Shift)$/.test(e.key)) return;
+    if (pointer && !press && !drag && !draw && !pan && state.tool === 'select' && state.on) state.hovered = hoverAt(pointer.x, pointer.y, e);
   };
   window.addEventListener('keydown', rehover, true);
   window.addEventListener('keyup', rehover, true);
@@ -1398,6 +1426,7 @@ function init() {
     // React may replace the selected node on re-render; drop stale references.
     if (state.selected && !state.selected.isConnected) select(null);
     if (state.hovered && !state.hovered.isConnected) state.hovered = null;
+    if (state.editing && !state.editing.isConnected) stopText(); // don't stay stuck in text editing
     const sel = state.selected;
 
     hoverBox.hidden = !state.on || !state.hovered || state.hovered === sel || !!state.editing;
@@ -1423,7 +1452,7 @@ function init() {
       }
     }
 
-    const sibs = sel && state.scope === 'all' ? sameSource(sel).filter((x) => x !== sel && visible(x)) : [];
+    const sibs = sel && state.scope === 'all' ? family(sel).filter((x) => x !== sel && visible(x)) : [];
     drawBoxes(sibLayer, sibs.map((x) => x.getBoundingClientRect()), 'sib');
     const others = state.multi.filter((x) => x !== sel && x.isConnected && visible(x));
     drawFrames(multiLayer, others);

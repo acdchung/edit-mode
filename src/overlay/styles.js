@@ -43,7 +43,7 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .frame.editing { border-width: 2px; }
 .frame.editing .handle, .frame.editing .size { display: none; }
 .frame.moving { opacity: .35; }
-.box.sib { border: 1px dashed var(--accent); opacity: .6; }
+.box.sib { border: 1px solid var(--accent); } /* "All like this": outlined like the selection */
 .box.padding { background: var(--pad); outline: 1px dashed var(--pad-edge); outline-offset: -1px; }
 .box.gap { background: repeating-linear-gradient(45deg, var(--pad) 0 3px, transparent 3px 6px); outline: 1px dashed var(--pad-edge); outline-offset: -1px; }
 .box.margin { background: var(--mar); outline: 1px dashed var(--mar-edge); outline-offset: -1px; }

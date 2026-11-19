@@ -16,7 +16,7 @@ Read this file first, then ROADMAP.md (what's next) and README.md (user-facing f
   - drive it with `playwright-core` + system Chrome (`chromium.launch({ channel: 'chrome' })`)
   - if the scratchpad was wiped, recreate the copy: `cp -R sample-app <dir>/sample-copy`, delete its `.editmode`, and symlink `node_modules`
 - **Git:** the project is a local git repo. Commit a checkpoint after each roadmap item passes QA (and before risky changes). Never commit `node_modules`, `.editmode/` or `dist/` (see `.gitignore`).
-- **Tests live in `tests/`:** `item1.mjs`, `item2.mjs`, `zoom.mjs`, `brutal1.mjs` and `brutal2.mjs`. Every suite except `item2.mjs` starts with the Layers panel closed, through `addInitScript` setting `localStorage['edit-mode:layers'] = '0'`. Otherwise the panels cover the spots those tests click on. Run them with `cd tests && node <file>` while the copy runs on 5390 (`npm install` in `tests/` if `node_modules` is missing). Add an `itemN.mjs` for each roadmap item.
+- **Tests live in `tests/`:** `item1.mjs`, `item2.mjs`, `zoom.mjs`, `polish1.mjs`, `brutal1.mjs` and `brutal2.mjs`. Every suite except `item2.mjs` starts with the Layers panel closed, through `addInitScript` setting `localStorage['edit-mode:layers'] = '0'`. Otherwise the panels cover the spots those tests click on. Run them with `cd tests && node <file>` while the copy runs on 5390 (`npm install` in `tests/` if `node_modules` is missing). Add an `itemN.mjs` for each roadmap item.
 - Use **mouse clicks** in tests (`page.mouse.click(x, y)`), not `locator.click()`: the glass layer intercepts pointer events.
 - A plain click selects at the current level (Figma). To select a specific nested element in a test, hold Meta while clicking (`brutal*.mjs`'s `p.tap` does this); `tests/item1.mjs` covers the level rules.
 - In the browser console, `window.__editMode` gives `{ state, changes }`.
@@ -72,6 +72,12 @@ Read this file first, then ROADMAP.md (what's next) and README.md (user-facing f
   - `tokens.js`: colors, sizes and CSS variables already on the page, offered as quick picks.
   - `icons.js`: Lucide paths plus the `icon()`, `ICON` and `KEY` glyphs.
   - `util.js`: helpers.
+
+## "All like this" families
+
+- `family(el)` / `familyKey(el)` in `util.js`. The key is the element's `data-src`, else its `data-em-copy-of`, else `new #N` for an element you added. `cloneFor` sets `data-em-copy-of` (keeping the first original's key on a copy of a copy).
+- `changes.targets(el, 'all')` uses the family, and Push entries carry `family`.
+- `sameSource` stays strict (code instances only) for `index`/`count` and "2 of 3".
 
 ## Figma → CSS mapping in use
 

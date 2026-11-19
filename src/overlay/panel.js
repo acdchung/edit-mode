@@ -6,7 +6,7 @@
 // `changes.set(...)`, which previews the edit as an inline style.
 
 import {
-  ATTR, box, colorFromText, describe, fmt, isNumber, num, parseColor, parseSrc, sameSource, svg,
+  ATTR, box, colorFromText, describe, family, fmt, isNumber, num, parseColor, parseSrc, sameSource, svg,
 } from './util.js';
 import { textNodeOf } from './changes.js';
 import { ICON, KEY } from './icons.js';
@@ -1185,7 +1185,8 @@ export function createPanel(ctx) {
     const own = el.getAttribute(ATTR);
     const tagged = own ? el : el.parentElement?.closest(`[${ATTR}]`);
     const src = tagged && parseSrc(tagged.getAttribute(ATTR));
-    const instances = own ? sameSource(el) : [el];
+    const instances = own ? sameSource(el) : [el]; // code instances (for "2 of 3")
+    const fam = family(el); // what "All like this" covers, copies included
 
     const newRoot = el.closest('[data-em-new]');
     const isNew = newRoot ? newRoot.dataset.emNew : null;
@@ -1203,8 +1204,8 @@ export function createPanel(ctx) {
       openBtn.href = `vscode://file/${ROOT}/${srcText}`;
     }
 
-    scopeSeg.hidden = instances.length < 2;
-    scopeAll.textContent = `All like this · ${instances.length}`;
+    scopeSeg.hidden = fam.length < 2;
+    scopeAll.textContent = `All like this · ${fam.length}`;
     scopeOne.classList.toggle('on', state.scope === 'one');
     scopeAll.classList.toggle('on', state.scope === 'all');
 

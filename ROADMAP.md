@@ -73,6 +73,12 @@ Figma is the reference for every behavior. Where a live web page can't work like
 - Snapping and smart guides while dragging or resizing absolute elements.
 
 ## Done (highlights)
+- 2026-11-18, fixes before item 3:
+  - "All like this" families, so copies you make join their originals
+  - Shift-click adds at the same depth as the selection, with a Shift hover preview; ⇧⌘-click adds the deepest element
+  - Layers opens down to every selected element
+  - "All like this" outlines are solid, like the selection
+  - stuck outlines: hover now follows the pointer after a pan or zoom, is cleared when the Layers panel rebuilds, and text editing ends if the page replaces the element being edited
 - 2026-11-18, zoom and pan (option B, added before item 3): `canvas.js`. ⌘+/⌘−/⌘0, ⇧0/⇧1/⇧2, ⌘-scroll and pinch zoom around the pointer; scroll, Space-drag and middle-drag pan; a % menu in the toolbar. Every size, label, field, resize, drawing and measurement stays in CSS px (`box()`, `view.z`). Known limit: fixed and sticky app elements scroll with the page while editing.
 - 2026-11-18, Layers fixes: the top row can collapse; hiding the top layer no longer surfaces `#root` as a new parent.
 - 2026-11-18, item 2: Layers panel (`layers.js`). Left side, open by default, toggled with ⌥1 or a toolbar button and remembered. Rows: select / ⌘ toggle / Shift range, two-way hover, auto-reveal of the selection, carets (⌥ for all), and drag to reorder, nest into a frame or drop as the first child of an open frame, through `changes.move`. Eye = hide (a pushed change), lock = can't pick on the canvas (overlay-only). Rows are in DOM order, not Figma's reversed z-order, because that's how a page reads. When the properties panel jumps left, it now sits beside Layers.

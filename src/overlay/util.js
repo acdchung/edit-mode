@@ -26,10 +26,30 @@ export function parseSrc(value) {
 export const describe = (el) =>
   el.tagName.toLowerCase() + [...el.classList].map((c) => '.' + c).join('');
 
+// Elements rendered from the same JSX line (code instances only).
 export const sameSource = (el) => {
   const src = el.getAttribute(ATTR);
   return src ? [...document.querySelectorAll(`[${ATTR}="${CSS.escape(src)}"]`)] : [el];
 };
+
+// "All like this" works on a family:
+// - elements rendered from the same JSX line (data-src)
+// - plus copies of them made in this session (⌘D, paste, ⌥-drag), and the
+//   elements inside those copies (data-em-copy-of = that line)
+// - a shape or text you added is a family of its own, joined by its copies
+//   (data-em-copy-of = "new #N")
+export const familyKey = (el) =>
+  el.getAttribute(ATTR) ?? el.dataset?.emCopyOf ?? (el.dataset?.emNew ? `new #${el.dataset.emNew}` : null);
+
+export function family(el) {
+  const key = familyKey(el);
+  if (!key) return [el];
+  const q = CSS.escape(key);
+  const m = /^new #(\d+)$/.exec(key);
+  const sel = `[${ATTR}="${q}"], [data-em-copy-of="${q}"]` + (m ? `, [data-em-new="${m[1]}"]:not([data-em-copy-of])` : '');
+  const all = [...document.querySelectorAll(sel)].filter((n) => familyKey(n) === key);
+  return all.includes(el) ? all : [el, ...all];
+}
 
 // "rgb(226, 87, 43)" / "rgba(0, 0, 0, 0.5)" → { hex: "#E2572B", a: 0.5 }
 export function parseColor(color) {
