@@ -7,6 +7,7 @@ const check = (name, ok, detail = '') => results.push(`${ok ? 'PASS' : 'FAIL'}  
 async function page(vp = { width: 1280, height: 1000 }) {
   const p = await b.newPage({ viewport: vp });
   p.errors = []; p.on('pageerror', e => p.errors.push(e.message)); p.on('dialog', d => d.accept());
+  await p.addInitScript(() => { try { localStorage.setItem('edit-mode:layers', '0'); } catch {} }); // Layers closed: these suites predate it (item2.mjs covers it)
   await p.goto('http://localhost:5390'); await p.waitForSelector('.cta-primary');
   p.start = await p.$eval('#root', e => e.innerHTML);
   await p.keyboard.press('Alt+KeyE'); await p.waitForTimeout(150);

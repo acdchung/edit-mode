@@ -12,19 +12,6 @@ Figma is the reference for every behavior. Where a live web page can't work like
 
 ## Next up
 
-### 2. Layers panel
-- Left-side panel, glass style like the properties panel.
-- Shows the DOM tree under `#root`, with names from `describe()`.
-- Each row:
-  - click selects; Shift and ⌘ add to the selection
-  - hovering highlights the element on the canvas
-  - expand/collapse
-  - drag to reorder or reparent, using the same `changes.move` path as dragging on the canvas
-  - eye and lock toggles (see 9)
-- Auto-expands to the selection and scrolls it into view.
-- Toggle with a toolbar button. Hidden by ⌘\ along with the rest of the UI.
-- It must stay correct after undo/redo and inserts. Rebuild from the DOM on change; don't keep a parallel model.
-
 ### 3. Move and resize several elements at once
 - Dragging any element in a multi-selection moves them all, keeping their relative order, into the drop target.
 - One bounding frame around the whole selection, with handles. Resizing scales each element's size proportionally; Shift keeps proportions.
@@ -68,8 +55,8 @@ Figma is the reference for every behavior. Where a live web page can't work like
 | Shortcut | Action |
 |---|---|
 | ⌥⌘C / ⌥⌘V | Copy / paste style properties (fill, stroke, effects, radius, text style) |
-| ⇧⌘H | Hide/show. Previews as `display: none` with the element still selectable from Layers; tell Push what this means |
-| ⇧⌘L | Lock: can't be selected on the canvas. Overlay-only state, not pushed |
+| ⇧⌘H | Hide/show. The Layers eye already does this (`toggleHidden` in `layers.js`, and `apply-edits.md` covers it); only the shortcut is left |
+| ⇧⌘L | Lock. Already in the Layers panel (`toggleLock`); only the shortcut is left |
 | ⌘[ / ⌘] | Send backward / bring forward. Moves earlier or later among siblings, or changes z-index when the element is absolute |
 | ⇧⌘G | Ungroup: unwrap the frame, keeping its children where they were |
 | ⌥⇧A | Remove auto layout |
@@ -80,6 +67,7 @@ Figma is the reference for every behavior. Where a live web page can't work like
 - Zoom and pan. Probably not worth it on a live page.
 
 ## Done (highlights)
+- 2026-11-18, item 2: Layers panel (`layers.js`). Left side, open by default, toggled with ⌥1 or a toolbar button and remembered. Rows: select / ⌘ toggle / Shift range, two-way hover, auto-reveal of the selection, carets (⌥ for all), and drag to reorder, nest into a frame or drop as the first child of an open frame, through `changes.move`. Eye = hide (a pushed change), lock = can't pick on the canvas (overlay-only). Rows are in DOM order, not Figma's reversed z-order, because that's how a page reads. When the properties panel jumps left, it now sits beside Layers.
 - 2026-11-18, item 1: Figma-style selection. Click picks the layer at the current level (top-level sections when nothing is selected, else siblings of the selection, walking up when you click outside); double-click drills one level and edits selected text; ⌘-click and ⌘-hover go deepest; Esc stops at the page's top frame and then deselects. Clicking the empty page deselects rather than selecting the page frame (unlike a Figma artboard), because the page fills the whole viewport.
 - Overlay, data-src tagging, properties panel, Push via the Claude CLI with snapshot + Undo.
 - Select / drag-to-move (reorder or reparent), delete, text editing, ⌘Z/⌘⇧Z, scope "This one" / "All like this".

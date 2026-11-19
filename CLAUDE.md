@@ -16,7 +16,7 @@ Read this file first, then ROADMAP.md (what's next) and README.md (user-facing f
   - drive it with `playwright-core` + system Chrome (`chromium.launch({ channel: 'chrome' })`)
   - if the scratchpad was wiped, recreate the copy: `cp -R sample-app <dir>/sample-copy`, delete its `.editmode`, and symlink `node_modules`
 - **Git:** the project is a local git repo. Commit a checkpoint after each roadmap item passes QA (and before risky changes). Never commit `node_modules`, `.editmode/` or `dist/` (see `.gitignore`).
-- **Tests live in `tests/`:** `item1.mjs`, `brutal1.mjs` and `brutal2.mjs`. Run them with `cd tests && node <file>` while the copy runs on 5390 (`npm install` in `tests/` if `node_modules` is missing). Add an `itemN.mjs` for each roadmap item.
+- **Tests live in `tests/`:** `item1.mjs`, `item2.mjs`, `brutal1.mjs` and `brutal2.mjs`. Every suite except `item2.mjs` starts with the Layers panel closed, through `addInitScript` setting `localStorage['edit-mode:layers'] = '0'`. Otherwise the panels cover the spots those tests click on. Run them with `cd tests && node <file>` while the copy runs on 5390 (`npm install` in `tests/` if `node_modules` is missing). Add an `itemN.mjs` for each roadmap item.
 - Use **mouse clicks** in tests (`page.mouse.click(x, y)`), not `locator.click()`: the glass layer intercepts pointer events.
 - A plain click selects at the current level (Figma). To select a specific nested element in a test, hold Meta while clicking (`brutal*.mjs`'s `p.tap` does this); `tests/item1.mjs` covers the level rules.
 - In the browser console, `window.__editMode` gives `{ state, changes }`.
@@ -57,6 +57,7 @@ Read this file first, then ROADMAP.md (what's next) and README.md (user-facing f
     - copy/paste/duplicate, group, auto layout, the rAF render loop (frames, hover, spacing hints, ⌥ measure)
     - selection levels: `pageRoot()` (skips single-child wrappers like `#root`), `hit(x, y, deep)` (layer at the selection's level; `deep` = ⌘), `deepHit`, `hitInside` (double-click drill)
     - key functions: `hit`, `select`, `dropAt`, `startDrag`/`finishDrag`, `finishDraw`, `rhythm`, `insertCopies`, `toggleMulti`, `autoLayoutSelection`, `startText`/`stopText`, `guardWhileEditing`, `render`, `drawFrames`, `drawMeasure`
+  - `layers.js`: the Layers panel (left). It rebuilds rows from the DOM (MutationObserver + `changes` onChange, throttled to the render loop through `sync()`), so there's no parallel model. Row drag uses `changes.move`. The eye button uses `changes.set(el, 'one', 'display', 'none')`. Lock lives in `state.locked` (a WeakSet, overlay-only), and `deepHit` skips locked elements. `rowFor(el)` exists for tests. The open/closed state is in `localStorage['edit-mode:layers']`.
   - `panel.js` (~1260 lines): properties panel, built from `section`/`row`/`numField`/`segField`/`splitToggle`/`listPop`.
     - `numField` supports `prefix`, `suffix`, `picks`, `modes`, `min`/`max`, `hint`, scrubbing and math.
     - Sizing helpers: `sizeMode`, `setSizing` (Fixed/Hug/Fill).

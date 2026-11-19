@@ -7,6 +7,7 @@ import { ATTR, describe, num, parseColor, sameSource } from './util.js';
 import { createChanges, textNodeOf } from './changes.js';
 import { collectTokens } from './tokens.js';
 import { createPanel } from './panel.js';
+import { createLayers } from './layers.js';
 import { ICON, KEY as GLYPH } from './icons.js';
 
 if (!window.__editModeOverlay) {
@@ -49,6 +50,8 @@ function init() {
           <button data-tool="rect" title="Rectangle (R)" aria-label="Rectangle tool">${ICON.rect}</button>
           <button data-tool="ellipse" title="Ellipse (O)" aria-label="Ellipse tool">${ICON.ellipse}</button>
           <button data-tool="text" title="Text (T)" aria-label="Text tool">${ICON.text}</button>
+          <span class="tsep"></span>
+          <button class="layers-btn" title="Layers (⌥1)" aria-label="Layers panel" aria-pressed="false">${ICON.layers}</button>
         </div>
         <div class="pill glassy">
           <button class="toggle" aria-pressed="false" title="Edit mode (⌥E)">
@@ -88,6 +91,7 @@ function init() {
     editing: null, // element whose text is being edited
     phase: 'idle', // idle | running (Claude is applying) | undoing
     server: null, // last /status response
+    locked: new WeakSet(), // locked in the Layers panel: not pickable on the canvas (overlay-only)
   };
   let raf = 0;
   let pingTimer = 0;
@@ -95,6 +99,7 @@ function init() {
   const changes = createChanges(() => {
     renderPill();
     if (state.selected) panel.refresh();
+    layers?.refresh();
   }, {
     // Undo/redo put the selection back to what it was at that point, like Figma.
     getSelection: () => [...state.multi],
@@ -126,15 +131,39 @@ function init() {
     if (e.composedPath()[0].closest?.('button, a')) e.preventDefault();
   });
   const multiLayer = $('.multis');
-  for (const b of toolsBar.querySelectorAll('button')) b.addEventListener('click', () => setTool(b.dataset.tool));
+  for (const b of toolsBar.querySelectorAll('button[data-tool]')) b.addEventListener('click', () => setTool(b.dataset.tool));
   ui.append(panel.el, panel.pop);
+
+  // Layers panel (left). Open/closed is remembered per browser; open by default.
+  const LAYERS_KEY = 'edit-mode:layers';
+  const layersPref = () => { try { return localStorage.getItem(LAYERS_KEY) !== '0'; } catch { return true; } };
+  const layersBtn = $('.layers-btn');
+  var layers = createLayers({
+    state, changes, host,
+    pageRoot: () => pageRoot(),
+    select: (el) => select(el),
+    selectAll: (els) => selectAll(els),
+    canContain: (n) => canContain(n),
+    onToggle: (open) => {
+      ui.classList.toggle('layers-open', open);
+      layersBtn.setAttribute('aria-pressed', String(open));
+      layersBtn.classList.toggle('on', open);
+    },
+  });
+  ui.append(layers.el);
+  function toggleLayers() {
+    const next = !layers.open;
+    try { localStorage.setItem(LAYERS_KEY, next ? '1' : '0'); } catch {}
+    layers.setOpen(next);
+  }
+  layersBtn.addEventListener('click', toggleLayers);
 
   const mount = () => document.documentElement.appendChild(host);
   if (document.body) mount();
   else document.addEventListener('DOMContentLoaded', mount);
 
   // window.__editMode is handy for poking at state from the browser console.
-  window.__editMode = { state, changes };
+  window.__editMode = { state, changes, layers };
 
   const h = (tag, cls, html) => {
     const el = document.createElement(tag);
@@ -161,6 +190,7 @@ function init() {
 
     state.on = next;
     toolsBar.hidden = !next;
+    layers.setOpen(next && layersPref());
     setTool('select');
     toggleBtn.setAttribute('aria-pressed', String(next));
     glass.hidden = !next;
@@ -489,9 +519,12 @@ function init() {
   }
 
   // The deepest element under the pointer (⌘-click, the Text tool, scrolling).
+  // Locked layers (and what's inside them) are skipped: clicks fall through.
   function deepHit(x, y) {
     for (const el of document.elementsFromPoint(x, y)) {
-      if (el !== host) return pickable(el);
+      if (el === host) continue;
+      const p = pickable(el);
+      if (!p || !layers.isLocked(p)) return p;
     }
     return null;
   }
@@ -753,7 +786,7 @@ function init() {
   // ---------- Tools: rectangle, ellipse, text ----------
   function setTool(t) {
     state.tool = t;
-    for (const b of toolsBar.querySelectorAll('button')) b.classList.toggle('on', b.dataset.tool === t);
+    for (const b of toolsBar.querySelectorAll('button[data-tool]')) b.classList.toggle('on', b.dataset.tool === t);
     glass.dataset.tool = t;
     if (t === 'select') showDrop(null);
   }
@@ -1152,6 +1185,7 @@ function init() {
       selectAll([state.selected, ...sibs.filter((k) => k !== state.selected)]);
       return;
     }
+    if (e.altKey && !mod && e.code === 'Digit1') { stop(); toggleLayers(); return; } // ⌥1, as in Figma
     if (mod && e.code === 'Backslash') { stop(); ui.classList.toggle('ui-hidden'); return; } // ⌘\ hides the panel and tools, like Figma
     if (mod && !e.shiftKey && !e.altKey) {
       const action = { KeyC: copySelection, KeyV: pasteClipboard, KeyD: duplicateSelection, KeyX: cutSelection }[e.code];
@@ -1263,7 +1297,8 @@ function init() {
       const overlaps = (r) => fr.left < r.right && fr.right > r.left && fr.top < r.bottom && fr.bottom > r.top;
       if (overlaps(pr)) {
         const left = panel.el.classList.contains('left');
-        const other = { left: left ? innerWidth - 12 - pr.width : 12, right: left ? innerWidth - 12 : 12 + pr.width, top: pr.top, bottom: pr.bottom };
+        const lx = layers.open ? layers.el.getBoundingClientRect().right + 8 : 12;
+        const other = { left: left ? innerWidth - 12 - pr.width : lx, right: left ? innerWidth - 12 : lx + pr.width, top: pr.top, bottom: pr.bottom };
         if (!overlaps(other)) panel.el.classList.toggle('left', !left);
       }
     }
@@ -1274,6 +1309,7 @@ function init() {
     drawFrames(multiLayer, others);
 
     drawMeasure(sel);
+    layers.sync();
 
     const hint = sel && state.hint;
     drawBoxes(hintLayer, hint ? spacingRects(sel, hint) : [], hint || '');

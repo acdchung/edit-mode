@@ -106,6 +106,14 @@ const PATHS = {
   sideRight: '<rect width="18" height="18" x="3" y="3" rx="2" /><path d="M15 3v18" />', // panel-right
   sideBottom: '<rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 15h18" />', // panel-bottom
   sideLeft: '<rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 3v18" />', // panel-left
+  layers: '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" /><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" /><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" />', // layers
+  frame: '<line x1="4" x2="20" y1="9" y2="9" /><line x1="4" x2="20" y1="15" y2="15" /><line x1="10" x2="8" y1="3" y2="21" /><line x1="16" x2="14" y1="3" y2="21" />', // hash
+  lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />', // lock
+  unlock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" />', // lock-open
+  stackCol: '<rect width="18" height="18" x="3" y="3" rx="2" /><path d="M21 9H3" /><path d="M21 15H3" />', // rows-3
+  stackRow: '<rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 3v18" /><path d="M15 3v18" />', // columns-3
+  vector: '<path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z" /><rect x="3" y="14" width="7" height="7" rx="1" /><circle cx="17.5" cy="17.5" r="3.5" />', // shapes
+  caret: '<path d="m9 18 6-6-6-6" />', // chevron-right
 };
 
 // <svg> markup for a Lucide icon, sized for the UI (Lucide's 24px grid scaled down).
