@@ -152,6 +152,9 @@ kbd .i { width: 11px; height: 11px; flex: none; }
           display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; pointer-events: auto; user-select: none; }
 .lh { display: flex; align-items: center; height: 40px; padding: 0 12px; border-bottom: 1px solid var(--hair); flex: none;
       font-weight: 600; font-size: 12px; }
+.lh .lraw { margin-left: auto; display: grid; width: 24px; height: 24px; }
+.lh .lraw .i { width: 14px; height: 14px; }
+.lh .lraw.on { color: var(--accent-text); background: var(--accent-soft); }
 .lb { position: relative; overflow-y: auto; min-height: 0; padding: 4px; overscroll-behavior: contain;
       scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.15) transparent; }
 .lrow { display: flex; align-items: center; height: 28px; padding-right: 4px; border-radius: 6px; cursor: default;

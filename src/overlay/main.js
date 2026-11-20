@@ -3,7 +3,7 @@
 // and its CSS can't touch the app.
 
 import { STYLES } from './styles.js';
-import { ATTR, NOT_LAYER, box, describe, family, num, parseColor, sameSource, view } from './util.js';
+import { ATTR, NOT_LAYER, box, describe, family, num, parseColor, passThrough, sameSource, view, visualKids, visualParent } from './util.js';
 import { createCanvas } from './canvas.js';
 import { createChanges, textNodeOf } from './changes.js';
 import { collectTokens } from './tokens.js';
@@ -618,14 +618,19 @@ function init() {
 
   // The deepest element under the pointer (⌘-click, the Text tool, scrolling).
   // Locked layers (and what's inside them) are skipped: clicks fall through.
+  // A wrapper you can't see is never picked: its frame is (Figma view, util.js › passThrough).
   function deepHit(x, y) {
     for (const el of document.elementsFromPoint(x, y)) {
       if (el === host) continue;
-      const p = pickable(el);
+      let p = pickable(el);
+      while (p && passThrough(p) && p !== pageRoot()) p = p.parentElement;
       if (!p || !layers.isLocked(p)) return p;
     }
     return null;
   }
+  // Levels and siblings in the Figma view.
+  const levelUp = (el) => visualParent(el, pageRoot());
+  const siblingsOf = (el) => visualKids(levelUp(el), (k) => k !== host && !NOT_LAYER.test(k.tagName) && k.getClientRects().length > 0);
 
   // The page's top level, like a Figma page's top-level frames: skip down
   // through wrappers with a single visible child (body > #root > main.page),
@@ -649,10 +654,10 @@ function init() {
     const root = pageRoot();
     if (el === root || !root.contains(el)) return null; // the page background
     const sel = state.selected;
-    let ctx = sel && sel !== root && root.contains(sel) ? sel.parentElement : root;
-    while (ctx !== root && (ctx === el || !ctx.contains(el))) ctx = ctx.parentElement;
+    let ctx = sel && sel !== root && root.contains(sel) ? levelUp(sel) : root;
+    while (ctx !== root && (ctx === el || !ctx.contains(el))) ctx = levelUp(ctx);
     let n = el;
-    while (n.parentElement !== ctx) n = n.parentElement;
+    while (levelUp(n) !== ctx) n = n.parentElement;
     return pickable(n) || n;
   }
 
@@ -661,7 +666,7 @@ function init() {
     const d = deepHit(x, y);
     if (!d || d === el || !el.contains(d)) return null;
     let n = d;
-    while (n.parentElement !== el) n = n.parentElement;
+    while (levelUp(n) !== el) n = n.parentElement;
     return pickable(n) || n;
   }
 
@@ -1140,10 +1145,10 @@ function init() {
     if (deep || !d || !state.selected) return d;
     const root = pageRoot();
     if (d === root || !root.contains(d)) return null;
-    const depth = (n) => { let k = 0; for (; n && n !== root; n = n.parentElement) k++; return k; };
+    const depth = (n) => { let k = 0; for (; n && n !== root; n = levelUp(n)) k++; return k; };
     const want = depth(state.selected);
     let n = d;
-    while (n && n !== root && depth(n) > want) n = n.parentElement;
+    while (n && n !== root && depth(n) > want) n = levelUp(n);
     return n && n !== root ? pickable(n) || n : d;
   }
 
@@ -1364,7 +1369,7 @@ function init() {
       else if (state.selected) {
         // Up one level; past the page's top level, deselect (Figma).
         const root = pageRoot();
-        select(state.selected === root || !root.contains(state.selected) ? null : pickable(state.selected.parentElement));
+        select(state.selected === root || !root.contains(state.selected) ? null : pickable(levelUp(state.selected)));
       }
       return;
     }
@@ -1384,7 +1389,7 @@ function init() {
     if (e.key === 'Tab' && state.selected && !mod) {
       // Tab / Shift-Tab: next / previous sibling (Figma).
       stop();
-      const sibs = [...state.selected.parentElement.children].filter((k) => k !== host && k.getClientRects().length);
+      const sibs = siblingsOf(state.selected);
       const i = sibs.indexOf(state.selected);
       const next = sibs[(i + (e.shiftKey ? -1 : 1) + sibs.length) % sibs.length];
       if (next) select(pickable(next) || next);
@@ -1393,7 +1398,7 @@ function init() {
     if (mod && e.code === 'KeyA' && state.selected) {
       // ⌘A: select everything next to the selection.
       stop();
-      const sibs = [...state.selected.parentElement.children].filter((k) => k !== host && k.getClientRects().length && pickable(k));
+      const sibs = siblingsOf(state.selected).filter((k) => pickable(k));
       selectAll([state.selected, ...sibs.filter((k) => k !== state.selected)]);
       return;
     }
@@ -1421,7 +1426,10 @@ function init() {
       if (e.key === 'Enter' && !onControl) {
         stop();
         if (textNodeOf(sel)) startText(sel);
-        else if (sel.firstElementChild) select(pickable(sel.firstElementChild) || sel);
+        else if (sel.firstElementChild) {
+          const first = visualKids(sel, (k) => k !== host && k.getClientRects().length > 0)[0] || sel.firstElementChild;
+          select(pickable(first) || sel);
+        }
         return;
       }
       if (e.key === 'Backspace' || e.key === 'Delete') {
@@ -1556,8 +1564,8 @@ function init() {
   function drawMeasure(sel, selRect) {
     const lines = [];
     if (state.on && state.alt && sel && selRect && !drag && !spacing.dragging && !state.editing) {
-      let other = state.hovered && state.hovered !== sel ? state.hovered : sel.parentElement;
-      if (other && sel.contains(other)) other = sel.parentElement;
+      let other = state.hovered && state.hovered !== sel ? state.hovered : levelUp(sel);
+      if (other && sel.contains(other)) other = levelUp(sel);
       if (other) {
         const a = selRect; // the frame around the whole selection
         const b = other.getBoundingClientRect();

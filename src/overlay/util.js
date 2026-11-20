@@ -94,3 +94,68 @@ export function resolveColor(value) {
   return out;
 }
 
+
+// ---------- The Figma view (roadmap Phase A1) ----------
+// A pass-through layer is a wrapper you can't see and that adds no layout
+// you'd notice: a plain wrapper around one thing, `display: contents`, or
+// `<main>` (the page's content area).
+// Layers and the canvas skip it, so its children show as children of the
+// frame around it, the way you'd draw the page in Figma. The code is never
+// changed for this; "Show all layers" (layerView.raw) shows the code's tree.
+export const layerView = { raw: false };
+
+const NOT_PASS = /^(A|BUTTON|LABEL|FORM|FIELDSET|DETAILS|SUMMARY|UL|OL|LI|TABLE|svg)$/i;
+const transparent = (c) => c === 'transparent' || /rgba\([^)]*,\s*0\)$/.test(c);
+const shownKids = (n) => [...n.children].filter((k) => !NOT_LAYER.test(k.tagName) && k.tagName !== 'EDIT-MODE-ROOT' && k.getClientRects().length);
+
+export function passThrough(el) {
+  if (layerView.raw || !(el instanceof HTMLElement) || !el.parentElement || el === document.body) return false;
+  if (el.dataset.emNew || el.dataset.emCopyOf || NOT_PASS.test(el.tagName)) return false; // things you made, and controls, are real
+  const cs = getComputedStyle(el);
+  if (cs.display === 'contents') return true;
+  if (!/^(block|flow-root)$/.test(cs.display) || cs.position !== 'static') return false;
+  if ([...el.childNodes].some((c) => c.nodeType === 3 && c.nodeValue.trim())) return false; // holds text
+  const kids = shownKids(el);
+  if (!kids.length) return false;
+  // A wrapper around several things groups them (a Figma group: moving it moves them all), so it's
+  // real. The exception is <main>, the page's content area, which in Figma is just the page.
+  if (kids.length > 1 && el.tagName !== 'MAIN') return false;
+  const side = (s) => parseFloat(cs[`border${s}Width`]) || parseFloat(cs[`padding${s}`]);
+  if (!transparent(cs.backgroundColor) || cs.backgroundImage !== 'none' || ['Top', 'Right', 'Bottom', 'Left'].some(side)) return false;
+  if (cs.boxShadow !== 'none' || cs.outlineStyle !== 'none' || cs.overflow !== 'visible' || cs.opacity !== '1' ||
+      cs.transform !== 'none' || cs.filter !== 'none' || cs.backdropFilter !== 'none') return false;
+  // Exactly as big as what's inside: it adds no size of its own.
+  const r = el.getBoundingClientRect();
+  const rs = kids.map((k) => k.getBoundingClientRect());
+  const near = (a, b) => Math.abs(a - b) < 1.5;
+  return near(r.left, Math.min(...rs.map((x) => x.left))) && near(r.top, Math.min(...rs.map((x) => x.top))) &&
+    near(r.right, Math.max(...rs.map((x) => x.right))) && near(r.bottom, Math.max(...rs.map((x) => x.bottom)));
+}
+
+// The frame an element sits in, in the Figma view (never above `root`).
+export function visualParent(el, root) {
+  let p = el.parentElement;
+  while (p && p !== root && passThrough(p)) p = p.parentElement;
+  return p;
+}
+
+// An element's children in the Figma view: pass-through wrappers are opened up.
+export function visualKids(n, keep) {
+  const out = [];
+  for (const k of n.children) {
+    if (!keep(k)) continue;
+    if (passThrough(k)) out.push(...visualKids(k, keep));
+    else out.push(k);
+  }
+  return out;
+}
+
+// A designer-friendly layer name from a class or tag ("nav-links" → "Nav links").
+const TAG_NAME = { div: 'Frame', span: 'Text', p: 'Paragraph', a: 'Link', ul: 'List', ol: 'List', li: 'List item', img: 'Image' };
+export function friendlyName(n) {
+  const cls = [...n.classList].find((c) => !/^(is|has)-/.test(c));
+  const tag = n.tagName.toLowerCase();
+  const raw = cls ? cls.replace(/--.*$/, '') : TAG_NAME[tag] || tag;
+  const words = raw.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[-_]+/g, ' ').trim().toLowerCase();
+  return words ? words[0].toUpperCase() + words.slice(1) : raw;
+}

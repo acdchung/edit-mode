@@ -5,7 +5,7 @@
 // Order is DOM order, top to bottom, which matches how a page reads
 // (Figma lists the topmost layer first; on a web page that's usually last).
 
-import { NOT_LAYER, describe } from './util.js';
+import { NOT_LAYER, describe, friendlyName, layerView, visualKids } from './util.js';
 import { textNodeOf } from './changes.js';
 import { ICON } from './icons.js';
 
@@ -21,7 +21,7 @@ const h = (tag, cls, html) => {
 export function createLayers({ state, changes, host, pageRoot, select, selectAll, canContain, onToggle }) {
   const el = h('div', 'layers glassy');
   el.hidden = true;
-  el.innerHTML = `<div class="lh"><span>Layers</span></div><div class="lb" role="tree"></div><div class="ldrop" hidden></div><div class="lresize" title="Drag to resize · double-click to reset"></div>`;
+  el.innerHTML = `<div class="lh"><span>Layers</span><button class="lbtn lraw" aria-pressed="false" title="Show all layers (the code's own tree)" aria-label="Show all layers">${ICON.listTree}</button></div><div class="lb" role="tree"></div><div class="ldrop" hidden></div><div class="lresize" title="Drag to resize · double-click to reset"></div>`;
 
   // Drag the right edge to resize (Figma); the width is remembered per browser.
   const WIDTH_KEY = 'edit-mode:layers-width';
@@ -52,6 +52,17 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     grip.addEventListener('pointercancel', up);
   });
   grip.addEventListener('dblclick', () => setWidth(DEFAULT_W));
+  // "Show all layers": the code's own tree, wrappers included (for developers). Remembered per browser.
+  const RAW_KEY = 'edit-mode:layers-raw';
+  const rawBtn = el.querySelector('.lraw');
+  const setRaw = (on) => {
+    layerView.raw = on;
+    rawBtn.classList.toggle('on', on);
+    rawBtn.setAttribute('aria-pressed', String(on));
+    try { on ? localStorage.setItem(RAW_KEY, '1') : localStorage.removeItem(RAW_KEY); } catch {}
+    dirty = true;
+  };
+  rawBtn.addEventListener('click', () => setRaw(!layerView.raw));
   const body = el.querySelector('.lb');
   const dropLine = el.querySelector('.ldrop');
 
@@ -66,13 +77,15 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   let anchor = null; // where a Shift-click range starts
   let drag = null;
   let rowHover = null; // the element hovered through a row (rows get replaced on rebuild)
+  try { if (localStorage.getItem(RAW_KEY) === '1') setRaw(true); } catch {}
 
   // ---------- What's a layer ----------
   const hiddenByUs = (n) => n.style.getPropertyValue('display') === 'none';
   const isLocked = (n) => { for (let x = n; x && x !== document.body; x = x.parentElement) if (state.locked.has(x)) return true; return false; };
 
+  // Children in the Figma view: wrappers you can't see are opened up (util.js › passThrough).
   function kidsOf(n, underHidden) {
-    return [...n.children].filter((k) => {
+    return visualKids(n, (k) => {
       if (k === host || NOT_LAYER.test(k.tagName) || k.closest('svg') !== k && k.closest('svg')) return false;
       if (k.getClientRects().length || hiddenByUs(k)) return true;
       return underHidden && getComputedStyle(k).display !== 'none';
@@ -89,10 +102,8 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     if (tag === 'img') return n.alt || 'Image';
     if (n.dataset.emNew) return 'Frame';
     if (tag === 'svg') return n.classList[0] || 'Vector';
-    const cls = [...n.classList][0];
-    if (cls) return cls;
-    if (tag === 'input') return n.placeholder || 'input';
-    return tag;
+    if (tag === 'input' && !n.classList.length) return n.placeholder || 'Input';
+    return friendlyName(n);
   }
 
   function iconOf(n) {
