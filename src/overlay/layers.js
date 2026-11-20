@@ -5,7 +5,7 @@
 // Order is DOM order, top to bottom, which matches how a page reads
 // (Figma lists the topmost layer first; on a web page that's usually last).
 
-import { NOT_LAYER, describe, friendlyName, layerView, visualKids } from './util.js';
+import { NOT_LAYER, describe, friendlyName, layerView, visualKids, visualParent } from './util.js';
 import { textNodeOf } from './changes.js';
 import { ICON } from './icons.js';
 
@@ -18,7 +18,7 @@ const h = (tag, cls, html) => {
   return el;
 };
 
-export function createLayers({ state, changes, host, pageRoot, select, selectAll, canContain, onToggle }) {
+export function createLayers({ state, changes, host, pageRoot, select, selectAll, onToggle }) {
   const el = h('div', 'layers glassy');
   el.hidden = true;
   el.innerHTML = `<div class="lh"><span>Layers</span><button class="lbtn lraw" aria-pressed="false" title="Show all layers (the code's own tree)" aria-label="Show all layers">${ICON.listTree}</button></div><div class="lb" role="tree"></div><div class="ldrop" hidden></div><div class="lresize" title="Drag to resize · double-click to reset"></div>`;
@@ -291,7 +291,6 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     drag = null;
     el.classList.remove('dragging');
     dropLine.hidden = true;
-    for (const r of rows) r.row.classList.remove('into');
     state.hovered = null;
     if (!d.started) { if (d.keep && e.type === 'pointerup') select(d.el); return; }
     if (e.type !== 'pointerup' || !d.drop) { dirty = true; return; }
@@ -308,45 +307,45 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   el.addEventListener('pointerup', endDrag);
   el.addEventListener('pointercancel', endDrag);
 
-  // Where a dragged row would land: before / after a row, or into a frame
-  // (the middle of a frame's row; it goes in as the last child).
+  // Where a dragged row would land. On the live page a drag only reorders:
+  // before or after a sibling in the same frame as you see it here (its
+  // siblings may sit in different code parents across a skipped wrapper).
+  // Moving into another frame changes structure: that's the canvas's job.
   function dropAt(x, y) {
     const moving = drag.el;
     const root = pageRoot();
+    const frame = visualParent(moving, root);
     const hitRow = rows.find((r) => { const b = r.row.getBoundingClientRect(); return y >= b.top && y < b.bottom; })
       ?? (y > body.getBoundingClientRect().bottom - 4 ? rows[rows.length - 1] : null);
-    if (!hitRow || moving.contains(hitRow.el)) return null;
+    if (!frame || !hitRow) return null;
+    const sibs = kidsOf(frame, false).filter((k) => k !== moving);
+    if (!sibs.length) return null;
+    const spot = (s, after) => {
+      const others = [...s.parentElement.children].filter((k) => k !== moving);
+      return { container: s.parentElement, toIndex: others.indexOf(s) + (after ? 1 : 0) };
+    };
+    // Just below the frame's own (open) row: first among its children.
+    if (hitRow.el === frame) {
+      const b = hitRow.row.getBoundingClientRect();
+      return (y - b.top) / b.height > 0.5 && expanded.has(frame) ? { ...spot(sibs[0], false), row: hitRow, where: 'first' } : null;
+    }
+    if (!sibs.includes(hitRow.el)) return null; // inside another frame, or another level
     const b = hitRow.row.getBoundingClientRect();
-    const t = (y - b.top) / b.height;
-    const n = hitRow.el;
-    const can = canContain(n) && !leafOf(n);
-    let where = can ? (t < 0.25 ? 'before' : t > 0.75 ? 'after' : 'into') : (t < 0.5 ? 'before' : 'after');
-    if (n === root) where = 'into';
-    if (where === 'after' && can && expanded.has(n) && kidsOf(n, false).length) {
-      // Below an open frame's row is its first child's spot, as in Figma.
-      return { container: n, toIndex: 0, row: hitRow, where: 'first' };
-    }
-    if (where === 'into') {
-      if (!can) return null;
-      const others = [...n.children].filter((k) => k !== moving);
-      return { container: n, toIndex: others.length, row: hitRow, where: 'into' };
-    }
-    const container = n.parentElement;
-    if (!container || container === document.body || container === document.documentElement || !root.contains(container)) return null;
-    const others = [...container.children].filter((k) => k !== moving);
-    const i = others.indexOf(n);
-    return { container, toIndex: where === 'before' ? i : i + 1, row: hitRow, where };
+    const after = (y - b.top) / b.height >= 0.5;
+    // "After" an open frame: the line goes below everything inside it.
+    let lineRow = hitRow;
+    if (after) for (let i = rows.indexOf(hitRow) + 1; i < rows.length && rows[i].depth > hitRow.depth; i++) lineRow = rows[i];
+    return { ...spot(hitRow.el, after), row: hitRow, lineRow, where: after ? 'after' : 'before' };
   }
 
 
   function showDrop(drop) {
-    for (const r of rows) r.row.classList.toggle('into', !!drop && drop.where === 'into' && r === drop.row);
-    dropLine.hidden = !drop || drop.where === 'into';
+    dropLine.hidden = !drop;
     if (dropLine.hidden) return;
     const box = el.getBoundingClientRect();
     const b = drop.row.row.getBoundingClientRect();
     const depth = drop.where === 'first' ? drop.row.depth + 1 : drop.row.depth;
-    const y = drop.where === 'before' ? b.top : b.bottom;
+    const y = drop.where === 'before' ? b.top : (drop.lineRow ?? drop.row).row.getBoundingClientRect().bottom;
     dropLine.style.top = `${y - box.top - 1}px`;
     dropLine.style.left = `${4 + depth * INDENT + 18}px`;
   }

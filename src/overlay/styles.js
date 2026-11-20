@@ -163,7 +163,6 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .lrow.in-sel { background: rgba(13, 153, 255, 0.07); }
 .lrow.sel { background: var(--accent-soft); color: var(--text); }
 .lrow.sel .licon { color: var(--accent-text); }
-.lrow.into { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .lrow.dim .licon, .lrow.dim .lname { opacity: .45; }
 .caret { flex: none; display: grid; place-items: center; width: 16px; height: 28px; color: var(--dim); }
 .caret .i { width: 10px; height: 10px; transition: transform .12s var(--ease); }

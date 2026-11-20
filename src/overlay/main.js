@@ -107,6 +107,7 @@ function init() {
     renderPill();
     if (state.selected) panel.refresh(); // Layers watches the page itself
   }, {
+    pageRoot: () => pageRoot(),
     // Undo/redo put the selection back to what it was at that point, like Figma.
     getSelection: () => [...state.multi],
     setSelection: (els) => {
@@ -149,7 +150,6 @@ function init() {
     pageRoot: () => pageRoot(),
     select: (el) => select(el),
     selectAll: (els) => selectAll(els),
-    canContain: (n) => canContain(n),
     onToggle: (open) => {
       ui.classList.toggle('layers-open', open);
       layersBtn.setAttribute('aria-pressed', String(open));
@@ -494,6 +494,7 @@ function init() {
     if (c.kind === 'group') return `Group ${c.children.map((k) => k.element).join(', ')} in ${c.element}`;
     const who = c.element + (c.scope === 'all' ? ` (all ${c.count})` : c.count > 1 ? ' (just this one)' : '');
     if (c.kind === 'delete') return `Delete ${who}`;
+    if (c.kind === 'move' && c.visual?.intent) return c.visual.intent.replace(/\.$/, '') + (c.scope === 'all' ? ` (all ${c.count})` : '');
     if (c.kind === 'move') {
       const where = c.after ? `after ${c.after.element}` : 'first';
       const moved = c.parent && c.fromParent && (c.parent.source !== c.fromParent.source || c.parent.index !== c.fromParent.index);
@@ -741,7 +742,7 @@ function init() {
       }
     }
     if (state.tool !== 'select') {
-      const drop = dropAt(e.clientX, e.clientY, null);
+      const drop = dropAt(e.clientX, e.clientY);
       if (drop) draw = { x: e.clientX, y: e.clientY, drop };
       return;
     }
@@ -767,7 +768,7 @@ function init() {
     const y = e.clientY;
     pointer = { x, y, shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey };
     if (draw) return showDraw(x, y, e.shiftKey);
-    if (state.tool !== 'select') { state.hovered = null; return showDrop(dropAt(x, y, null), true); }
+    if (state.tool !== 'select') { state.hovered = null; return showDrop(dropAt(x, y), true); }
     if (press && !drag && press.target && Math.hypot(x - press.x, y - press.y) > 4) {
       // Several selected: they all move (pressed one leads), in page order.
       const els = press.keep ? [press.target, ...state.multi.filter((k) => k !== press.target)] : [press.target];
@@ -805,40 +806,38 @@ function init() {
   const LEAF = /^(P|H[1-6]|SPAN|A|BUTTON|LABEL|IMG|INPUT|TEXTAREA|SELECT|svg|SVG|VIDEO|CANVAS|IFRAME|STRONG|EM|B|I|SMALL|CODE)$/;
   const canContain = (n) => (n.hasAttribute(ATTR) || !!n.dataset.emNew || !!n.dataset.emCopyOf) && !LEAF.test(n.tagName) && !n.closest('svg');
 
-  // Where something would land at (x, y): a container and an index among its
-  // element children, plus the insertion line to draw. `el` is the element
-  // being moved (null when adding a new one); `moving` is everything moving
-  // with it (a multi-selection), which is never a drop spot. Look-alike
-  // siblings (other cards) only reorder; other siblings take a drop when
-  // you're well inside. Empty boxes only accept drops if they were added in
-  // this session. toIndex counts the container's children minus `moving`.
-  function dropAt(x, y, el, moving = el ? [el] : []) {
-    const origin = el?.parentElement ?? null;
-    const src = el?.getAttribute(ATTR);
-    const hitEl = document.elementsFromPoint(x, y).find((n) => n !== host && !moving.some((m) => m.contains(n)));
+  // The insertion line beside sibling `s` (rect `r`), centred in the gap to
+  // its neighbour when there is one.
+  function gapLine(sibs, s, r, after, horizontal) {
+    const i = sibs.indexOf(s);
+    const nb = sibs[after ? i + 1 : i - 1]?.getBoundingClientRect();
+    if (horizontal) {
+      let lx = after ? r.right : r.left;
+      if (nb && Math.abs(nb.top - r.top) < r.height / 2) lx = after ? (r.right + nb.left) / 2 : (nb.right + r.left) / 2;
+      return { left: lx - 1, top: r.top, width: 2, height: r.height };
+    }
+    let ly = after ? r.bottom : r.top;
+    if (nb) ly = after ? (r.bottom + nb.top) / 2 : (nb.bottom + r.top) / 2;
+    return { left: r.left, top: ly - 1, width: r.width, height: 2 };
+  }
+
+  // Where a new shape or text from a tool would land at (x, y): a container
+  // and an index among its element children, plus the insertion line. Empty
+  // boxes only take one if they were added in this session.
+  function dropAt(x, y) {
+    const hitEl = document.elementsFromPoint(x, y).find((n) => n !== host);
     let container = null;
     for (let n = hitEl; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
-      if (n === origin) { container = origin; break; }
-      const kids = flowKids(n).filter((k) => !moving.includes(k));
-      if (!canContain(n) || (!kids.length && !n.dataset.emNew)) continue;
-      if (origin && n.parentElement === origin) {
-        if (src && n.getAttribute(ATTR) === src) continue;
-        const r = n.getBoundingClientRect();
-        const ix = Math.min(24, r.width / 4);
-        const iy = Math.min(24, r.height / 4);
-        if (x < r.left + ix || x > r.right - ix || y < r.top + iy || y > r.bottom - iy) continue;
-      }
+      if (!canContain(n) || (!flowKids(n).length && !n.dataset.emNew)) continue;
       container = n;
       break;
     }
-    container ||= origin;
     if (!container) return null;
 
-    const sibs = flowKids(container).filter((k) => !moving.includes(k));
+    const sibs = flowKids(container);
     if (!sibs.length) return { container, toIndex: 0, line: null };
     const cs = getComputedStyle(container);
-    const horizontal = (/flex/.test(cs.display) && cs.flexDirection.startsWith('row')) ||
-      /grid/.test(cs.display) || (el && /^inline/.test(getComputedStyle(el).display));
+    const horizontal = (/flex/.test(cs.display) && cs.flexDirection.startsWith('row')) || /grid/.test(cs.display);
     let best = null;
     let bestD = Infinity;
     for (const s of sibs) {
@@ -848,30 +847,54 @@ function init() {
     }
     const { s, r } = best;
     const after = horizontal ? x > r.left + r.width / 2 : y > r.top + r.height / 2;
+    const toIndex = [...container.children].indexOf(s) + (after ? 1 : 0);
+
+    const line = gapLine(sibs, s, r, after, horizontal);
+    return { container, toIndex, line };
+  }
+
+  // Live page: a drag only reorders, inside the frame the element sits in as
+  // you see it (the Figma view, so its siblings may live in different code
+  // parents, e.g. Nav next to Hero across a skipped <main>). Moving into
+  // another frame is a change of structure: that's the canvas's job (ROADMAP
+  // › "The plan from here"). `moving`: everything dragged (one frame only).
+  const inFlow = (k) => k !== host && !NOT_LAYER.test(k.tagName) && k.getClientRects().length > 0 &&
+    !/absolute|fixed/.test(getComputedStyle(k).position) && getComputedStyle(k).display !== 'none';
+  function reorderAt(x, y, el, moving) {
+    const frameEl = levelUp(el);
+    if (!frameEl || !inFlow(el) || moving.some((m) => levelUp(m) !== frameEl)) return null;
+    // Let go outside the frame (beyond a 24px margin): nothing moves.
+    const fr = frameEl.getBoundingClientRect();
+    if (x < fr.left - 24 || x > fr.right + 24 || y < fr.top - 24 || y > fr.bottom + 24) return null;
+    const sibs = visualKids(frameEl, inFlow).filter((k) => !moving.includes(k));
+    if (!sibs.length) return null;
+    const cs = getComputedStyle(frameEl);
+    const horizontal = (/flex/.test(cs.display) && cs.flexDirection.startsWith('row')) || /grid/.test(cs.display) ||
+      /^inline/.test(getComputedStyle(el).display);
+    let best = null;
+    let bestD = Infinity;
+    for (const s of sibs) {
+      const r = s.getBoundingClientRect();
+      const d = Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom));
+      if (d < bestD) { bestD = d; best = { s, r }; }
+    }
+    const { s, r } = best;
+    const after = horizontal ? x > r.left + r.width / 2 : y > r.top + r.height / 2;
+    // In the code: right before or after that sibling, in its own parent.
+    const container = s.parentElement;
     const others = [...container.children].filter((k) => !moving.includes(k));
     const toIndex = others.indexOf(s) + (after ? 1 : 0);
 
-    // Insertion line, centred in the gap to the neighbour when there is one.
-    const i = sibs.indexOf(s);
-    const nb = sibs[after ? i + 1 : i - 1]?.getBoundingClientRect();
-    let line;
-    if (horizontal) {
-      let lx = after ? r.right : r.left;
-      if (nb && Math.abs(nb.top - r.top) < r.height / 2) lx = after ? (r.right + nb.left) / 2 : (nb.right + r.left) / 2;
-      line = { left: lx - 1, top: r.top, width: 2, height: r.height };
-    } else {
-      let ly = after ? r.bottom : r.top;
-      if (nb) ly = after ? (r.bottom + nb.top) / 2 : (nb.bottom + r.top) / 2;
-      line = { left: r.left, top: ly - 1, width: r.width, height: 2 };
-    }
-    return { container, toIndex, line };
+    const line = gapLine(sibs, s, r, after, horizontal);
+    return { container, toIndex, line, frame: frameEl };
   }
 
   function showDrop(drop, alwaysTarget = false) {
     insertLine.hidden = !drop?.line;
     if (drop?.line) place(insertLine, drop.line);
-    targetBox.hidden = !drop || (!alwaysTarget && drop.container === drag?.parent);
-    if (!targetBox.hidden) place(targetBox, drop.container.getBoundingClientRect());
+    const box = drop?.frame ?? drop?.container;
+    targetBox.hidden = !drop || (!alwaysTarget && box === drag?.frame);
+    if (!targetBox.hidden) place(targetBox, box.getBoundingClientRect());
   }
 
   // `els`: what moves; the first one leads (it picks the drop spot).
@@ -880,7 +903,7 @@ function init() {
     const parent = el?.parentElement;
     if (!parent || parent === document.documentElement || el === document.body) { press = null; return; }
     const r = unionRect(els);
-    drag = { el, els: inOrder(els), parent, rect: r, dx: p.x - r.left, dy: p.y - r.top, drop: null };
+    drag = { el, els: inOrder(els), parent, frame: levelUp(el), rect: r, dx: p.x - r.left, dy: p.y - r.top, drop: null };
     state.hovered = null;
     glass.classList.add('dragging');
     frame.classList.add('moving');
@@ -888,7 +911,7 @@ function init() {
   }
 
   function updateDrag(x, y) {
-    drag.drop = dropAt(x, y, drag.el, drag.els);
+    drag.drop = reorderAt(x, y, drag.el, drag.els);
     showDrop(drag.drop);
     place(ghostBox, { left: x - drag.dx, top: y - drag.dy, width: drag.rect.width, height: drag.rect.height });
     ghostBox.hidden = false;

@@ -81,26 +81,22 @@ await esc();
   await p.keyboard.press('Meta+z'); await p.waitForTimeout(120);
   check('one ⌘Z undoes the layer move', await same()); }
 
-// Below an expanded frame's row = its first child (Figma)
-{ await clickRow('.card', 2); // card 3 is expanded since earlier
-  const a = await row('.card', 0); const c3 = await row('.card', 2);
-  await p.mouse.move(a.x + 80, a.y + a.h / 2); await p.mouse.down(); await p.mouse.move(a.x + 80, a.y + 20, { steps: 3 });
-  const c3b = await row('.card', 2); await p.mouse.move(c3b.x + 80, c3b.y + c3b.h - 3, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(120);
-  const first = await p.evaluate(() => document.querySelectorAll('.card-grid > .card')[1].firstElementChild.className);
-  check('drop just below an open frame’s row → its first child', first === 'card', first);
+// Below the open frame's own row = first among its children (Figma)
+{ const c3 = await row('.card', 2); const g = await row('.card-grid');
+  await p.mouse.move(c3.x + 80, c3.y + c3.h / 2); await p.mouse.down(); await p.mouse.move(c3.x + 80, c3.y - 10, { steps: 3 });
+  const g2 = await row('.card-grid'); await p.mouse.move(g2.x + 80, g2.y + g2.h - 3, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(120);
+  const first = await p.evaluate(() => document.querySelector('.card-grid > .card .card-title').textContent);
+  check('drop just below the open frame’s row → first in that frame', first.startsWith('The Long Traverse'), first);
   await p.keyboard.press('Meta+z'); await p.waitForTimeout(120);
   check('⌘Z undoes it', await same()); }
 
-// Drag into a frame: "Popular routes" heading into hero
-{ const t = await row('.section-title'); const hr = await row('.hero');
+// Live page: dragging into another frame is structure (the canvas's job), so nothing moves
+{ const t = await row('.section-title');
   await p.mouse.move(t.x + 80, t.y + t.h / 2); await p.mouse.down(); await p.mouse.move(t.x + 80, t.y - 10, { steps: 3 });
   const hr2 = await row('.hero'); await p.mouse.move(hr2.x + 80, hr2.y + hr2.h / 2, { steps: 6 }); await p.waitForTimeout(40);
-  const into = (await row('.hero')).cls.includes('into');
+  const line = await p.evaluate(() => !document.querySelector('edit-mode-root').shadowRoot.querySelector('.ldrop').hidden);
   await p.mouse.up(); await p.waitForTimeout(120);
-  const inHero = await p.evaluate(() => document.querySelector('.hero').lastElementChild?.className);
-  check('drag onto the middle of a frame row drops it inside (last child)', into && inHero === 'section-title', `into=${into} last=${inHero}`);
-  await p.keyboard.press('Meta+z'); await p.waitForTimeout(120);
-  check('⌘Z undoes it', await same()); }
+  check('dragging a row onto another frame’s row offers no drop and moves nothing', !line && await same(), `line=${line}`); }
 
 // Can't drop a frame into itself
 { await clickRow('.routes'); const r = await row('.routes'); const g = await row('.card-grid');

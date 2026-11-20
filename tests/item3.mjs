@@ -119,6 +119,7 @@ await selectCards(0, 2);
   const names = await cardNames();
   check('dragging one of two selected cards moves both, in order', names.join() === 'Granite,Moonlight,The', names.join());
   check('both stay selected after the drop', (await multi()).length === 2);
+  check('Push describes two moves', (await st(() => window.__editMode.changes.list().filter(c => c.kind === 'move').length)) === 2);
   await undo();
   check('one ⌘Z puts both back', await same(), (await cardNames()).join()); }
 
@@ -126,13 +127,9 @@ await selectCards(0, 2);
 { const from = await ctr('.card-title', 2);
   const body = await rect('.hero-body');
   await drag(from, [body.x + 40, body.y + body.h - 2]);
-  const into = await st(() => [...document.querySelector('.hero').children].map(k => k.className));
-  check('dropping into another container moves both there, in page order', into.join() === 'eyebrow,hero-title,hero-body,card,card,btn cta-primary', into.join());
-  const titles = await st(() => [...document.querySelectorAll('.hero > .card .card-title')].map(t => t.textContent.split(' ')[0]));
-  check('…keeping their order', titles.join() === 'Moonlight,The', titles.join());
-  check('Push describes two moves', (await st(() => window.__editMode.changes.list().filter(c => c.kind === 'move').length)) === 2);
-  await undo();
-  check('one ⌘Z puts them back', await same()); }
+  // Live page: moving into another frame is structure (the canvas's job), so nothing moves.
+  check('dropping them outside their frame moves nothing', await same(), (await cardNames()).join());
+  check('…and they stay selected', (await multi()).length === 2); }
 
 await selectCards(0, 2);
 { const from = await ctr('.card-title', 0);

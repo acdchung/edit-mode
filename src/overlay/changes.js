@@ -10,7 +10,7 @@
 // old inline value is saved. Calls made inside the same `group` (one typing
 // session in a field, one drag) merge into a single undo step.
 
-import { ATTR, describe, family, familyKey, sameSource } from './util.js';
+import { ATTR, describe, family, familyKey, friendlyName, sameSource, visualKids, visualParent } from './util.js';
 
 export const TEXT = '#text';
 export const POS = '#pos'; // position in the DOM: [parent, nextSibling]
@@ -21,7 +21,7 @@ export const textNodeOf = (el) => {
   return nodes.length === 1 && nodes[0].nodeType === 3 ? nodes[0] : null;
 };
 
-export function createChanges(onChange, { getSelection = () => [], setSelection = () => {} } = {}) {
+export function createChanges(onChange, { getSelection = () => [], setSelection = () => {}, pageRoot = () => null } = {}) {
   let entries = new Map(); // logical key → entry (what Claude will be told)
   const original = new Map(); // el → Map(prop → first-ever value), for discardAll
   let undoStack = [];
@@ -156,6 +156,23 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
     return ax.querySelectorAll(sel)[i] ?? null;
   }
 
+  // Where an element sits in the Figma view (invisible wrappers skipped), and
+  // that as a sentence. Push reads this as the intent of a move: the code's
+  // own parents can differ, and Claude picks the cleanest way to get there.
+  function visualSpot(el) {
+    const root = pageRoot();
+    const parent = visualParent(el, root);
+    if (!parent) return null;
+    const sibs = visualKids(parent, (k) => k === el || (k.getClientRects().length > 0 && !/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|LINK|META|EDIT-MODE-ROOT)$/.test(k.tagName)));
+    const i = sibs.indexOf(el);
+    const after = i > 0 ? sibs[i - 1] : null;
+    const before = i >= 0 && i < sibs.length - 1 ? sibs[i + 1] : null;
+    const name = (n) => `"${n === root ? 'Page' : friendlyName(n)}"`;
+    const intent = `Put ${name(el)} inside ${name(parent)}` +
+      (after && before ? `, after ${name(after)} and before ${name(before)}` : after ? `, last, after ${name(after)}` : before ? `, first, before ${name(before)}` : '') + '.';
+    return { parent: near(parent), after: near(after), before: near(before), intent };
+  }
+
   function move(el, scope, toIndex, newParent = el.parentElement) {
     const t = targets(el, scope);
     const st = step();
@@ -177,6 +194,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
       from: origin.index, fromParent: near(origin.parent),
       to: indexOf(el), parent: near(el.parentElement),
       after: near(el.previousElementSibling), before: near(el.nextElementSibling),
+      visual: visualSpot(el),
     });
     onChange();
   }
