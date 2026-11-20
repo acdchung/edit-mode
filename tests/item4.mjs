@@ -156,6 +156,27 @@ async function open(url, ready) {
     check('back to the start after the drag tests', await h.same());
     const i = await h.rect('.signup-input'); await h.pick(i.x + i.w + 4, i.y + i.h / 2); }
 
+  // A lost release must never turn hovering into adjusting (padding bars and resize handles).
+  { const swallow = () => h.R(() => window.addEventListener('pointerup', (e) => e.stopImmediatePropagation(), { capture: true, once: true }));
+    const s6 = await h.rect('.signup');
+    await p.mouse.move(s6.x + 30, s6.y + s6.h / 2); await wait();
+    const g7 = await h.zone('gap:0');
+    await swallow();
+    await p.mouse.move(g7.cx, g7.cy); await p.mouse.down(); await p.mouse.move(g7.cx + 10, g7.cy, { steps: 3 }); await p.mouse.up(); await wait();
+    const after = await h.css('.signup', 'column-gap');
+    await p.mouse.move(g7.cx + 50, g7.cy, { steps: 4 }); await wait();
+    check('lost release: hovering a gap afterwards doesn’t change it', (await h.css('.signup', 'column-gap')) === after, `${after} → ${await h.css('.signup', 'column-gap')}`);
+    while (!(await h.same())) await h.undo();
+    const e = await h.R(() => { const r = document.querySelector('edit-mode-root').shadowRoot.querySelector('.frame:not(.passive) .handle[data-dir="e"]').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+    const w0 = await h.css('.signup', 'width');
+    await swallow();
+    await p.mouse.move(...e); await p.mouse.down(); await p.mouse.move(e[0] - 10, e[1], { steps: 3 }); await p.mouse.up(); await wait();
+    const w1 = await h.css('.signup', 'width');
+    await p.mouse.move(e[0] - 80, e[1] + 40, { steps: 4 }); await wait();
+    check('lost release: hovering after a resize doesn’t keep resizing', (await h.css('.signup', 'width')) === w1 && w1 !== w0, `${w0} → ${w1} → ${await h.css('.signup', 'width')}`);
+    while (!(await h.same())) await h.undo();
+    if ((await h.sel()) !== 'signup') { const i = await h.rect('.signup-input'); await h.pick(i.x + i.w + 4, i.y + i.h / 2); } }
+
   // ⌘-click goes through the handles to the deepest element.
   { const s5 = await h.rect('.signup');
     await p.mouse.move(s5.x + 30, s5.y + s5.h / 2); await wait();

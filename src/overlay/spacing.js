@@ -192,6 +192,7 @@ export function createSpacing({ layer, label, changes, state, focusGap, drill })
   });
   function onMove(e) {
     if (!drag) return;
+    if (!(e.buttons & 1)) return release(e); // the button is up: the release got lost, so never adjust on hover
     drag.ptr = { x: e.clientX, y: e.clientY };
     write(e);
   }

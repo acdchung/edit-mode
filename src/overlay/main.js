@@ -1271,6 +1271,7 @@ function init() {
       const group = `resize:${Date.now()}`;
 
       const move = (ev) => {
+        if (!(ev.buttons & 1)) return up(); // the button is up (a lost release): hovering must never resize
         const dx = ev.clientX - x0;
         const dy = ev.clientY - y0;
         let w = r0.width + (dir.includes('e') ? dx : dir.includes('w') ? -dx : 0);

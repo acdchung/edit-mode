@@ -9,7 +9,7 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
 - **Next: roadmap item 5, absolute position inside auto layout.** ROADMAP.md has the plan.
 - **Paused: `demo-app/`**, the Payloom landing page (plan and status in `demo-app/OUTLINE.md`). Step 1 is done and the user approved the look (colors, three-line headline, Inter). Step 2 (sections 4–11) comes when the user asks.
 - **Demo app:** the user runs it on port **5290** (`npm run dev` in `demo-app/`). Test it on a scratchpad copy on **5391**: copy `index.html package.json vite.config.js src` into `<scratchpad>/demo-copy`, symlink `node_modules` to `demo-app/node_modules`, and in the copy's `vite.config.js` add `fs: { allow: ['.', '<abs path>/demo-app/node_modules'] }` to `server` (otherwise the bundled font 403s through the symlink). Product shots follow the stageshow skill's craft rules (real words only on the story; only filler bleeds off an edge; a phone layout that's redesigned, not squeezed).
-- All suites pass (276 checks including item4's 36; brutal3 not rerun for item 4, counted once each; some suites print every line twice, so count unique lines). The last commit is pushed to GitHub.
+- All suites pass (278 checks including item4's 38; brutal3 not rerun for item 4, counted once each; some suites print every line twice, so count unique lines). The last commit is pushed to GitHub.
 - **Starting a session:** the scratchpad changes every session, so the test copy usually needs recreating:
   1. copy the app: `cp -R ~/edit-mode/sample-app <scratchpad>/sample-copy`
   2. in the copy, delete `.editmode` and replace `node_modules` with a symlink to `~/edit-mode/sample-app/node_modules`
