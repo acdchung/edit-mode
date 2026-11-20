@@ -240,7 +240,7 @@ function init() {
   else document.addEventListener('DOMContentLoaded', mount);
 
   // window.__editMode is handy for poking at state from the browser console.
-  window.__editMode = { state, changes, layers };
+  window.__editMode = { state, changes, layers, panel, select: (el) => select(el) };
 
   const h = (tag, cls, html) => {
     const el = document.createElement(tag);

@@ -210,10 +210,14 @@ export function createPanel(ctx) {
   function listPop(anchor, items, current, onPick) {
     openPop(anchor, (box) => {
       if (!items.length) box.append(h('div', 'pop-empty', 'Nothing found on this page'));
-      for (const [value, label] of items) {
-        const b = h('button', 'pop-item' + (String(value) === String(current) ? ' on' : ''));
+      // An item can carry a reason it's unavailable: shown greyed out, with the reason under it.
+      for (const [value, label, off] of items) {
+        const b = h('button', 'pop-item' + (String(value) === String(current) ? ' on' : '') + (off ? ' off' : ''));
         b.textContent = label;
-        b.addEventListener('click', () => { closePop(); onPick(String(value)); });
+        if (off) {
+          b.disabled = true;
+          b.append(h('span', 'pop-why', off));
+        } else b.addEventListener('click', () => { closePop(); onPick(String(value)); });
         box.append(b);
       }
     });
@@ -591,15 +595,26 @@ export function createPanel(ctx) {
     if (own === 'fit-content') return 'hug';
     if ((own === 'auto' || own === '100%') && (flex || axis === 'width')) return 'fill';
     const now = box(el)[axis];
-    // What would "hug" measure? Try it for a moment, then put the style back.
-    if (Math.abs(probe(el, { [axis]: 'fit-content' }, () => box(el)[axis]) - now) < 0.5) return 'hug';
-    if (!p || main) return 'fixed';
+    const hugs = () => Math.abs(probe(el, { [axis]: 'fit-content' }, () => box(el)[axis]) - now) < 0.5;
+    if (!p || main) return hugs() ? 'hug' : 'fixed';
     // Fill = it follows its container. Grow the container for a moment and
     // see. (Comparing sizes alone misreads a container that is only as big as
-    // this element, like a row of fixed-height buttons.)
+    // this element, like a row of fixed-height buttons.) This comes before
+    // Hug: wrapped text that spans its column measures the same either way,
+    // and following the container is what it actually does. A capped frame
+    // (max-width, like a centred page container) fills up to its cap, so its
+    // own cap is lifted for the measurement too.
     const pb = box(p)[axis];
     const grow = { [axis]: `${pb + 40}px`, [`max-${axis}`]: 'none' }; // a capped container (max-width) still grows
-    if (probe(p, grow, () => box(el)[axis]) - now > 1 && (flex || axis === 'width' || /grid/.test(pcs.display))) return 'fill';
+    const follows = probe(el, { [`max-${axis}`]: 'none' }, () => probe(p, grow, () => box(el)[axis])) - now > 1;
+    if (follows && (flex || axis === 'width' || /grid/.test(pcs.display))) {
+      // Stretched inside a container that's only as big as its contents (a hugging
+      // row of same-height links): the stretch changes nothing you can see, so it reads Hug.
+      // (Measured at its unwrapped size: wrapping text makes "fit-content" match any width.)
+      const parentHugs = flex && !main && Math.abs(probe(p, { [axis]: 'max-content' }, () => box(p)[axis]) - pb) < 0.5;
+      return parentHugs && hugs() ? 'hug' : 'fill';
+    }
+    if (hugs()) return 'hug';
     // A grid item stretched to its cell (no size of its own) fills the cell.
     const self = axis === 'width' ? cs.justifySelf : cs.alignSelf;
     if (/grid/.test(pcs.display) && /^(normal|stretch|auto)$/.test(self) &&
@@ -620,9 +635,22 @@ export function createPanel(ctx) {
     return m;
   }
 
+  // Hug needs something inside that takes up space (Figma only offers it then).
+  // A frame whose contents are all pinned (absolute), or that's empty, would
+  // shrink to nothing: CSS "fit the content" with no content in flow is 0.
+  const hasFlowContent = (el) =>
+    /^(IMG|SVG|VIDEO|CANVAS|INPUT|TEXTAREA|SELECT|IFRAME|PICTURE)$/i.test(el.tagName) ||
+    [...el.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim()) ||
+    [...el.children].some((k) => k.getClientRects().length && !/absolute|fixed/.test(getComputedStyle(k).position));
+
   function sizeOptions(el, axis) {
-    const opts = [['fixed', `Fixed ${axis}`], ['hug', 'Hug contents']];
-    if (axis === 'width' || flow(el, axis).flex) opts.push(['fill', 'Fill container']);
+    const opts = [['fixed', `Fixed ${axis}`],
+      ['hug', 'Hug contents', hasFlowContent(el) ? null : 'Nothing inside takes up space (it\'s empty, or what\'s inside is pinned), so it would shrink to 0']];
+    if (axis === 'width' || flow(el, axis).flex) {
+      // Placed by position (absolute/fixed): it isn't in the layout, so there's no container space to fill.
+      const placed = /absolute|fixed/.test(getComputedStyle(el).position);
+      opts.push(['fill', 'Fill container', placed ? 'Placed by position, outside the layout: there\'s no layout space to fill' : null]);
+    }
     return opts;
   }
 
@@ -864,7 +892,33 @@ export function createPanel(ctx) {
       modes: { options: (el) => sizeOptions(el, axis), read: (el) => sizeMode(el, axis), write: (m) => setSizing(axis, m) },
     })));
 
+  // Plain-language notes for layout that doesn't map to Figma (ROADMAP › A3):
+  // said once, at the top of Layout, instead of fields that quietly misread.
+  const notes = h('div', 'notes');
+  function layoutNotes(el) {
+    const cs = getComputedStyle(el);
+    const pcs = el.parentElement ? getComputedStyle(el.parentElement) : null;
+    const out = [];
+    if (cs.position === 'sticky') out.push('Pinned: it sticks to the screen while you scroll past it (sticky).');
+    else if (cs.position === 'fixed') out.push('Pinned to the screen: it stays put while the page scrolls (fixed).');
+    else if (cs.position === 'absolute') out.push('Placed by position, outside the layout: it doesn\'t push its neighbours, and reordering it won\'t move it.');
+    if (pcs && /grid/.test(pcs.display) && !/absolute|fixed/.test(cs.position)) out.push('In a grid: the grid\'s columns and rows decide where it sits and how much room it gets.');
+    if (pcs && /flex/.test(pcs.display)) {
+      const m = el.computedStyleMap();
+      const sides = ['left', 'right', 'top', 'bottom'].filter((s) => String(m.get(`margin-${s}`)) === 'auto');
+      if (sides.length) out.push(`Pushed by an automatic margin (${sides.join(', ')}): it takes all the free space on that side.`);
+    }
+    return out;
+  }
+  fields.push(() => {
+    const el = sel();
+    const list = el && picked().length === 1 ? layoutNotes(el) : [];
+    notes.replaceChildren(...list.map((t) => { const n = h('div', 'note', ICON.info); n.append(h('span', null, t)); return n; }));
+    notes.hidden = !list.length;
+  });
+
   const layout = section('Layout',
+    notes,
     autoBlock,
     sizeRow,
     gapRow,
@@ -1410,6 +1464,7 @@ export function createPanel(ctx) {
     pop,
     show,
     refresh,
+    sizeModeOf: (el, axis) => sizeMode(el, axis), // for tests
     // Resize handles: set one element's size (CSS px), whatever is selected.
     sizeOf: (el, scope, axis, px) => withEl(el, () => setSize(axis, String(px)), scope),
     autoLayout: (el, group, opts) => {
