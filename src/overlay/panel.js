@@ -903,7 +903,57 @@ export function createPanel(ctx) {
   layout.head.lastChild.append(ratioBtn, autoAdd);
 
   // Turn an element into a flex container that keeps its current look.
+  // Freely placed things on the canvas becoming auto layout (⇧A), like Figma:
+  // read the arrangement first (row or column by how they're spread, the
+  // spacing between them as the gap, the space to the frame's edges as
+  // padding), then put them in that order in the flow, so nothing jumps.
+  // A new wrapper (`wrapper`) takes their place at x/y and hugs them.
+  function flowFromPlaced(el, kids, wrapper) {
+    const rs = kids.map((k) => ({ k, r: box(k) }));
+    const cx = rs.map(({ r }) => r.left + r.width / 2);
+    const cy = rs.map(({ r }) => r.top + r.height / 2);
+    const row = Math.max(...cx) - Math.min(...cx) > Math.max(...cy) - Math.min(...cy);
+    rs.sort((a, b) => (row ? a.r.left - b.r.left : a.r.top - b.r.top));
+    const gaps = rs.slice(1).map(({ r }, i) => (row ? r.left - rs[i].r.right : r.top - rs[i].r.bottom)).filter((g) => g >= 0);
+    const gap = gaps.length ? Math.round(gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)]) : 0;
+    const u = {
+      left: Math.min(...rs.map(({ r }) => r.left)), top: Math.min(...rs.map(({ r }) => r.top)),
+      right: Math.max(...rs.map(({ r }) => r.right)), bottom: Math.max(...rs.map(({ r }) => r.bottom)),
+    };
+    const prev = state.selected;
+    state.selected = el;
+    if (wrapper) {
+      const p = el.parentElement;
+      const pb = box(p);
+      apply('position', 'absolute');
+      apply('left', `${Math.round(u.left - pb.left - p.clientLeft)}px`);
+      apply('top', `${Math.round(u.top - pb.top - p.clientTop)}px`);
+      apply('width', 'fit-content');
+    } else {
+      const fb = box(el);
+      const pad = {
+        top: u.top - fb.top - el.clientTop, left: u.left - fb.left - el.clientLeft,
+        right: fb.right - (el.offsetWidth - el.clientWidth - el.clientLeft) - u.right,
+        bottom: fb.bottom - (el.offsetHeight - el.clientHeight - el.clientTop) - u.bottom,
+      };
+      for (const [side, v] of Object.entries(pad)) apply(`padding-${side}`, `${Math.max(0, Math.round(v))}px`);
+    }
+    rs.forEach(({ k }, i) => {
+      if ([...el.children].indexOf(k) !== i) changes.move(k, 'one', i, el);
+      changes.set(k, 'one', 'position', 'static');
+      changes.set(k, 'one', 'left', 'auto');
+      changes.set(k, 'one', 'top', 'auto');
+    });
+    apply('display', 'flex');
+    apply('flex-direction', row ? 'row' : 'column');
+    apply('align-items', 'flex-start');
+    apply('gap', `${gap}px`);
+    state.selected = prev;
+  }
+
   function autoLayout(el, { wrapper = false } = {}) {
+    const shown = [...el.children].filter((k) => k.getClientRects().length);
+    if (shown.length && shown.every((k) => onCanvas(k) && getComputedStyle(k).position === 'absolute')) return flowFromPlaced(el, shown, wrapper);
     if (wrapper) {
       // A new frame around elements (⇧A): like Figma, it hugs them, keeps the
       // visible spacing between them as its gap, and lines them up at the

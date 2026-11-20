@@ -853,6 +853,8 @@ function init() {
   // Elements that hold text or are controls never become containers.
   const LEAF = /^(P|H[1-6]|SPAN|A|BUTTON|LABEL|IMG|INPUT|TEXTAREA|SELECT|svg|SVG|VIDEO|CANVAS|IFRAME|STRONG|EM|B|I|SMALL|CODE)$/;
   const isFrame = (n) => n.dataset?.emKind === 'frame'; // a canvas frame (kept across reloads)
+  // Placed freely on the canvas (top level, or in a frame without auto layout): moves by x/y.
+  const isLoose = (k) => onCanvas(k) && getComputedStyle(k).position === 'absolute';
   const canContain = (n) => (n.hasAttribute(ATTR) || !!n.dataset.emNew || !!n.dataset.emCopyOf || isFrame(n)) && !LEAF.test(n.tagName) && !n.closest('svg');
 
   // The insertion line beside sibling `s` (rect `r`), centred in the gap to
@@ -882,7 +884,12 @@ function init() {
       break;
     }
     if (!container) return null;
+    return flowSpot(container, x, y);
+  }
 
+  // Where (x, y) falls among an auto-layout (or plain) container's children:
+  // an index, plus the insertion line.
+  function flowSpot(container, x, y) {
     const sibs = flowKids(container);
     if (!sibs.length) return { container, toIndex: 0, line: null };
     const cs = getComputedStyle(container);
@@ -944,11 +951,13 @@ function init() {
   // lives there (ROADMAP › "The plan from here").
   function toolDrop(x, y) {
     const area = canvasArea();
-    const overCanvas = !!area && document.elementsFromPoint(x, y).includes(area);
-    if (!overCanvas) return state.tool === 'frame' ? null : dropAt(x, y);
-    const d = dropAt(x, y);
-    if (d && d.container !== area && onCanvas(d.container)) return d;
-    return { container: area, toIndex: area.children.length, line: null, free: true };
+    const hits = document.elementsFromPoint(x, y);
+    if (!area || !hits.includes(area)) return state.tool === 'frame' ? null : dropAt(x, y);
+    // The canvas is freeform: things stay where you draw them. Only a frame
+    // you've given auto layout stacks what goes into it.
+    const into = hits.find((n) => n === area || (onCanvas(n) && isFrame(n)));
+    if (into !== area && /flex|grid/.test(getComputedStyle(into).display)) return flowSpot(into, x, y);
+    return { container: into, toIndex: into.children.length, line: null, free: true };
   }
 
   function showDrop(drop, alwaysTarget = false) {
@@ -966,8 +975,7 @@ function init() {
     if (!parent || parent === document.documentElement || el === document.body) { press = null; return; }
     const r = unionRect(els);
     // Loose on the canvas (top-level): they move freely, live, like Figma's top-level frames.
-    const area = canvasArea();
-    const free = !!area && els.every((k) => k.parentElement === area);
+    const free = els.every(isLoose);
     drag = { el, els: inOrder(els), parent, frame: levelUp(el), rect: r, dx: p.x - r.left, dy: p.y - r.top, drop: null,
       free: free && { x: p.x, y: p.y, at: els.map((k) => [k, num(getComputedStyle(k).left), num(getComputedStyle(k).top)]) } };
     state.hovered = null;
@@ -1118,10 +1126,11 @@ function init() {
       el.textContent = 'Text';
       info = { what: 'text', styles: { margin: '0px' }, text: 'Text' };
     } else if (tool === 'frame') {
-      // A frame: auto layout (vertical) at a fixed size, white, like a new Figma frame.
+      // A frame, like a new Figma frame: a fixed size, white, no auto layout
+      // (what you put in stays where you put it; ⇧A adds auto layout).
       el = document.createElement('div');
       info = { what: 'frame', styles: { width: `${w}px`, height: `${h}px`, 'background-color': '#FFFFFF',
-        display: 'flex', 'flex-direction': 'column', 'flex-shrink': '0' } };
+        position: 'relative', 'flex-shrink': '0' } };
     } else {
       el = document.createElement('div');
       info = { what: tool === 'ellipse' ? 'ellipse' : 'rectangle',
@@ -1129,10 +1138,12 @@ function init() {
                   ...(tool === 'ellipse' ? { 'border-radius': '50%' } : {}) } };
     }
     if (drop.free) {
-      // Loose on the canvas: placed where it was drawn.
+      // Freeform on the canvas or in a frame without auto layout: placed where it was drawn.
       const a = drop.container.getBoundingClientRect();
       const at = box.width < 4 && box.height < 4 ? { left: draw.x, top: draw.y } : box;
-      Object.assign(info.styles, { position: 'absolute', left: `${Math.round((at.left - a.left) / view.z)}px`, top: `${Math.round((at.top - a.top) / view.z)}px` });
+      const c = drop.container;
+      Object.assign(info.styles, { position: 'absolute',
+        left: `${Math.round((at.left - a.left) / view.z - c.clientLeft)}px`, top: `${Math.round((at.top - a.top) / view.z - c.clientTop)}px` });
     } else Object.assign(info.styles, rhythm(drop.container, drop.toIndex));
     if (onCanvas(drop.container)) el.dataset.emKind = info.what; // frame / rectangle / ellipse / text, kept across reloads
     for (const [k, v] of Object.entries(info.styles)) el.style.setProperty(k, v);
@@ -1304,6 +1315,7 @@ function init() {
       el = changes.batch(g, () => changes.group([el]));
       panel.autoLayout(el, g, { wrapper: true });
     }
+    if (onCanvas(el) && el.dataset.emNew) el.dataset.emKind ||= 'frame'; // a new auto-layout frame on the canvas
     select(el);
   }
 
@@ -1564,7 +1576,7 @@ function init() {
         const stuck = new Set();
         changes.batch(`nudge:${Date.now()}`, () => {
           for (const k of back ? els : els.reverse()) {
-            if (k.parentElement && k.parentElement === canvasArea()) { // loose on the canvas: nudge its position
+            if (isLoose(k)) { // placed freely on the canvas: nudge its position
               const side = prop === 'margin-left' ? 'left' : 'top';
               changes.set(k, scope, side, `${num(getComputedStyle(k)[side]) + dir * (e.shiftKey ? 10 : 1)}px`);
               continue;

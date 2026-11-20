@@ -55,6 +55,10 @@ The user's taste, written down so it isn't re-corrected. These rules cover Edit 
   The one exception is the Gap field's menu, which holds a single choice, **Auto** (Figma's auto spacing), because a mode can't be typed as a number.
   <!-- 2026-11-20: "when we took away the defaut spacing options we took away the auto spacing. need to bring that back." -->
 
+- **The canvas is freeform.** Nothing snaps or stacks on its own: new frames have no auto layout, and things stay where they're drawn or dropped. Structure appears only when the designer adds it (⇧A, frames), and converting never moves anything.
+  Why: the designer builds structure as they go, like in Figma.
+  <!-- 2026-11-20: "on the 2nd canvas, I dont want things to auto snap into place/alignment. I want things to stay freeform and then I build the structure as i go with autolayout and frames" -->
+
 ## Motion
 
 From the `/emil-design-eng` review, accepted 2026-11-19 ("write all").

@@ -41,8 +41,8 @@ await p.keyboard.press('f'); await wait();
 await p.mouse.move(...o); await p.mouse.down(); await p.mouse.move(o[0] + 320, o[1] + 220, { steps: 6 }); await p.mouse.up(); await wait(150);
 let k = await canvasKids();
 check('dragging with the Frame tool on the canvas draws a frame', k.length === 1 && k[0] === 'frame', k.join());
-const f1 = await R(() => { const f = document.querySelector('[data-em-canvas] > [data-em-kind="frame"]'); const cs = getComputedStyle(f); return { pos: cs.position, w: f.offsetWidth, h: f.offsetHeight, flex: cs.display, dir: cs.flexDirection, bg: cs.backgroundColor }; });
-check('…placed where it was drawn, 320 × 220, auto layout (vertical), white', f1.pos === 'absolute' && f1.w === 320 && f1.h === 220 && f1.flex === 'flex' && f1.dir === 'column' && f1.bg === 'rgb(255, 255, 255)', JSON.stringify(f1));
+const f1 = await R(() => { const f = document.querySelector('[data-em-canvas] > [data-em-kind="frame"]'); const cs = getComputedStyle(f); return { pos: cs.position, w: f.offsetWidth, h: f.offsetHeight, flex: cs.display, bg: cs.backgroundColor }; });
+check('…placed where it was drawn, 320 × 220, white, no auto layout (freeform, like a new Figma frame)', f1.pos === 'absolute' && f1.w === 320 && f1.h === 220 && f1.flex === 'block' && f1.bg === 'rgb(255, 255, 255)', JSON.stringify(f1));
 check('it’s selected and the tool goes back to Select', (await sel()) === 'frame' && await R(() => window.__editMode.state.tool) === 'select');
 const names = await R(() => [...document.querySelector('edit-mode-root').shadowRoot.querySelectorAll('.lrow .lname')].map((n) => n.textContent));
 check('Layers lists it as "Frame" under Canvas', names.slice(names.indexOf('Canvas')).includes('Frame'), names.join(' | '));
@@ -53,8 +53,25 @@ await p.mouse.click(o[0] + 60, o[1] + 60); await wait();
 await p.keyboard.press('t'); await wait();
 await p.mouse.click(o[0] + 200, o[1] + 180); await wait(150);
 await p.keyboard.type('Hello'); await p.keyboard.press('Escape'); await wait();
-const inside = await R(() => [...document.querySelector('[data-em-canvas] > [data-em-kind="frame"]').children].map((c) => `${c.dataset.emKind}:${getComputedStyle(c).position}:${c.textContent}`));
-check('Rectangle and Text draw into the frame (in its layout, not placed by position)', inside.join() === 'rectangle:static:,text:static:Hello', inside.join());
+const z0 = await R(() => document.querySelector('[data-em-canvas]').getBoundingClientRect().width / document.querySelector('[data-em-canvas]').offsetWidth);
+const inside = await R(() => [...document.querySelector('[data-em-canvas] > [data-em-kind="frame"]').children].map((c) => ({ k: c.dataset.emKind, pos: getComputedStyle(c).position, l: parseFloat(getComputedStyle(c).left), t: parseFloat(getComputedStyle(c).top), text: c.textContent })));
+check('Rectangle and Text go into the frame and stay exactly where they were drawn',
+  inside.map((c) => `${c.k}:${c.pos}`).join() === 'rectangle:absolute,text:absolute' && Math.abs(inside[0].l - 60 / z0) < 2 && Math.abs(inside[0].t - 60 / z0) < 2 && Math.abs(inside[1].l - 200 / z0) < 2 && inside[1].text === 'Hello',
+  JSON.stringify(inside));
+
+// ⇧A: the free arrangement becomes auto layout, without anything moving.
+const kidRects = () => R(() => [...document.querySelector('[data-em-canvas] > [data-em-kind="frame"]').children].map((c) => { const r = c.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; }));
+await p.keyboard.press('Escape'); await p.keyboard.press('Escape'); await wait();
+await p.mouse.click(o[0] + 300, o[1] + 40); await wait(); // the frame's empty top-right
+check('clicking empty space in the frame selects it', (await sel()) === 'frame', String(await sel()));
+const before = await kidRects();
+await p.keyboard.press('Shift+KeyA'); await wait(150);
+const al = await R(() => { const f = document.querySelector('[data-em-canvas] > [data-em-kind="frame"]'); const cs = getComputedStyle(f); return { d: cs.display, dir: cs.flexDirection, gap: cs.columnGap, pl: cs.paddingLeft, pt: cs.paddingTop, kids: [...f.children].map((c) => getComputedStyle(c).position).join() }; });
+check('⇧A turns the frame into auto layout: a row (they were side by side), gap 40, padding from the edges 60', al.d === 'flex' && al.dir === 'row' && al.gap === '40px' && al.pl === '60px' && al.pt === '60px' && al.kids === 'static,static', JSON.stringify(al));
+const after = await kidRects();
+check('…and nothing jumps: the rectangle stays put, the text stays on the same line', after[0].join() === before[0].join() && after[1][0] === before[1][0], `${JSON.stringify(before)} → ${JSON.stringify(after)}`);
+await p.keyboard.press('Meta+z'); await wait(150);
+check('one ⌘Z puts it back to freeform', (await R(() => getComputedStyle(document.querySelector('[data-em-canvas] > [data-em-kind="frame"]').firstElementChild).position)) === 'absolute' && (await kidRects()).join() === before.join());
 
 // A click with the Frame tool on empty canvas: a 100 × 100 frame.
 await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
@@ -74,11 +91,23 @@ await p.mouse.move(o[0] + 250, o[1] + 150); await p.mouse.down(); await p.mouse.
 const p1 = await pos();
 check('dragging a top-level frame moves it freely (+60, +40)', Math.round(p1[0] - p0[0]) === 60 && Math.round(p1[1] - p0[1]) === 40, `${p0} → ${p1}`);
 check('…its contents come along', (await R(() => document.querySelector('[data-em-canvas] > [data-em-kind="frame"]').children.length)) === 2);
+// A thing inside a freeform frame drags freely too.
+const rp = () => R(() => { const r = document.querySelector('[data-em-canvas] [data-em-kind="rectangle"]'); return [parseFloat(getComputedStyle(r).left), parseFloat(getComputedStyle(r).top)]; });
+const rc = await R(() => { const r = document.querySelector('[data-em-canvas] [data-em-kind="rectangle"]').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+await p.keyboard.down('Meta'); await p.mouse.click(...rc); await p.keyboard.up('Meta'); await wait();
+const r0 = await rp();
+await p.mouse.move(...rc); await p.mouse.down(); await p.mouse.move(rc[0] + 10, rc[1], { steps: 2 }); await p.mouse.move(rc[0] + 30 * z, rc[1] + 20 * z, { steps: 5 }); await p.mouse.up(); await wait();
+const r1 = await rp();
+check('something inside a freeform frame drags freely (+30, +20)', Math.round(r1[0] - r0[0]) === 30 && Math.round(r1[1] - r0[1]) === 20, `${r0} → ${r1}`);
+await p.keyboard.press('Meta+z'); await wait();
+await p.keyboard.press('Escape'); await p.keyboard.press('Escape'); await wait();
+await p.mouse.click(o[0] + 250 + 60 * z, o[1] + 150 + 40 * z); await wait(); // reselect the frame at its new spot
 await p.keyboard.press('ArrowRight'); await p.keyboard.press('Shift+ArrowDown'); await wait();
 const p2 = await pos();
 check('arrows nudge it (→ 1, ⇧↓ 10)', p2[0] - p1[0] === 1 && p2[1] - p1[1] === 10, `${p1} → ${p2}`);
 await p.keyboard.press('Meta+z'); await p.keyboard.press('Meta+z'); await p.keyboard.press('Meta+z'); await wait();
 check('⌘Z walks the moves back', (await pos()).join() === p0.join(), `${await pos()}`);
+await p.keyboard.press('Escape'); await p.keyboard.press('Escape'); await wait();
 
 // Delete: really removed; ⌘Z brings it back.
 const rr = await R(() => { const r = document.querySelector('[data-em-canvas] [data-em-kind="rectangle"]').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
