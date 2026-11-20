@@ -76,6 +76,8 @@ Push styles a family through one shared CSS rule, so the copies match the origin
 
 **Push:** shows the list of changes; **Proceed** snapshots your source, runs Claude in the background to apply them, then reloads the page. **Undo** (in the pill afterwards) restores the files Claude changed and brings your edits back so you can adjust and push again.
 
+**Canvas (being built, roadmap B2):** while Edit Mode is on, a design canvas sits on the board 160px to the right of your page (pan over, or ⇧1 to fit both). It has its own **Canvas** section in Layers. What's on it can be selected and edited like the page and undone with ⌘Z, but it's never part of Push. It's saved in `.editmode/canvas.json`, so it survives reloads. Frames, copying pieces of the page onto it and structural editing come next.
+
 **EDITMODE.md (your project's conventions):** a short file at the project root that tells Push how your team writes UI code: how styles are written (plain CSS, CSS modules, Tailwind…), where design tokens live, which layout and shared components to reuse, and what to avoid. Push reads it first, and it wins over Edit Mode's defaults. If a project doesn't have one, the Push dialog offers **Draft one**: Claude reads your codebase and writes only that file (anything else it touches is put back), for you to review and edit. Point `EDIT_MODE_CLAUDE` (or the plugin's `claudePath` option) at a different `claude` binary if needed.
 
 While edit mode is on (and while Claude works), hot reload is paused so file saves can't wipe your edits.

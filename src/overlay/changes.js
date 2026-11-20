@@ -21,7 +21,7 @@ export const textNodeOf = (el) => {
   return nodes.length === 1 && nodes[0].nodeType === 3 ? nodes[0] : null;
 };
 
-export function createChanges(onChange, { getSelection = () => [], setSelection = () => {}, pageRoot = () => null } = {}) {
+export function createChanges(onChange, { getSelection = () => [], setSelection = () => {}, pageRoot = () => null, onCanvas = () => false } = {}) {
   let entries = new Map(); // logical key → entry (what Claude will be told)
   const original = new Map(); // el → Map(prop → first-ever value), for discardAll
   let undoStack = [];
@@ -98,6 +98,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
     family: t.family, // scope "all": the JSX line (or "new #N") whose elements and copies this covers
     index: t.index,
     count: t.count,
+    onCanvas: onCanvas(el) || undefined, // canvas edits are undoable but never pushed (until B3)
   });
 
   function put(key, entry) {
@@ -206,7 +207,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
     touch(st, el, POS); // not in the page yet: undo removes it
     parent.insertBefore(el, [...parent.children][index] ?? null);
     put(`new:${el.dataset.emNew}|#insert`, {
-      kind: 'insert', newId: el.dataset.emNew, element: label(el), what: info.what,
+      kind: 'insert', newId: el.dataset.emNew, element: label(el), what: info.what, onCanvas: onCanvas(el) || undefined,
       tag: el.tagName.toLowerCase(), styles: info.styles, text: info.text ?? null, copyOf: info.copyOf,
       parent: near(parent), to: indexOf(el),
       after: near(el.previousElementSibling), before: near(el.nextElementSibling),
@@ -233,7 +234,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
     parent.insertBefore(wrap, branch);
     for (const x of ordered) wrap.appendChild(x);
     put(`new:${wrap.dataset.emNew}|#group`, {
-      kind: 'group', newId: wrap.dataset.emNew, element: label(wrap), parent: near(parent), to: indexOf(wrap),
+      kind: 'group', newId: wrap.dataset.emNew, element: label(wrap), parent: near(parent), to: indexOf(wrap), onCanvas: onCanvas(wrap) || undefined,
       children: ordered.map(near), fromDifferentContainers: moved,
     });
     onChange();
@@ -378,9 +379,9 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
   }
 
   // What Claude is told. Elements added and then deleted drop out; text typed
-  // into an added element folds into its insert entry.
+  // into an added element folds into its insert entry. Canvas edits stay out.
   function list() {
-    const all = [...entries.values()];
+    const all = [...entries.values()].filter((c) => !c.onCanvas);
     const gone = new Set(all.filter((c) => c.kind === 'delete' && c.newId).map((c) => c.newId));
     const added = new Map();
     const out = [];

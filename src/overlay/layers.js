@@ -5,7 +5,7 @@
 // Order is DOM order, top to bottom, which matches how a page reads
 // (Figma lists the topmost layer first; on a web page that's usually last).
 
-import { NOT_LAYER, describe, friendlyName, layerView, visualKids, visualParent } from './util.js';
+import { NOT_LAYER, canvasArea, describe, friendlyName, layerView, visualKids, visualParent } from './util.js';
 import { textNodeOf } from './changes.js';
 import { ICON } from './icons.js';
 
@@ -95,6 +95,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
 
   function nameOf(n) {
     if (n === pageRoot()) return 'Page'; // the app's root element, like a Figma page
+    if (n === canvasArea()) return 'Canvas';
     const tag = n.tagName.toLowerCase();
     if (n.dataset.emNew && !n.children.length && !textNodeOf(n)) return n.style.borderRadius === '50%' ? 'Ellipse' : 'Rectangle';
     const text = textNodeOf(n)?.nodeValue.trim();
@@ -134,6 +135,12 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
       if (!seen.has(root)) { seen.add(root); expanded.add(root); }
       add(root, 0, false);
     }
+    // The design canvas beside the page: its own section, open by default.
+    const area = canvasArea();
+    if (area) {
+      if (!seen.has(area)) { seen.add(area); expanded.add(area); }
+      add(area, 0, false);
+    }
     body.scrollTop = scroll;
     lastMark = null;
     mark();
@@ -158,7 +165,9 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     lock.title = state.locked.has(n) ? 'Unlock' : 'Lock';
     const eye = h('button', 'lbtn eye' + (hiddenByUs(n) ? ' on' : ''), hiddenByUs(n) ? ICON.eyeOff : ICON.eye);
     eye.title = hiddenByUs(n) ? 'Show' : 'Hide';
-    row.append(caret, icon, name, lock, eye);
+    // The Canvas row is a section header: open/close only (no hide, lock, select or drag).
+    if (n === canvasArea()) row.append(caret, icon, name);
+    else row.append(caret, icon, name, lock, eye);
     if (kids.length) row.setAttribute('aria-expanded', String(!!open));
     body.append(row);
     const entry = { el: n, row, depth, hidden: hiddenByUs(n), icon: iconHtml };
@@ -251,6 +260,11 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     if (e.button !== 0) return;
     e.preventDefault();
     const n = entry.el;
+    if (n === canvasArea()) { // section header: a click opens or closes it
+      expanded.has(n) ? expanded.delete(n) : expanded.add(n);
+      build();
+      return;
+    }
     if (e.shiftKey && anchor && rows.some((r) => r.el === anchor)) {
       const a = rows.findIndex((r) => r.el === anchor);
       const b = rows.indexOf(entry);

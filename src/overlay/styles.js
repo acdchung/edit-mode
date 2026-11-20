@@ -34,6 +34,7 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 
 /* Glass: covers the page while editing so the app never sees hovers or clicks. */
 .glass { position: fixed; inset: 0; pointer-events: auto; cursor: default; }
+.board-label { position: fixed; left: 0; top: 0; pointer-events: none; font: 500 12px/16px var(--sans); color: rgba(0, 0, 0, .5); white-space: nowrap; }
 .glass.dragging { cursor: grabbing; }
 
 /* ---------- Canvas ---------- */

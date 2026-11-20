@@ -83,8 +83,9 @@ await p.keyboard.press('Meta+Digit0'); await p.waitForTimeout(80);
   await p.mouse.move(700, 450); await p.mouse.down({ button: 'middle' }); await p.mouse.move(640, 400, { steps: 5 }); await p.mouse.up({ button: 'middle' }); await p.waitForTimeout(80);
   const c = await rect('.hero'); check('middle-drag pans', near(c.x, b2.x - 60, 1) && near(c.y, b2.y - 50, 1)); }
 { await p.mouse.move(640, 450); for (let i = 0; i < 40; i++) await p.mouse.wheel(0, 2000); await p.waitForTimeout(100);
-  const r = await p.evaluate(() => document.body.getBoundingClientRect().bottom);
-  check('panning can’t lose the page off screen', r >= 79, String(r)); }
+  // The board is the page plus the design canvas beside it (C1): some of it always stays on screen.
+  const r = await p.evaluate(() => Math.max(document.body.getBoundingClientRect().bottom, document.querySelector('[data-em-canvas]')?.getBoundingClientRect().bottom ?? -Infinity));
+  check('panning can’t lose the board (page and canvas) off screen', r >= 79, String(r)); }
 await p.keyboard.press('Shift+Digit1'); await p.keyboard.press('Meta+Digit0'); await p.waitForTimeout(80);
 
 // Editing at 50%: resize, draw, move — values in CSS px; undo restores

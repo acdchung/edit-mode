@@ -19,7 +19,10 @@ const MAX = 4;
 const CANVAS = '#e9e9eb';
 const KEEP = 80; // px of the page that always stays on screen
 
-export function createCanvas({ onChange = () => {}, area = () => ({ left: 0, right: innerWidth, top: 0, bottom: innerHeight }) } = {}) {
+// `extra()`: the design canvas beside the page (design.js), as screen rects:
+// `area` (the whole canvas, which panning may reach) and `content` (what's on
+// it, which "zoom to fit" includes).
+export function createCanvas({ onChange = () => {}, area = () => ({ left: 0, right: innerWidth, top: 0, bottom: innerHeight }), extra = () => ({}) } = {}) {
   let on = false;
   let tx = 0;
   let ty = 0;
@@ -35,13 +38,21 @@ export function createCanvas({ onChange = () => {}, area = () => ({ left: 0, rig
   }
 
   const setTransform = (b) => b.style.setProperty('transform', `translate(${tx}px, ${ty}px) scale(${view.z})`, 'important');
+  const union = (a, b) => {
+    if (!b) return a;
+    const left = Math.min(a.left, b.left);
+    const top = Math.min(a.top, b.top);
+    const right = Math.max(a.right, b.right);
+    const bottom = Math.max(a.bottom, b.bottom);
+    return { left, top, right, bottom, width: right - left, height: bottom - top };
+  };
 
   // Write the transform, then keep some of the page on screen wherever you pan.
   function apply() {
     const b = body();
     if (!b) return;
     setTransform(b);
-    const r = b.getBoundingClientRect();
+    const r = union(b.getBoundingClientRect(), extra().area); // the page and the canvas beside it
     let dx = 0;
     let dy = 0;
     if (r.right < KEEP) dx = KEEP - r.right;
@@ -159,11 +170,11 @@ export function createCanvas({ onChange = () => {}, area = () => ({ left: 0, rig
     apply();
   }
 
-  // The whole page width between the panels, top of the page at the top.
+  // The whole page width (and what's on the canvas beside it) between the
+  // panels, top of the page at the top.
   function fit() {
     if (!on) return;
-    const b = body().getBoundingClientRect();
-    fitRect({ left: b.left, top: b.top, width: b.width, height: b.height }, { maxZ: 1, top: true });
+    fitRect(union(body().getBoundingClientRect(), extra().content), { maxZ: 1, top: true });
   }
 
   // `r`: the selection's screen rect.

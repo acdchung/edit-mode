@@ -201,5 +201,15 @@ export function createRunner({ root, claudePath, log }) {
     return { changes: readJSON(join(batchDir, 'changes.json'), []), restored, skipped };
   }
 
-  return { push, undo, status, draftConventions, isRunning: () => !!running };
+  // The design canvas beside the page (overlay: design.js), saved as its HTML.
+  const canvasPath = join(dir, 'canvas.json');
+  const readCanvas = () => readJSON(canvasPath, { html: '' });
+  function writeCanvas(data) {
+    if (typeof data?.html !== 'string') throw new Error('Canvas: expected { html }.');
+    ensureDir();
+    writeJSON(canvasPath, { html: data.html, at: Date.now() });
+    return { ok: true };
+  }
+
+  return { push, undo, status, draftConventions, readCanvas, writeCanvas, isRunning: () => !!running };
 }

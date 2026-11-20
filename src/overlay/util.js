@@ -159,3 +159,10 @@ export function friendlyName(n) {
   const words = raw.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[-_]+/g, ' ').trim().toLowerCase();
   return words ? words[0].toUpperCase() + words.slice(1) : raw;
 }
+
+// ---------- The design canvas (roadmap B2, design.js) ----------
+// The canvas area sits on the board beside the page. Anything inside it is
+// "on the canvas": undoable like the page, but never pushed (until B3).
+export const CANVAS_ATTR = 'data-em-canvas';
+export const canvasArea = () => document.querySelector(`[${CANVAS_ATTR}]`);
+export const onCanvas = (el) => !!el?.closest?.(`[${CANVAS_ATTR}]`);

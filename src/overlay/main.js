@@ -3,13 +3,14 @@
 // and its CSS can't touch the app.
 
 import { STYLES } from './styles.js';
-import { ATTR, NOT_LAYER, box, describe, family, num, parseColor, passThrough, sameSource, view, visualKids, visualParent } from './util.js';
+import { ATTR, CANVAS_ATTR, NOT_LAYER, box, canvasArea, describe, family, num, onCanvas, parseColor, passThrough, sameSource, view, visualKids, visualParent } from './util.js';
 import { createCanvas } from './canvas.js';
 import { createChanges, textNodeOf } from './changes.js';
 import { collectTokens } from './tokens.js';
 import { createPanel } from './panel.js';
 import { createLayers } from './layers.js';
 import { createSpacing } from './spacing.js';
+import { createDesign } from './design.js';
 import { ICON, KEY as GLYPH } from './icons.js';
 
 if (!window.__editModeOverlay) {
@@ -33,6 +34,7 @@ function init() {
     <style>${STYLES}</style>
     <div class="ui">
       <div class="glass" hidden></div>
+      <div class="board-label" hidden>Canvas</div>
       <div class="layer sibs"></div>
       <div class="layer hints"></div>
       <div class="hover" hidden></div>
@@ -83,6 +85,7 @@ function init() {
   const measureLayer = $('.measure');
   const targetBox = $('.target');
   const insertLine = $('.insert');
+  const boardLabel = $('.board-label');
 
   // ---------- State ----------
   const state = {
@@ -108,6 +111,7 @@ function init() {
     if (state.selected) panel.refresh(); // Layers watches the page itself
   }, {
     pageRoot: () => pageRoot(),
+    onCanvas, // canvas edits: undoable, never pushed (until B3)
     // Undo/redo put the selection back to what it was at that point, like Figma.
     getSelection: () => [...state.multi],
     setSelection: (els) => {
@@ -171,12 +175,16 @@ function init() {
   let cursor = null;
   window.addEventListener('pointermove', (e) => { cursor = { x: e.clientX, y: e.clientY }; }, true);
 
+  // The design canvas beside the page (design.js), on the same board.
+  const design = createDesign();
+
   // Canvas: zoom and pan the page (canvas.js). The free area is the space
   // between the panels and above the toolbar.
   const zoomBtn = $('.zoom-btn');
   const zmenu = $('.zmenu');
   ui.append(zmenu); // out of the dock: its transform would offset a fixed menu
   const canvas = createCanvas({
+    extra: () => ({ area: design.el?.getBoundingClientRect() ?? null, content: design.contentRect() }),
     onChange: () => {
       zoomBtn.textContent = `${Math.round(view.z * 100)}%`;
       // The page moved under a still pointer: hover what's under it now.
@@ -275,6 +283,7 @@ function init() {
 
     if (next) {
       canvas.enter();
+      design.mount();
       calmPage(true);
       if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
       state.tokens = null;
@@ -282,6 +291,7 @@ function init() {
       pingTimer = setInterval(() => freeze(true), 2000);
       loop();
     } else {
+      design.unmount(); // saves the canvas first: discarding page edits must not touch it
       changes.discardAll();
       closeZoomMenu();
       canvas.exit();
@@ -648,7 +658,7 @@ function init() {
     let svg = el.closest('svg');
     while (svg && svg.parentElement?.closest('svg')) svg = svg.parentElement.closest('svg');
     if (svg) el = svg;
-    if (el === document.documentElement || el === document.body || el === host) return null;
+    if (el === document.documentElement || el === document.body || el === host || el.hasAttribute(CANVAS_ATTR)) return null;
     return el;
   }
 
@@ -665,13 +675,15 @@ function init() {
     return null;
   }
   // Levels and siblings in the Figma view.
-  const levelUp = (el) => visualParent(el, pageRoot());
+  // Two roots on the board: the page, and the design canvas beside it.
+  const rootOf = (el) => (onCanvas(el) ? canvasArea() : pageRoot());
+  const levelUp = (el) => visualParent(el, rootOf(el));
   const siblingsOf = (el) => visualKids(levelUp(el), (k) => k !== host && !NOT_LAYER.test(k.tagName) && k.getClientRects().length > 0);
 
   // The page's top level, like a Figma page's top-level frames: skip down
   // through wrappers with a single visible child (body > #root > main.page),
   // and the children of what's left are the top-level layers.
-  const layerKids = (n) => [...n.children].filter((k) => k !== host && !NOT_LAYER.test(k.tagName) &&
+  const layerKids = (n) => [...n.children].filter((k) => k !== host && !NOT_LAYER.test(k.tagName) && !k.hasAttribute(CANVAS_ATTR) &&
     (k.getClientRects().length || k.style.getPropertyValue('display') === 'none')); // hidden with the eye: still a layer
   function pageRoot() {
     let n = document.body;
@@ -687,7 +699,7 @@ function init() {
   function hit(x, y, deep = false) {
     const el = deepHit(x, y);
     if (deep || !el) return el;
-    const root = pageRoot();
+    const root = rootOf(el);
     if (el === root || !root.contains(el)) return null; // the page background
     const sel = state.selected;
     let ctx = sel && sel !== root && root.contains(sel) ? levelUp(sel) : root;
@@ -1201,8 +1213,8 @@ function init() {
   function multiTarget(x, y, deep) {
     const d = deepHit(x, y);
     if (deep || !d || !state.selected) return d;
-    const root = pageRoot();
-    if (d === root || !root.contains(d)) return null;
+    const root = rootOf(state.selected);
+    if (d === root || !root.contains(d)) return null; // not across page and canvas
     const depth = (n) => { let k = 0; for (; n && n !== root; n = levelUp(n)) k++; return k; };
     const want = depth(state.selected);
     let n = d;
@@ -1426,7 +1438,7 @@ function init() {
       else if (slot.querySelector('.dialog')) closeDialog(); // notices don't swallow Esc
       else if (state.selected) {
         // Up one level; past the page's top level, deselect (Figma).
-        const root = pageRoot();
+        const root = rootOf(state.selected);
         select(state.selected === root || !root.contains(state.selected) ? null : pickable(levelUp(state.selected)));
       }
       return;
@@ -1585,6 +1597,14 @@ function init() {
     if (state.hovered && !state.hovered.isConnected) state.hovered = null;
     if (state.editing && !state.editing.isConnected) stopText(); // don't stay stuck in text editing
     const sel = state.selected;
+
+    // "Canvas" above the design canvas, like a Figma frame's name.
+    const ca = state.on && design.el;
+    boardLabel.hidden = !ca;
+    if (ca) {
+      const r = ca.getBoundingClientRect();
+      boardLabel.style.transform = `translate(${r.left}px, ${r.top - 22}px)`;
+    }
 
     hoverBox.hidden = !state.on || !state.hovered || state.multi.includes(state.hovered) || !!state.editing || spacing.dragging || spacing.hovering;
     if (!hoverBox.hidden) place(hoverBox, state.hovered.getBoundingClientRect());
