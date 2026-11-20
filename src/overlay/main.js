@@ -9,6 +9,7 @@ import { createChanges, textNodeOf } from './changes.js';
 import { collectTokens } from './tokens.js';
 import { createPanel } from './panel.js';
 import { createLayers } from './layers.js';
+import { createSpacing } from './spacing.js';
 import { ICON, KEY as GLYPH } from './icons.js';
 
 if (!window.__editModeOverlay) {
@@ -39,6 +40,8 @@ function init() {
       <div class="ghost" hidden></div>
       <div class="insert" hidden></div>
       <div class="layer measure"></div>
+      <div class="layer spacing"></div>
+      <div class="sz-label" hidden></div>
       <div class="frame" hidden>
         ${['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'].map((d) => `<i class="handle" data-dir="${d}"></i>`).join('')}
         <div class="size"></div>
@@ -154,6 +157,19 @@ function init() {
     },
   });
   ui.append(layers.el);
+
+  // Padding and gap handles on a selected auto-layout frame (spacing.js).
+  const spacing = createSpacing({
+    layer: $('.spacing'),
+    label: $('.sz-label'),
+    changes,
+    state,
+    focusGap: () => panel.focusGap(),
+    drill: (x, y) => drill(x, y),
+  });
+  // Where the pointer is, wherever it is (the glass loses it over the handles).
+  let cursor = null;
+  window.addEventListener('pointermove', (e) => { cursor = { x: e.clientX, y: e.clientY }; }, true);
 
   // Canvas: zoom and pan the page (canvas.js). The free area is the space
   // between the panels and above the toolbar.
@@ -907,14 +923,15 @@ function init() {
 
   // Double-click goes one level deeper (Figma). On text that's already the
   // selection, it starts editing.
-  glass.addEventListener('dblclick', (e) => {
+  function drill(x, y) {
     if (state.phase !== 'idle' || state.tool !== 'select') return;
     const sel = state.selected;
     if (!sel) return;
-    const inner = hitInside(sel, e.clientX, e.clientY);
+    const inner = hitInside(sel, x, y);
     if (inner) select(inner);
     else if (textNodeOf(sel)) startText(sel);
-  });
+  }
+  glass.addEventListener('dblclick', (e) => drill(e.clientX, e.clientY));
 
   // The glass covers the page, so pass scrolling through to whatever scrollable
   // element is underneath. (Over plain page areas the window scrolls by itself.)
@@ -1502,7 +1519,7 @@ function init() {
     if (state.editing && !state.editing.isConnected) stopText(); // don't stay stuck in text editing
     const sel = state.selected;
 
-    hoverBox.hidden = !state.on || !state.hovered || state.multi.includes(state.hovered) || !!state.editing;
+    hoverBox.hidden = !state.on || !state.hovered || state.multi.includes(state.hovered) || !!state.editing || spacing.dragging || spacing.hovering;
     if (!hoverBox.hidden) place(hoverBox, state.hovered.getBoundingClientRect());
 
     // Several selected: the main frame (with the working handles) goes around
@@ -1526,13 +1543,18 @@ function init() {
 
     const hint = sel && state.hint;
     drawBoxes(hintLayer, hint ? spacingRects(sel, hint) : [], hint || '');
+
+    // Padding and gap handles: one auto-layout frame selected, pointer over it, nothing else going on.
+    const over = fr && cursor && cursor.x >= fr.left && cursor.x <= fr.right && cursor.y >= fr.top && cursor.y <= fr.bottom;
+    spacing.render(sel, !!(state.on && !many && over && state.tool === 'select' && state.phase === 'idle'
+      && !state.editing && !press && !drag && !draw && !pan));
   }
 
   // ⌥ measurement: red lines with distances between the selection and the
   // hovered element (or its parent when hovering it / nothing).
   function drawMeasure(sel, selRect) {
     const lines = [];
-    if (state.on && state.alt && sel && selRect && !drag && !state.editing) {
+    if (state.on && state.alt && sel && selRect && !drag && !spacing.dragging && !state.editing) {
       let other = state.hovered && state.hovered !== sel ? state.hovered : sel.parentElement;
       if (other && sel.contains(other)) other = sel.parentElement;
       if (other) {

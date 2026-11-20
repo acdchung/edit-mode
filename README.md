@@ -63,6 +63,8 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 
 **Width / height:** Fixed, Hug contents or Fill container (menu in the W and H fields), like Figma's resizing. Fill means the element follows its container (Edit Mode checks by growing the container for a moment); something stretched to its grid cell is Fill too. The **link** button in the Layout title row constrains proportions: setting W also sets H (and the reverse), and resize handles keep the ratio. While it's on, the W and H fields are outlined and joined in blue. It's per element and only for this session, not pushed.
 
+**Padding and gap on the canvas:** select an auto-layout frame and point at it. Small purple bars mark each padding side and each gap between children. Hover one to see its value; drag it to change it (Shift snaps to steps of 8, ⌥ changes the opposite padding side too). Click a gap to type a value in the Gap field. A padding of 0 still has a thin strip you can drag open. Dragging an **Auto** gap turns it into a fixed one. Each drag is one ⌘Z.
+
 **Gap:** a plain number field. Type `auto` to push children to the ends of the frame (Figma's auto spacing).
 
 **This one / All like this:** for repeated elements. Defaults to This one. "All like this" covers a *family*:

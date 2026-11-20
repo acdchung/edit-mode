@@ -12,11 +12,6 @@ Figma is the reference for every behavior. Where a live web page can't work like
 
 ## Next up
 
-### 4. Padding and gap handles on the canvas
-- When an auto-layout frame is selected, show draggable padding zones (pink/purple, as in Figma) and gap zones between the children.
-- Drag to change the value. Hover shows the value. Shift drags snap to steps of 8. ⌥ drags change the opposite sides symmetrically.
-- Clicking a gap zone focuses the Gap field.
-
 ### 5. Absolute position inside auto layout (Figma: "Ignore auto layout")
 - A toggle in Layout for a child of an auto-layout frame. It sets `position: absolute`, and `position: relative` on the parent.
 - Then show X/Y fields (top/left) and allow dragging the element freely inside its parent.
@@ -69,6 +64,7 @@ Figma is the reference for every behavior. Where a live web page can't work like
 - Snapping and smart guides while dragging or resizing absolute elements.
 
 ## Done (highlights)
+- 2026-11-20, item 4: padding and gap handles on the canvas (`spacing.js`, `tests/item4.mjs`). With one auto-layout frame selected and the pointer over it: a purple bar per padding side and per main-axis gap; hover fills the zone and shows the value; drag changes it (Shift = steps of 8, ⌥ = opposite padding side too; one undo). Click a gap focuses the Gap field. Zero padding gets a 10px grab strip whose middle clears the frame's edge handles. Dragging an Auto gap sets `justify-content: flex-start` plus a fixed gap. Double-click on a zone still drills in. Cross-axis gaps in wrapping rows aren't offered (no Figma-style counter-axis spacing field yet).
 - 2026-11-20, audit follow-ups (`tests/demo2.mjs`): the Layers panel resizes from its right edge (remembered); the top row is "Page"; line height shows as the code writes it (1.35, not 17.6px).
 - 2026-11-20, QA + UX audit on the Payloom page (`tests/brutal3.mjs`, light random runs; `tests/demo1.mjs`): sizing modes now read what the CSS does (fixed-height buttons, grid cells, capped containers); no-op edits no longer leave hidden styles behind; stroke sides (All / one side / Custom per-side weights) for inside strokes. Panels no longer jump sides (2026-11-19).
 - 2026-11-19, item 3: several elements at once. Drag any selected element to move them all (page order kept, one undo; ⌥-drag copies them all). One group frame with working handles goes around the selection, and each element keeps its own frame; the group's size label sits a row lower. Group resize scales each element's size by the frame's factor (Shift, or the primary's constrain proportions, keeps proportions). Arrows nudge all of them, or move them as a block inside auto layout. Panel: shared sections with "Mixed"; edits run once per element (`each`/`withEl`/`common` in `panel.js`). Also fixed: typing a hex color into a semi-transparent color dropped its opacity.

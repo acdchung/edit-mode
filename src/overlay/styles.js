@@ -15,7 +15,7 @@ export const STYLES = /* css */ `
   --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
   --ease: cubic-bezier(0.23, 1, 0.32, 1); /* strong ease-out (Emil Kowalski) */
-  --pad: rgba(151, 71, 255, 0.22); --pad-edge: rgba(151, 71, 255, 0.6);
+  --pad: rgba(151, 71, 255, 0.22); --pad-edge: rgba(151, 71, 255, 0.6); --pad-strong: #9747ff;
   --mar: rgba(255, 153, 0, 0.2); --mar-edge: rgba(255, 153, 0, 0.6);
   --lift: 0 0 0 0.5px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.05) inset, 0 12px 40px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.25);
 }
@@ -46,6 +46,18 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .frame.group .size { transform: translate(-50%, 27px); } /* below the selected elements' own labels */
 .box.padding { background: var(--pad); outline: 1px dashed var(--pad-edge); outline-offset: -1px; }
 .box.gap { background: repeating-linear-gradient(45deg, var(--pad) 0 3px, transparent 3px 6px); outline: 1px dashed var(--pad-edge); outline-offset: -1px; }
+/* Padding and gap handles (spacing.js): grab zones on a selected auto-layout frame */
+.sz { position: fixed; pointer-events: auto; }
+.sz.y { cursor: ns-resize; }
+.sz.x { cursor: ew-resize; }
+.sz .fill { position: absolute; display: none; background: var(--pad); }
+.sz.on .fill { display: block; }
+.sz .bar { position: absolute; left: 50%; top: 50%; background: var(--pad-strong); border-radius: 1px;
+           box-shadow: 0 0 0 1px rgba(255,255,255,.85); transform: translate(-50%, -50%); }
+.sz.padding.y .bar, .sz.gap.y .bar { width: 12px; height: 2px; }
+.sz.padding.x .bar, .sz.gap.x .bar { width: 2px; height: 12px; }
+.sz-label { position: fixed; transform: translate(-50%, -50%); pointer-events: none; background: var(--pad-strong); color: #fff;
+            padding: 1px 5px; border-radius: 3px; font: 500 10.5px/14px var(--sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .box.margin { background: var(--mar); outline: 1px dashed var(--mar-edge); outline-offset: -1px; }
 .target { position: fixed; pointer-events: none; outline: 2px solid var(--accent); outline-offset: -1px; border-radius: 2px;
           background: rgba(13, 153, 255, 0.05); }

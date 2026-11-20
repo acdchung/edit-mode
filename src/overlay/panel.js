@@ -1413,6 +1413,13 @@ export function createPanel(ctx) {
       ctx.onEdit();
       return r;
     },
+    // Clicking a gap on the canvas: type a new gap.
+    focusGap: () => {
+      const input = gapRow.querySelector('input');
+      if (gapRow.hidden || !input) return;
+      input.focus();
+      input.select();
+    },
     menuOpen: () => !pop.hidden,
     closeMenu: closePop,
   };
