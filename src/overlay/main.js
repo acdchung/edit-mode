@@ -436,9 +436,44 @@ function init() {
     wrap.append(ul, more);
     const a = actions('Proceed', push);
     a.ok.insertAdjacentHTML('beforeend', `<kbd>${GLYPH.command}${GLYPH.enter}</kbd>`);
-    d.append(wrap, a.row);
+    const conv = h('div', 'conv');
+    conv.hidden = true;
+    d.append(wrap, conv, a.row);
     slot.replaceChildren(d);
     a.ok.focus();
+    conventionsRow(conv, a.ok);
+  }
+
+  // No EDITMODE.md yet (the project's conventions, which Push follows):
+  // offer to draft one from the codebase. Shown in the Push dialog only.
+  async function conventionsRow(row, okBtn) {
+    const s = await fetchStatus();
+    if (!s || s.conventions || !row.isConnected) return;
+    const text = h('span', '', 'No EDITMODE.md yet. Push will follow what it finds in your code.');
+    const btn = h('button', 'pbtn ghost', 'Draft one');
+    btn.title = 'Claude reads your codebase and writes EDITMODE.md (your styling, tokens and components) for you to review';
+    row.replaceChildren(text, btn);
+    row.hidden = false;
+    btn.addEventListener('click', async () => {
+      btn.disabled = okBtn.disabled = true;
+      btn.replaceChildren(h('span', 'spin'), 'Drafting…');
+      try {
+        const res = await fetch('/@edit-mode/draft-conventions', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Drafting failed');
+        let st;
+        do { await new Promise((r) => setTimeout(r, 1500)); st = await fetchStatus(); } while (st?.running === 'draft');
+        if (!st?.draft?.ok) throw new Error(st?.draft?.error || 'Drafting failed');
+        // The dialog says it; a toast would replace the dialog, so only if it was closed meanwhile.
+        if (row.isConnected) row.replaceChildren(h('span', '', 'Drafted EDITMODE.md. Review it in your code editor; Push follows it from now on.'));
+        else toast('Drafted', 'EDITMODE.md is in your project. Review it in your code editor; Push follows it from now on.');
+      } catch (err) {
+        if (row.isConnected) row.hidden = true;
+        toast('Couldn’t draft EDITMODE.md', err.message, { error: true, ms: 0 });
+      } finally {
+        okBtn.disabled = false;
+      }
+    });
   }
 
   function openUndoDialog() {
@@ -1398,7 +1433,7 @@ function init() {
     }
     if (mod && e.key === 'Enter') {
       stop();
-      if (slot.querySelector('.dialog .list')) push();
+      if (slot.querySelector('.dialog .list')) { if (!slot.querySelector('.dialog .pbtn.primary')?.disabled) push(); } // not while drafting EDITMODE.md
       else openPushDialog();
       return;
     }
@@ -1687,7 +1722,7 @@ function init() {
     const s = await fetchStatus();
 
     // A pass was running when the page loaded (e.g. after a manual refresh).
-    if (s?.running) {
+    if (s?.running && s.running !== 'draft') { // drafting EDITMODE.md isn't a pass
       setOn(true);
       state.phase = 'running';
       renderPill();

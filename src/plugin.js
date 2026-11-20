@@ -11,7 +11,7 @@
 //      page reload) when edit mode is turned off.
 //   4. Push: hands the edits to Claude Code (see runner.js), and Undo.
 //
-// Options: { claudePath } to point at a specific `claude` binary.
+// Options: { claudePath } to point at a specific `claude` binary (or set EDIT_MODE_CLAUDE).
 
 import { readFileSync } from 'node:fs';
 import { relative } from 'node:path';
@@ -113,6 +113,7 @@ export default function editMode(options = {}) {
         return send(200, runner.push(JSON.parse(await readBody(req))));
       }
       if (name === 'undo' && req.method === 'POST') return send(200, runner.undo());
+      if (name === 'draft-conventions' && req.method === 'POST') return send(200, runner.draftConventions());
     } catch (err) {
       return send(400, { error: err.message });
     }

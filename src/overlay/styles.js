@@ -125,6 +125,10 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .list li::before { content: ""; position: absolute; left: 1px; top: 8px; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
 .list-wrap .more { all: unset; display: block; margin-top: 6px; color: var(--muted); font-size: 11px; cursor: pointer; }
 .list-wrap .more:hover { color: var(--text); }
+.conv { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--hair);
+        color: var(--muted); font-size: 12px; line-height: 17px; }
+.conv > span:first-child { flex: 1; }
+.conv .pbtn { flex: none; }
 .actions { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 14px; }
 .actions .hint { margin-right: auto; color: var(--dim); font-size: 11px; }
 .pbtn { all: unset; display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px; border-radius: 7px;
@@ -134,6 +138,8 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .pbtn.primary kbd { color: rgba(255,255,255,.75); box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); }
 .pbtn.ghost { color: var(--muted); }
 .pbtn.ghost:hover { background: var(--field); color: var(--text); }
+.pbtn:disabled { opacity: .5; cursor: default; }
+.pbtn.ghost:disabled:hover { background: none; color: var(--muted); }
 
 .toast { max-width: 440px; padding: 10px 12px; border-radius: 12px; pointer-events: auto;
          font-size: 12px; line-height: 17px; display: flex; gap: 10px; align-items: flex-start; cursor: default; }

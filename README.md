@@ -76,6 +76,8 @@ Push styles a family through one shared CSS rule, so the copies match the origin
 
 **Push:** shows the list of changes; **Proceed** snapshots your source, runs Claude in the background to apply them, then reloads the page. **Undo** (in the pill afterwards) restores the files Claude changed and brings your edits back so you can adjust and push again.
 
+**EDITMODE.md (your project's conventions):** a short file at the project root that tells Push how your team writes UI code: how styles are written (plain CSS, CSS modules, Tailwind…), where design tokens live, which layout and shared components to reuse, and what to avoid. Push reads it first, and it wins over Edit Mode's defaults. If a project doesn't have one, the Push dialog offers **Draft one**: Claude reads your codebase and writes only that file (anything else it touches is put back), for you to review and edit. Point `EDIT_MODE_CLAUDE` (or the plugin's `claudePath` option) at a different `claude` binary if needed.
+
 While edit mode is on (and while Claude works), hot reload is paused so file saves can't wipe your edits.
 
 ## Docs

@@ -14,8 +14,9 @@ Batch folder: {{BATCH}}
 - `{{BATCH}}/context.json`: for each changed element, its classes, text, HTML and parent. Inline `style` attributes were stripped; they were only the preview.
 
 Rules:
+0. If the project has `EDITMODE.md` at its root, read it first. It's this team's own conventions (how styles are written, design tokens, layout components, shared components, what to avoid). Follow it. Where it disagrees with the rules below (for example Tailwind classes instead of CSS rules, or a `<Stack>` component instead of flex in CSS), it wins.
 1. Apply every change in the project's source. Don't ask questions. Only stop if a change truly can't be done, and say why.
-2. Styling is plain CSS. Edit the CSS rule that styles the element (find it through the element's classes). Inline styles are never the final result.
+2. Style the element the way the project already does. By default that's plain CSS: edit the CSS rule that styles the element (find it through the element's classes). Inline styles are never the final result.
 3. `scope: "all"`: change the shared CSS rule (or, for a `new #N` family, the class that the new element and its copies share). Render copies so that they use the same rule.
    `scope: "one"`: add a modifier class for just that instance (e.g. `.card--featured`) and style it. If the element is rendered from a list (`.map`), apply the class conditionally using the item's data or index, whichever is cleanest.
 4. Prefer existing CSS variables and values. If a new value is very close to an existing variable or a value used elsewhere (15px next to a 16px scale), use the existing one. Don't change values that are clearly deliberate.
@@ -30,6 +31,6 @@ Rules:
    `what: "copy"`: a duplicate of `copyOf` (its `source`, `index`, or `newId` if it duplicates something added in this batch). Reproduce it the way a developer would: render the component again, duplicate the JSX, or add another item to the data a list is rendered from. Changes whose `insideNew` is this copy's `newId` style elements inside the copy (`copyOf` on them names the original they came from).
    `kind: "group"`: the listed `children` were wrapped in a new `<div>` (its `newId`). If `fromDifferentContainers` is true, the children came from different places: move each one into the wrapper. Add the wrapper in the JSX with a descriptive class name; later style changes with that `newId` (often auto layout: `display: flex`, `gap`, alignment) style the wrapper.
    `property: "display"` with `to: "none"`: the designer hid the layer with the eye in the Layers panel (Figma's hide). Keep the element in the JSX and hide it with CSS (a modifier class for `scope: "one"`). Don't delete it.
-9. Only edit the files the changes point to and the CSS files that style those elements. If something wider seems needed, don't do it; mention it in your summary.
+9. Only edit the files the changes point to and the files that style those elements (including token files, if `EDITMODE.md` says new values belong there). Never edit `EDITMODE.md` itself. If something wider seems needed, don't do it; mention it in your summary.
 10. Don't run shell commands and don't install anything.
 11. When finished, reply with one or two short sentences for a designer: what you changed, and anything you couldn't do. No code, no file paths unless something needs their attention.
