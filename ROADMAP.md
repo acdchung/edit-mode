@@ -12,6 +12,20 @@ Figma is the reference for every behavior. Where a live web page can't work like
 
 ## Next up
 
+### Phase A: any page, seen the Figma way (agreed with the user, 2026-11-20)
+Edit Mode should work on any page structure, not only code shaped like Figma, because the user may open-source it and other people's pages (and agents) won't follow our rules. The code stays as developers wrote it. Edit Mode shows it through a Figma lens, and Push turns structural edits into code that fits the project.
+
+- **Two kinds of edits.** Style edits (padding, gap, font, color, size, radius…) stay exact, as today. Structural edits (move, group, wrap or unwrap, delete a container) are recorded as intent ("put the nav after the hero"), and Claude picks the cleanest way to do that in this codebase.
+- **A1. Pass-through layers.** Wrappers you can't see (no fill, stroke, shadow or padding of their own, adding no layout you'd notice: `<main>`, `#root`, fragments, `display: contents`) are skipped in Layers and on the canvas, so their children show as siblings of the frame around them. On Payloom, Nav, Hero and Logos become siblings under Page. A Layers toggle, "Show all layers", shows the raw tree for developers.
+- **A2. Moves across hidden containers.** Dragging in the Figma view moves the element in the page right away; the Push entry says where it now sits visually (its neighbours in the Figma view, not just in the code). `apply-edits.md` tells Claude it may move the JSX across components or files, or move a neighbour instead, whichever is cleanest. Test case: drag the Payloom nav below the hero.
+- **A3. Honest readings.** When a layout doesn't map to Figma, say so instead of guessing: "Pinned" for sticky/fixed (with what that means), grid cells, a child pushed over by an auto margin, a height that comes from a CSS variable. Re-check the Hug/Fill reads the user found confusing on Payloom.
+- Keep `demo-app/` (Payloom) as written by a typical team: it's the realistic test page.
+
+### Phase B: design page
+A blank canvas beside the app for designing new components, plus pasting copies of real elements (each copy keeps its look). Push adds the result as a new section next to the original, written in the project's own conventions; the user deletes the old section by hand. Plan it together with the full-canvas idea under "Later".
+
+### Then: roadmap items 5–9 below (unchanged).
+
 ### 5. Absolute position inside auto layout (Figma: "Ignore auto layout")
 - A toggle in Layout for a child of an auto-layout frame. It sets `position: absolute`, and `position: relative` on the parent.
 - Then show X/Y fields (top/left) and allow dragging the element freely inside its parent.
