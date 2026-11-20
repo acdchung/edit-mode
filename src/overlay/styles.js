@@ -48,6 +48,7 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .box.gap { background: repeating-linear-gradient(45deg, var(--pad) 0 3px, transparent 3px 6px); outline: 1px dashed var(--pad-edge); outline-offset: -1px; }
 /* Padding and gap handles (spacing.js): grab zones on a selected auto-layout frame */
 .sz { position: fixed; pointer-events: auto; }
+.spacing.pass .sz { pointer-events: none; }
 .sz.y { cursor: ns-resize; }
 .sz.x { cursor: ew-resize; }
 .sz .fill { position: absolute; display: none; background: var(--pad); }

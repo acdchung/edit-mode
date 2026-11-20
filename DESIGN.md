@@ -48,6 +48,8 @@ The user's taste, written down so it isn't re-corrected. These rules cover Edit 
 
 - **Spacing fields (gap, padding, margin) are plain number inputs, with no preset lists.**
   <!-- 2026-11-19: "Let's remove the default options in spacing, just leave it as an input field" -->
+  The one exception is the Gap field's menu, which holds a single choice, **Auto** (Figma's auto spacing), because a mode can't be typed as a number.
+  <!-- 2026-11-20: "when we took away the defaut spacing options we took away the auto spacing. need to bring that back." -->
 
 ## Motion
 

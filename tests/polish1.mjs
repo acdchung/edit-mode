@@ -88,10 +88,10 @@ await esc(); await click('.cta-primary', 0, ['Meta']); await p.waitForTimeout(80
   check('resizing doesn’t rebuild Layers rows every frame', same1);
   await p.keyboard.press('Meta+z'); await p.waitForTimeout(80); }
 
-// Gap is a plain input (no preset list); typing "auto" still works
+// Gap has no preset numbers: its only menu is the single "Auto" choice (DESIGN.md); typing "auto" still works
 await esc(); await click('.card-grid', 0, ['Meta']); await p.waitForTimeout(80);
-{ const pick = await st(() => { const r = document.querySelector('edit-mode-root').shadowRoot; const f = r.querySelector('input[aria-label="Gap between children"]')?.closest('.field'); return f ? f.querySelectorAll('.pick').length : 'no gap field'; });
-  check('Gap has no preset list', pick === 0, String(pick)); }
+{ const pick = await st(() => { const r = document.querySelector('edit-mode-root').shadowRoot; const f = r.querySelector('input[aria-label="Gap between children"]')?.closest('.field'); return f ? [...f.querySelectorAll('.pick')].map((b) => b.title).join() : 'no gap field'; });
+  check('Gap has no preset list (only the Auto menu)', pick === 'Auto spacing', String(pick)); }
 
 // Constrain proportions
 await esc(); await click('.card-thumb', 1, ['Meta']); await p.waitForTimeout(80);

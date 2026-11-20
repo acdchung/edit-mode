@@ -288,7 +288,7 @@ export function createPanel(ctx) {
     if (def.suffix) wrap.append(h('span', 'sfx', def.suffix));
     if (def.picks) {
       const pickBtn = h('button', 'pick', ICON.chevron);
-      pickBtn.title = 'Values used on this page';
+      pickBtn.title = def.pickTitle || 'Values used on this page';
       pickBtn.addEventListener('click', () =>
         listPop(pickBtn, def.picks().map((v) => [v, v]), input.value, (v) => {
           input.value = v;
@@ -397,6 +397,8 @@ export function createPanel(ctx) {
       const el = sel();
       if (!el || (!force && shadow.activeElement === input)) return;
       input.value = common(def.read);
+      // Refilled while focused (the selection changed): that's the page's value, not a change of yours, so blur mustn't commit it.
+      if (shadow.activeElement === input) focusValue = input.value.trim();
       wrap.classList.remove('bad');
       if (modeTag) {
         const m = common((x) => def.modes.read(x));
@@ -772,7 +774,9 @@ export function createPanel(ctx) {
 
   const gapRow = row('two',
     numField({ prefix: ICON.gap, title: 'Gap between children', hint: 'gap',
-      // Type "auto" for Figma's auto spacing: children pushed to the ends, space shared between them.
+      // Figma's auto spacing (children pushed to the ends, space shared between them):
+      // pick "Auto" from the menu, or type "auto". No preset numbers (DESIGN.md).
+      picks: () => ['Auto'], pickTitle: 'Auto spacing',
       read: (el, cs) => {
         if (/flex/.test(cs.display) && cs.justifyContent === 'space-between') return 'Auto';
         const v = cs.flexDirection.startsWith('column') ? cs.rowGap : cs.columnGap;

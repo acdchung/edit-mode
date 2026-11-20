@@ -86,7 +86,8 @@ export function createSpacing({ layer, label, changes, state, focusGap, drill })
 
   // Called every frame. `show`: the zones should be on screen now.
   function render(el, show) {
-    if (drag && !drag.el.isConnected) end();
+    // A drag only lives while its frame is still the selection (a lost release must never leave handles behind).
+    if (drag && (!drag.el.isConnected || drag.el !== el)) end();
     const target = drag ? drag.el : show && el && isAuto(el) ? el : null;
     zones = target ? compute(target) : [];
     if (!zones.some((z) => z.id === hovered)) hovered = null;
@@ -149,6 +150,9 @@ export function createSpacing({ layer, label, changes, state, focusGap, drill })
   function end() {
     window.removeEventListener('keydown', onKey, true);
     window.removeEventListener('keyup', onKey, true);
+    window.removeEventListener('pointermove', onMove, true);
+    window.removeEventListener('pointerup', release, true);
+    window.removeEventListener('pointercancel', release, true);
     drag = null;
   }
 
@@ -181,24 +185,31 @@ export function createSpacing({ layer, label, changes, state, focusGap, drill })
     };
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('keyup', onKey, true);
+    // The release is caught anywhere: the zone under the pointer can be redrawn mid-drag.
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', release, true);
+    window.addEventListener('pointercancel', release, true);
   });
-  layer.addEventListener('pointermove', (e) => {
-    if (drag) {
-      drag.ptr = { x: e.clientX, y: e.clientY };
-      write(e);
-    } else hovered = zoneOf(e)?.id ?? null;
-  });
-  const release = (e) => {
+  function onMove(e) {
+    if (!drag) return;
+    drag.ptr = { x: e.clientX, y: e.clientY };
+    write(e);
+  }
+  layer.addEventListener('pointermove', (e) => { if (!drag) hovered = zoneOf(e)?.id ?? null; });
+  function release(e) {
     if (!drag) return;
     const click = !drag.moved && !drag.side;
     end();
     if (click && e.type === 'pointerup') focusGap();
-  };
-  layer.addEventListener('pointerup', release);
-  layer.addEventListener('pointercancel', release);
+  }
+  layer.addEventListener('lostpointercapture', (e) => { if (drag && !e.buttons) release(e); });
   layer.addEventListener('pointerleave', () => { if (!drag) hovered = null; });
   // A zone can cover a child's edge: double-click still drills in (Figma).
   layer.addEventListener('dblclick', (e) => { if (zoneOf(e)) drill(e.clientX, e.clientY); });
+
+  // Holding ⌘ (Ctrl) lets clicks through to the page: ⌘-click picks the deepest element (Figma).
+  const pass = (e) => layer.classList.toggle('pass', !drag && (e.metaKey || e.ctrlKey));
+  for (const t of ['keydown', 'keyup', 'pointermove']) window.addEventListener(t, pass, true);
 
   return {
     render,

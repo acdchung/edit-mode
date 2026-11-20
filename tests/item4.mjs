@@ -118,11 +118,58 @@ async function open(url, ready) {
   await h.undo();
   await p.keyboard.press('Shift+Digit1'); await wait(120);
 
+  // The Gap field's menu offers Auto (Figma's auto spacing), and only that.
+  { const pick = await h.R(() => { const r = document.querySelector('edit-mode-root').shadowRoot;
+      const f = r.querySelector('input[aria-label="Gap between children"]').closest('.field').querySelector('.pick');
+      const b = f.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; });
+    await p.mouse.click(...pick); await wait(150);
+    const items = await h.R(() => [...document.querySelector('edit-mode-root').shadowRoot.querySelectorAll('.pop-item')].map((b) => b.textContent));
+    check('the Gap menu offers just "Auto"', items.join() === 'Auto', items.join());
+    const at = await h.R(() => { const b = document.querySelector('edit-mode-root').shadowRoot.querySelector('.pop-item').getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; });
+    await p.mouse.click(...at); await wait();
+    check('picking Auto sets auto spacing', (await h.css('.signup', 'justify-content')) === 'space-between' && (await h.field('Gap between children').inputValue()) === 'Auto',
+      `${await h.css('.signup', 'justify-content')} ${await h.field('Gap between children').inputValue()}`);
+    await h.undo();
+    check('⌘Z restores', await h.same()); }
+
+  // A drag whose release is lost (the bar redrawn under the pointer) must not leave handles behind.
+  { const s4 = await h.rect('.signup');
+    await p.mouse.move(s4.x + 30, s4.y + s4.h / 2); await wait();
+    const g4 = await h.zone('gap:0');
+    await p.mouse.move(g4.cx, g4.cy); await p.mouse.down(); await p.mouse.move(g4.cx + 6, g4.cy, { steps: 3 });
+    await h.R(() => document.querySelector('edit-mode-root').shadowRoot.querySelector('.spacing').replaceChildren()); // the captured bar disappears
+    await p.mouse.move(g4.cx + 12, g4.cy, { steps: 3 }); await p.mouse.up(); await wait();
+    const after = await h.css('.signup', 'column-gap');
+    await p.mouse.move(g4.cx + 60, g4.cy, { steps: 3 }); await wait();
+    check('the drag still follows the pointer and ends on release', parseFloat(after) > 8 && (await h.css('.signup', 'column-gap')) === after,
+      `${after} → ${await h.css('.signup', 'column-gap')}`);
+    await h.undo();
+    await p.mouse.move(s4.x + 30, s4.y + s4.h / 2); await wait();
+    const g5 = await h.zone('gap:0');
+    await p.mouse.move(g5.cx, g5.cy); await p.mouse.down(); await p.mouse.move(g5.cx + 6, g5.cy, { steps: 3 });
+    await h.R(() => window.__editMode.state && document.querySelector('edit-mode-root')); // mid-drag, the selection goes away:
+    await p.keyboard.press('Escape'); await p.keyboard.press('Escape'); await wait();
+    await p.mouse.up(); await wait();
+    await p.mouse.move(s4.x + 30, s4.y + s4.h / 2); await wait();
+    check('nothing selected: no handles left over', !(await h.sel()) && (await h.zones()).length === 0, `${await h.sel()} ${(await h.zones()).length}`);
+    while (!(await h.same())) await h.undo();
+    check('back to the start after the drag tests', await h.same());
+    const i = await h.rect('.signup-input'); await h.pick(i.x + i.w + 4, i.y + i.h / 2); }
+
+  // ⌘-click goes through the handles to the deepest element.
+  { const s5 = await h.rect('.signup');
+    await p.mouse.move(s5.x + 30, s5.y + s5.h / 2); await wait();
+    const g6 = await h.zone('gap:0');
+    await h.pick(g6.cx, g6.cy);
+    const focused = await h.R(() => document.querySelector('edit-mode-root').shadowRoot.activeElement?.getAttribute('aria-label'));
+    check('⌘-click on a gap bar selects through it, without focusing Gap', (await h.sel()) === 'signup' && !focused && await h.same(), `${await h.sel()} ${focused}`); }
+
   // Double-click on a zone still drills into a child.
   const s3 = await h.rect('.signup');
   await p.mouse.move(s3.x + 30, s3.y + s3.h / 2); await wait();
   const l3 = await h.zone('pad:left');
   await p.mouse.dblclick(l3.cx, l3.cy); await wait();
+  check('double-click drilling changes nothing', await h.same());
   check('double-click on a zone drills in', (await h.sel()) === 'signup-input', String(await h.sel()));
 
   // A block element (not auto layout) gets no handles.

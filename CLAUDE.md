@@ -9,7 +9,7 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
 - **Next: roadmap item 5, absolute position inside auto layout.** ROADMAP.md has the plan.
 - **Paused: `demo-app/`**, the Payloom landing page (plan and status in `demo-app/OUTLINE.md`). Step 1 is done and the user approved the look (colors, three-line headline, Inter). Step 2 (sections 4–11) comes when the user asks.
 - **Demo app:** the user runs it on port **5290** (`npm run dev` in `demo-app/`). Test it on a scratchpad copy on **5391**: copy `index.html package.json vite.config.js src` into `<scratchpad>/demo-copy`, symlink `node_modules` to `demo-app/node_modules`, and in the copy's `vite.config.js` add `fs: { allow: ['.', '<abs path>/demo-app/node_modules'] }` to `server` (otherwise the bundled font 403s through the symlink). Product shots follow the stageshow skill's craft rules (real words only on the story; only filler bleeds off an edge; a phone layout that's redesigned, not squeezed).
-- All suites pass (269 checks including item4's 29; brutal3 not rerun for item 4, counted once each; some suites print every line twice, so count unique lines). The last commit is pushed to GitHub.
+- All suites pass (276 checks including item4's 36; brutal3 not rerun for item 4, counted once each; some suites print every line twice, so count unique lines). The last commit is pushed to GitHub.
 - **Starting a session:** the scratchpad changes every session, so the test copy usually needs recreating:
   1. copy the app: `cp -R ~/edit-mode/sample-app <scratchpad>/sample-copy`
   2. in the copy, delete `.editmode` and replace `node_modules` with a symlink to `~/edit-mode/sample-app/node_modules`
@@ -130,3 +130,4 @@ New elements copy the parent's spacing rhythm (`rhythm()`).
 - Line height reads through `computedStyleMap()` so a unitless multiplier (1.35) shows as written; `getComputedStyle` always gives pixels.
 - In tests, Edit Mode stays on across a reload (sessionStorage), so don't press ⌥E again after `reload()`. Points near the left edge can land under the Layers panel: click clear of it.
 - `changes.set` puts the original inline style back when an edit lands on the starting value (no stray `!important` copies), except for size properties (`SIZE`), where Hug → Fixed at the same pixel size is still a real change.
+- A focused panel field that gets refilled because the selection changed must not commit on blur: `refreshField` resets `focusValue` when it refills the focused input. Before that, clicking a gap (which focuses Gap) and then selecting something else wrote the new element's gap back onto it as an edit.
