@@ -964,7 +964,12 @@ export function createPanel(ctx) {
         read: pxRead('font-size'), write: pxWriter('font-size', { min: 1 }) })),
     row('two',
       numField({ prefix: ICON.lineHeight, title: 'Line height',
-        read: (el, cs) => (cs.lineHeight === 'normal' ? 'Auto' : fmt(num(cs.lineHeight))),
+        read: (el, cs) => {
+          // As the code writes it: a multiplier (1.35) stays a multiplier; getComputedStyle would give pixels.
+          if (cs.lineHeight === 'normal') return 'Auto';
+          const v = el.computedStyleMap?.().get('line-height');
+          return v?.unit === 'number' ? String(Math.round(v.value * 100) / 100) : fmt(num(cs.lineHeight)); // 1.35, not 1.4
+        },
         write: (t) => {
           if (/^auto$/i.test(t)) return apply('line-height', 'normal');
           if (isNumber(t)) return apply('line-height', +t <= 3 ? t : `${t}px`); // ≤3 reads as a multiplier

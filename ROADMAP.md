@@ -63,11 +63,13 @@ Figma is the reference for every behavior. Where a live web page can't work like
 - Big change: plan it as its own phase, after items 3–9.
 
 ## Later / maybe
-- Movable panels: a grabber to place the properties panel and Layers wherever you like, remembered per browser (the user's idea, 2026-11-19). They still never move on their own.
+- Movable panels: a grabber to place the properties panel and Layers wherever you like, remembered per browser (the user's idea, 2026-11-19). They still never move on their own. (Layers can already be resized.)
+- Payloom demo page, step 2 (sections 4–11): when the user asks. Plan in `demo-app/OUTLINE.md`.
 - ⌥-resize from the center.
 - Snapping and smart guides while dragging or resizing absolute elements.
 
 ## Done (highlights)
+- 2026-11-20, audit follow-ups (`tests/demo2.mjs`): the Layers panel resizes from its right edge (remembered); the top row is "Page"; line height shows as the code writes it (1.35, not 17.6px).
 - 2026-11-20, QA + UX audit on the Payloom page (`tests/brutal3.mjs`, light random runs; `tests/demo1.mjs`): sizing modes now read what the CSS does (fixed-height buttons, grid cells, capped containers); no-op edits no longer leave hidden styles behind; stroke sides (All / one side / Custom per-side weights) for inside strokes. Panels no longer jump sides (2026-11-19).
 - 2026-11-19, item 3: several elements at once. Drag any selected element to move them all (page order kept, one undo; ⌥-drag copies them all). One group frame with working handles goes around the selection, and each element keeps its own frame; the group's size label sits a row lower. Group resize scales each element's size by the frame's factor (Shift, or the primary's constrain proportions, keeps proportions). Arrows nudge all of them, or move them as a block inside auto layout. Panel: shared sections with "Mixed"; edits run once per element (`each`/`withEl`/`common` in `panel.js`). Also fixed: typing a hex color into a semi-transparent color dropped its opacity.
 - 2026-11-19: W/H look linked while constrain proportions is on; the corner-radius row's split button is 4px from its field (DESIGN.md minimum).

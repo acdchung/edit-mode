@@ -44,6 +44,10 @@ Product shots (hero window, payslip, feature cards) follow the Stageshow skill's
 | 8. Effects, fills, strokes | Gradients, frosted glass, layered shadows, photo fills, dashed borders, tilted cards |
 | 9. Shortcuts | Hide, lock, reorder and ungroup across all of it |
 
+## Status (2026-11-20)
+
+Step 1 is done and approved (colors, three-line headline, Inter). Paused while roadmap item 4 is built; step 2 comes when the user asks.
+
 ## Build order
 
 1. Setup, shared tokens, sections 1–3. Screenshot, agree on the look.

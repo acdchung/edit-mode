@@ -10,6 +10,8 @@ The user's taste, written down so it isn't re-corrected. These rules cover Edit 
   Why: a panel that jumps sides breaks muscle memory; the canvas is what moves, as in Figma.
   <!-- 2026-11-19: "one thing i want to change is any of the panels auto relocating to the other side of the screen ... since i can zoom out, the overlay should stay static (perhaps we add a grabber so users can place them wherever they want, but let's not auto move them)" -->
   Checked by `tests/brutal2.mjs` › "the panel stays put".
+- **The Layers panel's width is yours:** drag its right edge (200–520px), remembered per browser. Deep trees need the room.
+  <!-- 2026-11-20: "a resizable layers panel would be ideal, if i could drag it horizontally to resize" -->
 
 ## Typography
 

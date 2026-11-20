@@ -21,7 +21,37 @@ const h = (tag, cls, html) => {
 export function createLayers({ state, changes, host, pageRoot, select, selectAll, canContain, onToggle }) {
   const el = h('div', 'layers glassy');
   el.hidden = true;
-  el.innerHTML = `<div class="lh"><span>Layers</span></div><div class="lb" role="tree"></div><div class="ldrop" hidden></div>`;
+  el.innerHTML = `<div class="lh"><span>Layers</span></div><div class="lb" role="tree"></div><div class="ldrop" hidden></div><div class="lresize" title="Drag to resize · double-click to reset"></div>`;
+
+  // Drag the right edge to resize (Figma); the width is remembered per browser.
+  const WIDTH_KEY = 'edit-mode:layers-width';
+  const DEFAULT_W = 240;
+  const clampW = (w) => Math.min(520, Math.max(200, Math.round(w)));
+  const setWidth = (w) => {
+    el.style.width = `${w}px`;
+    try { w === DEFAULT_W ? localStorage.removeItem(WIDTH_KEY) : localStorage.setItem(WIDTH_KEY, String(w)); } catch {}
+  };
+  try { const saved = +localStorage.getItem(WIDTH_KEY); if (saved) el.style.width = `${clampW(saved)}px`; } catch {}
+  const grip = el.querySelector('.lresize');
+  grip.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    grip.setPointerCapture(e.pointerId);
+    const x0 = e.clientX;
+    const w0 = el.getBoundingClientRect().width;
+    el.classList.add('resizing');
+    const move = (ev) => setWidth(clampW(w0 + ev.clientX - x0));
+    const up = () => {
+      el.classList.remove('resizing');
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', up);
+      grip.removeEventListener('pointercancel', up);
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up);
+    grip.addEventListener('pointercancel', up);
+  });
+  grip.addEventListener('dblclick', () => setWidth(DEFAULT_W));
   const body = el.querySelector('.lb');
   const dropLine = el.querySelector('.ldrop');
 
@@ -51,6 +81,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   const leafOf = (n) => n.tagName.toLowerCase() === 'svg' || n instanceof SVGElement;
 
   function nameOf(n) {
+    if (n === pageRoot()) return 'Page'; // the app's root element, like a Figma page
     const tag = n.tagName.toLowerCase();
     if (n.dataset.emNew && !n.children.length && !textNodeOf(n)) return n.style.borderRadius === '50%' ? 'Ellipse' : 'Rectangle';
     const text = textNodeOf(n)?.nodeValue.trim();
