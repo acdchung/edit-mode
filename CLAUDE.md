@@ -7,7 +7,7 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
 - Done: roadmap items 1 (Figma-style selection), 2 (Layers panel) and 3 (multi-element move/resize/panel), canvas zoom/pan, "All like this" families, same-depth Shift-click, the Tight panel density, a motion/press polish pass, Gap as a plain input, and constrain proportions. See ROADMAP.md › Done.
 - **In progress: `demo-app/`**, the Payloom landing page (a realistic test and demo page; plan and status in `demo-app/OUTLINE.md`). Step 1 is done (setup, tokens, nav, hero with its product shot, logo strip). Next: step 2 (sections 4–11), after the user approves the look. Then roadmap item 4.
 - **Demo app:** the user runs it on port **5290** (`npm run dev` in `demo-app/`). Test it on a scratchpad copy on **5391**: copy `index.html package.json vite.config.js src` into `<scratchpad>/demo-copy`, symlink `node_modules` to `demo-app/node_modules`, and in the copy's `vite.config.js` add `fs: { allow: ['.', '<abs path>/demo-app/node_modules'] }` to `server` (otherwise the bundled font 403s through the symlink). Product shots follow the stageshow skill's craft rules (real words only on the story; only filler bleeds off an edge; a phone layout that's redesigned, not squeezed).
-- All suites pass (215 checks). The last commit is pushed to GitHub.
+- All suites pass (232 checks). The last commit is pushed to GitHub.
 - **Starting a session:** the scratchpad changes every session, so the test copy usually needs recreating:
   1. copy the app: `cp -R ~/edit-mode/sample-app <scratchpad>/sample-copy`
   2. in the copy, delete `.editmode` and replace `node_modules` with a symlink to `~/edit-mode/sample-app/node_modules`
@@ -36,7 +36,7 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
   - drive it with `playwright-core` + system Chrome (`chromium.launch({ channel: 'chrome' })`)
   - if the scratchpad was wiped, recreate the copy: `cp -R sample-app <dir>/sample-copy`, delete its `.editmode`, and symlink `node_modules`
 - **Git:** branch `main`, pushed to the private GitHub repo after every checkpoint. Commit after each roadmap item passes QA (and before risky changes). Never commit `node_modules`, `.editmode/` or `dist/` (see `.gitignore`).
-- **Tests live in `tests/`:** `item1.mjs`, `item2.mjs`, `item3.mjs`, `zoom.mjs`, `polish1.mjs`, `brutal1.mjs` and `brutal2.mjs`. `item2.mjs` and `polish1.mjs` run with the Layers panel open; the others start with it closed, through `addInitScript` setting `localStorage['edit-mode:layers'] = '0'`. Otherwise the panels cover the spots those tests click on. Run them with `cd tests && node <file>` while the copy runs on 5390 (`npm install` in `tests/` if `node_modules` is missing). Add an `itemN.mjs` for each roadmap item.
+- **Tests live in `tests/`:** `demo1.mjs` and `brutal3.mjs` run on the demo-app copy (port 5391); the rest on the sample-app copy (5390). `brutal3.mjs` is a random-edit run: **keep it light** (default 15 rounds, reduced motion; run with `nice`, and ask the user before raising ITER: a 120-round run froze their laptop). Also `item1.mjs`, `item2.mjs`, `item3.mjs`, `zoom.mjs`, `polish1.mjs`, `brutal1.mjs` and `brutal2.mjs`. `item2.mjs` and `polish1.mjs` run with the Layers panel open; the others start with it closed, through `addInitScript` setting `localStorage['edit-mode:layers'] = '0'`. Otherwise the panels cover the spots those tests click on. Run them with `cd tests && node <file>` while the copy runs on 5390 (`npm install` in `tests/` if `node_modules` is missing). Add an `itemN.mjs` for each roadmap item.
 - Use **mouse clicks** in tests (`page.mouse.click(x, y)`), not `locator.click()`: the glass layer intercepts pointer events.
 - A plain click selects at the current level (Figma). To select a specific nested element in a test, hold Meta while clicking (`brutal*.mjs`'s `p.tap` does this); `tests/item1.mjs` covers the level rules.
 - In the browser console, `window.__editMode` gives `{ state, changes, layers }`.
@@ -122,4 +122,5 @@ New elements copy the parent's spacing rhythm (`rhythm()`).
 - Esc closes `.dialog` elements only; toasts must never swallow it.
 - Panel number fields commit on blur only if the value changed (`focusValue`), otherwise they create phantom changes.
 - Inside contenteditable buttons, spaces need `execCommand('insertText')`.
-- `sizeMode` reads inline styles first; measuring alone misreads Fixed as Fill.
+- `sizeMode` reads inline styles first; measuring alone misreads Fixed as Fill. Fill is detected by `probe()`: grow the parent for one measurement (lifting its max size) and see if the element follows. Comparing sizes misread a fixed-height button whose row is only as tall as it.
+- `changes.set` puts the original inline style back when an edit lands on the starting value (no stray `!important` copies), except for size properties (`SIZE`), where Hug → Fixed at the same pixel size is still a real change.

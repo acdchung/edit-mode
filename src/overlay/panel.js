@@ -590,20 +590,32 @@ export function createPanel(ctx) {
     if ((own === 'auto' || own === '100%') && (flex || axis === 'width')) return 'fill';
     const now = box(el)[axis];
     // What would "hug" measure? Try it for a moment, then put the style back.
-    const saved = [el.style.getPropertyValue(axis), el.style.getPropertyPriority(axis)];
-    el.style.setProperty(axis, 'fit-content', 'important');
-    const hug = box(el)[axis];
-    if (saved[0]) el.style.setProperty(axis, saved[0], saved[1]);
-    else el.style.removeProperty(axis);
-    if (el.getAttribute('style') === '') el.removeAttribute('style');
-    if (Math.abs(hug - now) < 0.5) return 'hug';
-    if (p && !main) {
-      const [a, b] = axis === 'width' ? ['Left', 'Right'] : ['Top', 'Bottom'];
-      const avail = box(p)[axis] - num(pcs['padding' + a]) - num(pcs['padding' + b]) -
-        num(pcs[`border${a}Width`]) - num(pcs[`border${b}Width`]) - num(cs['margin' + a]) - num(cs['margin' + b]);
-      if (Math.abs(now - avail) < 0.5 && (flex || axis === 'width')) return 'fill';
-    }
+    if (Math.abs(probe(el, { [axis]: 'fit-content' }, () => box(el)[axis]) - now) < 0.5) return 'hug';
+    if (!p || main) return 'fixed';
+    // Fill = it follows its container. Grow the container for a moment and
+    // see. (Comparing sizes alone misreads a container that is only as big as
+    // this element, like a row of fixed-height buttons.)
+    const pb = box(p)[axis];
+    const grow = { [axis]: `${pb + 40}px`, [`max-${axis}`]: 'none' }; // a capped container (max-width) still grows
+    if (probe(p, grow, () => box(el)[axis]) - now > 1 && (flex || axis === 'width' || /grid/.test(pcs.display))) return 'fill';
+    // A grid item stretched to its cell (no size of its own) fills the cell.
+    const self = axis === 'width' ? cs.justifySelf : cs.alignSelf;
+    if (/grid/.test(pcs.display) && /^(normal|stretch|auto)$/.test(self) &&
+        Math.abs(probe(el, { [axis]: 'auto' }, () => box(el)[axis]) - now) < 0.5) return 'fill';
     return 'fixed';
+  }
+
+  // Set `styles` on `el` for one measurement, then put its inline style back exactly.
+  function probe(el, styles, measure) {
+    const saved = Object.keys(styles).map((k) => [k, el.style.getPropertyValue(k), el.style.getPropertyPriority(k)]);
+    for (const [k, v] of Object.entries(styles)) el.style.setProperty(k, v, 'important');
+    const m = measure();
+    for (const [k, v, prio] of saved) {
+      if (v) el.style.setProperty(k, v, prio);
+      else el.style.removeProperty(k);
+    }
+    if (el.getAttribute('style') === '') el.removeAttribute('style');
+    return m;
   }
 
   function sizeOptions(el, axis) {
@@ -1100,6 +1112,68 @@ export function createPanel(ctx) {
     delete stash(sel()).stroke;
     strokeSet('style', info.style, info);
   }
+  // Stroke sides (Figma): All, one side, or Custom (a weight per side; 0 = none).
+  // Inside strokes only: an outside stroke is an outline, which has no sides.
+  const sideOn = (cs, s) => cs.getPropertyValue(`border-${s}-style`) !== 'none' && num(cs.getPropertyValue(`border-${s}-width`)) > 0;
+  function setSide(s, px, info) {
+    if (px > 0) {
+      apply(`border-${s}-style`, info.style);
+      apply(`border-${s}-width`, `${px}px`);
+      apply(`border-${s}-color`, info.color);
+    } else apply(`border-${s}-style`, 'none');
+  }
+  function sidesMode(el, cs) {
+    const on = SIDES.filter((s) => sideOn(cs, s));
+    const widths = new Set(on.map((s) => cs.getPropertyValue(`border-${s}-width`)));
+    if (on.length === 4 && widths.size === 1) return 'all';
+    return on.length === 1 ? on[0] : 'custom';
+  }
+  let customFor = null; // the element whose Custom fields were opened from the menu (they stay open)
+  const sidesBtn = h('button', 'icon', ICON.sides);
+  sidesBtn.title = 'Stroke sides';
+  sidesBtn.setAttribute('aria-label', 'Stroke sides');
+  sidesBtn.addEventListener('click', () => {
+    const current = common(sidesMode);
+    listPop(sidesBtn, [['all', 'All'], ['top', 'Top'], ['right', 'Right'], ['bottom', 'Bottom'], ['left', 'Left'], ['custom', 'Custom']], current, (v) => {
+      if (v === 'custom') { customFor = sel(); return refresh(true); }
+      customFor = null;
+      act(null, () => {
+        if (strokeHidden()) strokeShow();
+        const info = stroke();
+        if (!info || info.pos !== 'inside') return;
+        for (const s of SIDES) setSide(s, v === 'all' || v === s ? info.width : 0, info);
+      });
+    });
+  });
+  const strokeWeight = numField({ prefix: ICON.weight, title: 'Stroke weight',
+    read: () => fmt(stroke()?.width ?? 0),
+    write: (t) => {
+      if (!isNumber(t)) return false;
+      if (strokeHidden()) strokeShow();
+      strokeSet('width', `${Math.max(0, +t)}px`);
+    } });
+  const strokeWeightCell = h('div', 'crow tight');
+  strokeWeightCell.append(strokeWeight, sidesBtn);
+  const strokeFour = row('two', ...SIDES.map((s) => numField({ prefix: SIDE_ICON[s], title: `Stroke ${s}`,
+    read: (el, cs) => (sideOn(cs, s) ? fmt(num(cs.getPropertyValue(`border-${s}-width`))) : '0'),
+    write: (t) => {
+      if (!isNumber(t)) return false;
+      if (strokeHidden()) strokeShow();
+      const info = stroke();
+      if (!info || info.pos !== 'inside') return false;
+      setSide(s, Math.max(0, +t), info);
+    } })));
+  fields.push(() => {
+    if (!sel()) return;
+    const info = stroke();
+    const inside = info?.pos === 'inside';
+    const mode = inside ? common(sidesMode) : 'all';
+    sidesBtn.hidden = !inside;
+    sidesBtn.classList.toggle('on', mode !== 'all');
+    strokeFour.hidden = !inside || (mode !== 'custom' && customFor !== sel());
+    strokeWeight.hidden = !strokeFour.hidden; // Custom: the four fields replace the single weight
+  });
+
   const strokeSec = section('Stroke',
     colorRow({
       title: 'Stroke',
@@ -1141,13 +1215,8 @@ export function createPanel(ctx) {
             apply('border-color', info.color);
           }
         } }),
-      numField({ prefix: ICON.weight, title: 'Stroke weight',
-        read: () => fmt(stroke()?.width ?? 0),
-        write: (t) => {
-          if (!isNumber(t)) return false;
-          if (strokeHidden()) strokeShow();
-          strokeSet('width', `${Math.max(0, +t)}px`);
-        } })));
+      strokeWeightCell),
+    strokeFour);
   const strokeAdd = addButton('stroke', () => {
     apply('border-style', 'solid');
     apply('border-width', '1px');

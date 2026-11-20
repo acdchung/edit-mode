@@ -40,7 +40,7 @@ Figma is the reference for every behavior. Where a live web page can't work like
 - Several fills stacked in `background-image` layers.
 - Image fill: pick a file. Push needs a strategy, such as copying the file into `src/assets` or `public/`. Update `apply-edits.md`.
 - Strokes:
-  - per-side (stroke weight split, like padding)
+  - per-side: done early (2026-11-20, the sides menu next to Stroke weight)
   - dashed or dotted (`border-style`)
 - Rotation: a field, plus a rotate cursor just outside a corner handle (`transform: rotate`).
 
@@ -68,6 +68,7 @@ Figma is the reference for every behavior. Where a live web page can't work like
 - Snapping and smart guides while dragging or resizing absolute elements.
 
 ## Done (highlights)
+- 2026-11-20, QA + UX audit on the Payloom page (`tests/brutal3.mjs`, light random runs; `tests/demo1.mjs`): sizing modes now read what the CSS does (fixed-height buttons, grid cells, capped containers); no-op edits no longer leave hidden styles behind; stroke sides (All / one side / Custom per-side weights) for inside strokes. Panels no longer jump sides (2026-11-19).
 - 2026-11-19, item 3: several elements at once. Drag any selected element to move them all (page order kept, one undo; ⌥-drag copies them all). One group frame with working handles goes around the selection, and each element keeps its own frame; the group's size label sits a row lower. Group resize scales each element's size by the frame's factor (Shift, or the primary's constrain proportions, keeps proportions). Arrows nudge all of them, or move them as a block inside auto layout. Panel: shared sections with "Mixed"; edits run once per element (`each`/`withEl`/`common` in `panel.js`). Also fixed: typing a hex color into a semi-transparent color dropped its opacity.
 - 2026-11-19: W/H look linked while constrain proportions is on; the corner-radius row's split button is 4px from its field (DESIGN.md minimum).
 - 2026-11-19: the Gap field is a plain input (no preset list; type `auto` for auto spacing). Constrain proportions is a link button in the Layout title row (`state.ratio`, overlay-only); with it on, W/H edits and resize handles keep the ratio. Letter prefixes (W, H) use a narrower slot so values like 1327.5 fit beside Hug/Fill.

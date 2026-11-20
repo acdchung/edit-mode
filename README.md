@@ -53,7 +53,7 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 | Drag a handle | Resize (hold Shift to keep proportions). With several selected, the handles are on the frame around all of them, and each element's size scales by the same amount |
 | In a field: type, ↑/↓, or drag its label | Change a value (accepts %, and math like `8*2`) |
 
-**Panel:** Layout (size, gap, padding, margin), Appearance (opacity, roundness), Text, Fill, Stroke (inside = border, outside = outline), Effects (shadow). Fill shows solid colors and gradients (angle and stops) or images. Empty fill/stroke/effects show as **+**. Colors, sizes and CSS variables already on the page are offered as quick picks.
+**Panel:** Layout (size, gap, padding, margin), Appearance (opacity, roundness), Text, Fill, Stroke (inside = border, outside = outline; the sides button next to the weight picks All, one side, or Custom with a weight per side), Effects (shadow). Fill shows solid colors and gradients (angle and stops) or images. Empty fill/stroke/effects show as **+**. Colors, sizes and CSS variables already on the page are offered as quick picks.
 
 **Several selected:** the panel shows Group / Auto layout / Delete, then the properties they share. Text, Gap and Auto layout show when every selected element has them; Fill, Stroke and Effects when any of them does. A field reads **Mixed** when the values differ. Typing a value sets it on all of them; ↑/↓ or dragging the label on a Mixed field shifts each one's own value by the same amount. Every edit is one ⌘Z.
 
@@ -61,7 +61,7 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 
 **Canvas:** while editing, the page sits on a gray canvas like a Figma frame, and you can zoom and pan it so nothing is stuck under a panel. The page's own looping animations (a drifting background, a pulse) slow to a quarter speed while you edit. Sizes, fields and measurements always show real CSS pixels, whatever the zoom. Turning edit mode off puts the page back as it was. One limit: while editing, sticky and fixed headers scroll with the page.
 
-**Width / height:** Fixed, Hug contents or Fill container (menu in the W and H fields), like Figma's resizing. The **link** button in the Layout title row constrains proportions: setting W also sets H (and the reverse), and resize handles keep the ratio. While it's on, the W and H fields are outlined and joined in blue. It's per element and only for this session, not pushed.
+**Width / height:** Fixed, Hug contents or Fill container (menu in the W and H fields), like Figma's resizing. Fill means the element follows its container (Edit Mode checks by growing the container for a moment); something stretched to its grid cell is Fill too. The **link** button in the Layout title row constrains proportions: setting W also sets H (and the reverse), and resize handles keep the ratio. While it's on, the W and H fields are outlined and joined in blue. It's per element and only for this session, not pushed.
 
 **Gap:** a plain number field. Type `auto` to push children to the ends of the frame (Figma's auto spacing).
 

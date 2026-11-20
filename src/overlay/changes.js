@@ -14,6 +14,7 @@ import { ATTR, describe, family, familyKey, sameSource } from './util.js';
 
 export const TEXT = '#text';
 export const POS = '#pos'; // position in the DOM: [parent, nextSibling]
+const SIZE = /^(width|height|flex-basis|(min|max)-(width|height))$/;
 
 export const textNodeOf = (el) => {
   const nodes = [...el.childNodes].filter((n) => !(n.nodeType === 3 && !n.nodeValue.trim() && el.childNodes.length > 1));
@@ -115,7 +116,16 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
       x.style.setProperty(prop, value, 'important');
     }
     const to = getComputedStyle(el).getPropertyValue(prop);
-    put(key, to === from ? null : { kind: 'style', ...meta(el, t), property: prop, from, to, value });
+    // Sizes compute to pixels either way, so "same number" can still be a real
+    // change (Hug → Fixed at 40px). It's a no-op only once it's back to the
+    // original inline value.
+    const orig = original.get(el).get(prop)[0];
+    const intent = SIZE.test(prop) && value !== orig;
+    // Back where it started (e.g. typing the value it already had): put the
+    // original inline style back instead of leaving an !important copy.
+    if (to === from && !intent) for (const x of t.els) write(x, prop, original.get(x).get(prop));
+    put(key, to === from && !intent ? null
+      : { kind: 'style', ...meta(el, t), property: prop, from: to === from ? orig || 'auto' : from, to: to === from ? value : to, value });
     onChange();
   }
 
