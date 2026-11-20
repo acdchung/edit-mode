@@ -892,33 +892,7 @@ export function createPanel(ctx) {
       modes: { options: (el) => sizeOptions(el, axis), read: (el) => sizeMode(el, axis), write: (m) => setSizing(axis, m) },
     })));
 
-  // Plain-language notes for layout that doesn't map to Figma (ROADMAP › A3):
-  // said once, at the top of Layout, instead of fields that quietly misread.
-  const notes = h('div', 'notes');
-  function layoutNotes(el) {
-    const cs = getComputedStyle(el);
-    const pcs = el.parentElement ? getComputedStyle(el.parentElement) : null;
-    const out = [];
-    if (cs.position === 'sticky') out.push('Pinned: it sticks to the screen while you scroll past it (sticky).');
-    else if (cs.position === 'fixed') out.push('Pinned to the screen: it stays put while the page scrolls (fixed).');
-    else if (cs.position === 'absolute') out.push('Placed by position, outside the layout: it doesn\'t push its neighbours, and reordering it won\'t move it.');
-    if (pcs && /grid/.test(pcs.display) && !/absolute|fixed/.test(cs.position)) out.push('In a grid: the grid\'s columns and rows decide where it sits and how much room it gets.');
-    if (pcs && /flex/.test(pcs.display)) {
-      const m = el.computedStyleMap();
-      const sides = ['left', 'right', 'top', 'bottom'].filter((s) => String(m.get(`margin-${s}`)) === 'auto');
-      if (sides.length) out.push(`Pushed by an automatic margin (${sides.join(', ')}): it takes all the free space on that side.`);
-    }
-    return out;
-  }
-  fields.push(() => {
-    const el = sel();
-    const list = el && picked().length === 1 ? layoutNotes(el) : [];
-    notes.replaceChildren(...list.map((t) => { const n = h('div', 'note', ICON.info); n.append(h('span', null, t)); return n; }));
-    notes.hidden = !list.length;
-  });
-
   const layout = section('Layout',
-    notes,
     autoBlock,
     sizeRow,
     gapRow,

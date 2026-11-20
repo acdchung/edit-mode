@@ -53,19 +53,6 @@ check('nav links in their hugging row read Hug, not Fill', (await mode('.nav-lin
 check('a button sized by its label: Hug', (await mode('.nav-actions .button', 'width')) === 'hug', await mode('.nav-actions .button', 'width'));
 check('the nav bar’s fixed height: Fixed', (await mode('.nav .container', 'height')) === 'fixed', await mode('.nav .container', 'height'));
 
-// ---------- Notes ----------
-await pick('.nav');
-await p.screenshot({ path: process.env.SHOT_DIR ? `${process.env.SHOT_DIR}/a3-note.png` : '/dev/null' }).catch(() => {});
-check('the nav says it’s pinned (sticky)', (await notes()).some((t) => t.startsWith('Pinned')), (await notes()).join(' | '));
-await pick('.payslip');
-check('the payslip says it’s placed by position', (await notes()).some((t) => t.startsWith('Placed by position')), (await notes()).join(' | '));
-await pick('.logo', 2);
-check('a logo says it’s in a grid', (await notes()).some((t) => t.startsWith('In a grid')), (await notes()).join(' | '));
-await pick('.nav-actions');
-check('nav actions say an automatic margin pushes them (left)', (await notes()).some((t) => t.startsWith('Pushed by an automatic margin (left)')), (await notes()).join(' | '));
-await pick('.hero-pill');
-check('an ordinary auto-layout child: no notes', (await notes()).length === 0, (await notes()).join(' | '));
-
 check('the page is untouched', await same());
 check('no page errors', errors.length === 0, errors.join(' | '));
 await b.close();

@@ -294,9 +294,6 @@ input::selection { background: rgba(13,153,255,.4); }
 .pop-item:hover { background: var(--field-hover); }
 .pop-item.on { color: var(--accent-text); }
 .pop-item.off { color: var(--dim); cursor: default; }
-.notes { display: flex; flex-direction: column; gap: 4px; }
-.note { display: flex; gap: 6px; align-items: flex-start; color: var(--muted); font-size: 11px; line-height: 15px; }
-.note .i { flex: none; width: 12px; height: 12px; margin-top: 1.5px; color: var(--dim); }
 .pop-item.off:hover { background: none; }
 .pop-why { display: block; max-width: 200px; margin-top: 2px; font-size: 11px; line-height: 14px; color: var(--dim); white-space: normal; }
 .pop-empty { color: var(--muted); padding: 6px; }

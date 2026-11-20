@@ -46,6 +46,10 @@ The user's taste, written down so it isn't re-corrected. These rules cover Edit 
   Why: the link should be visible where you type, not only on the button.
   <!-- 2026-11-19: "it would also be nice when you lock the ratio for the W and H input field to be visually connected somehow" -->
 
+- **No explanatory text in the panel.** When an option doesn't apply, grey it out in its menu with a one-line reason (`listPop`'s third item). Don't add notes, banners or help text to the panel itself.
+  Why: the panel is dense on purpose; the reason only matters at the moment you try the option.
+  <!-- 2026-11-20: "idk if we even need these plain language notes ... It takes up a lot of space and adds a lot of text is my concern" -->
+
 - **Spacing fields (gap, padding, margin) are plain number inputs, with no preset lists.**
   <!-- 2026-11-19: "Let's remove the default options in spacing, just leave it as an input field" -->
   The one exception is the Gap field's menu, which holds a single choice, **Auto** (Figma's auto spacing), because a mode can't be typed as a number.
