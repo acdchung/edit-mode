@@ -203,7 +203,7 @@ export function createRunner({ root, claudePath, log }) {
 
   // The design canvas beside the page (overlay: design.js), saved as its HTML.
   const canvasPath = join(dir, 'canvas.json');
-  const readCanvas = () => readJSON(canvasPath, { html: '' });
+  const readCanvas = () => readJSON(canvasPath, { html: '', fresh: true }); // fresh: never saved (start with a frame)
   function writeCanvas(data) {
     if (typeof data?.html !== 'string') throw new Error('Canvas: expected { html }.');
     ensureDir();

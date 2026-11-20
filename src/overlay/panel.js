@@ -1433,8 +1433,9 @@ export function createPanel(ctx) {
 
     if (onCanvas(el)) { // on the design canvas: its kind (or the copy's tag) and where it lives
       const kind = { frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', text: 'Text' }[el.dataset.emKind];
-      nameEl.textContent = nameEl.title = kind || describe(el);
-      metaEl.textContent = 'on the canvas · not pushed';
+      nameEl.textContent = nameEl.title = el.dataset.emName || kind || describe(el);
+      const from = parseSrc((el.dataset.emFrom || '').replace(/#\d+$/, ''));
+      metaEl.textContent = from ? `copy of ${from.file.split('/').pop()}:${from.line} · on the canvas` : 'on the canvas · not pushed';
       metaEl.title = 'The design canvas beside your page. It\'s saved with the project, and never part of Push.';
     }
 

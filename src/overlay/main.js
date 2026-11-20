@@ -10,7 +10,7 @@ import { collectTokens } from './tokens.js';
 import { createPanel } from './panel.js';
 import { createLayers } from './layers.js';
 import { createSpacing } from './spacing.js';
-import { createDesign } from './design.js';
+import { cloneToCanvas, createDesign, matchLook } from './design.js';
 import { ICON, KEY as GLYPH } from './icons.js';
 
 if (!window.__editModeOverlay) {
@@ -152,6 +152,7 @@ function init() {
   const layersBtn = $('.layers-btn');
   const layers = createLayers({
     state, changes, host,
+    duplicatePage: () => duplicatePage(),
     pageRoot: () => pageRoot(),
     select: (el) => select(el),
     selectAll: (els) => selectAll(els),
@@ -177,7 +178,9 @@ function init() {
   window.addEventListener('pointermove', (e) => { cursor = { x: e.clientX, y: e.clientY }; }, true);
 
   // The design canvas beside the page (design.js), on the same board.
-  const design = createDesign();
+  const design = createDesign({
+    starter: () => { const r = pageRoot(); return r ? { width: Math.round(box(r).width), height: innerHeight } : null; },
+  });
 
   // Canvas: zoom and pan the page (canvas.js). The free area is the space
   // between the panels and above the toolbar.
@@ -855,7 +858,7 @@ function init() {
   const isFrame = (n) => n.dataset?.emKind === 'frame'; // a canvas frame (kept across reloads)
   // Placed freely on the canvas (top level, or in a frame without auto layout): moves by x/y.
   const isLoose = (k) => onCanvas(k) && getComputedStyle(k).position === 'absolute';
-  const canContain = (n) => (n.hasAttribute(ATTR) || !!n.dataset.emNew || !!n.dataset.emCopyOf || isFrame(n)) && !LEAF.test(n.tagName) && !n.closest('svg');
+  const canContain = (n) => (n.hasAttribute(ATTR) || !!n.dataset.emNew || !!n.dataset.emCopyOf || !!n.dataset.emFrom || isFrame(n)) && !LEAF.test(n.tagName) && !n.closest('svg');
 
   // The insertion line beside sibling `s` (rect `r`), centred in the gap to
   // its neighbour when there is one.
@@ -1229,6 +1232,84 @@ function init() {
     return added;
   }
 
+  // ---------- Copies onto the canvas (C3) ----------
+  // Where ⌘V lands on the canvas: under the pointer if it's over the canvas
+  // (into the frame there: its flow if it has auto layout, else at the
+  // pointer), otherwise into / next to a selected canvas frame or item.
+  function canvasTarget() {
+    const area = canvasArea();
+    if (!area) return null;
+    const spot = (into, x, y) => (into !== area && /flex|grid/.test(getComputedStyle(into).display)
+      ? { container: into, index: flowSpot(into, x, y).toIndex }
+      : { container: into, at: { x, y } });
+    const hits = cursor ? document.elementsFromPoint(cursor.x, cursor.y) : [];
+    if (hits.includes(area)) return spot(hits.find((n) => n === area || (onCanvas(n) && isFrame(n))), cursor.x, cursor.y);
+    const s = state.selected;
+    if (!s || !onCanvas(s)) return null;
+    const r = s.getBoundingClientRect();
+    if (isFrame(s)) return spot(s, r.left + 20 * view.z, r.top + 20 * view.z);
+    const p = s.parentElement;
+    return /flex|grid/.test(getComputedStyle(p).display)
+      ? { container: p, index: [...p.children].indexOf(s) + 1 }
+      : { container: p, at: { x: r.left + 20 * view.z, y: r.top + 20 * view.z } };
+  }
+
+  // Paste `items` onto the canvas. Things from the page become canvas copies
+  // (identical look, source remembered: design.js); things already on the
+  // canvas are duplicated as they are. Several keep their arrangement.
+  function pasteToCanvas(items, { container, index, at }) {
+    const live = items.filter((it) => it.from?.isConnected);
+    if (!live.length) return [];
+    const u = unionRect(live.map((it) => it.from));
+    const cr = container.getBoundingClientRect();
+    const added = [];
+    changes.batch(`paste:${Date.now()}`, () => {
+      let i = index ?? container.children.length;
+      for (const { from } of live) {
+        const page = !onCanvas(from);
+        const made = page ? cloneToCanvas(from, { ATTR, sameSource }) : null;
+        const el = made ? made.copy : from.cloneNode(true);
+        for (const a of ['data-em-new', 'data-em-copy-of']) el.removeAttribute(a);
+        const r = from.getBoundingClientRect();
+        const place = at
+          ? { position: 'absolute', left: `${Math.round((at.x + (r.left - u.left) - cr.left) / view.z - container.clientLeft)}px`,
+              top: `${Math.round((at.y + (r.top - u.top) - cr.top) / view.z - container.clientTop)}px` }
+          : { position: 'static', left: 'auto', top: 'auto' };
+        if (!made) for (const [k, v] of Object.entries(place)) el.style.setProperty(k, v);
+        changes.insert(el, container, i++, { what: 'copy', styles: {}, text: '', copyOf: { element: describe(from) } });
+        if (made) {
+          const b = box(from);
+          matchLook(made, { ...place, width: `${Math.round(b.width)}px`, height: `${Math.round(b.height)}px`,
+            margin: '0px', 'flex-shrink': '0', 'align-self': 'auto', 'justify-self': 'auto', 'grid-area': 'auto', 'z-index': 'auto' });
+        }
+        added.push(el);
+      }
+    });
+    return added;
+  }
+
+  // Duplicate page (Layers › Canvas): an identical copy of the whole page,
+  // structure kept, in a page-wide frame to the right of what's on the canvas.
+  function duplicatePage() {
+    const area = canvasArea();
+    const root = pageRoot();
+    if (!area || !root) return;
+    const right = Math.max(0, ...[...area.children].map((k) => k.offsetLeft + k.offsetWidth + 160));
+    const f = document.createElement('div');
+    f.dataset.emKind = 'frame';
+    f.dataset.emName = 'Page copy';
+    f.style.cssText = `position: absolute; left: ${area.children.length ? right : 0}px; top: 0px; width: ${Math.round(box(root).width)}px; background-color: ${getComputedStyle(document.body).backgroundColor === 'rgba(0, 0, 0, 0)' ? '#FFFFFF' : getComputedStyle(document.body).backgroundColor};`;
+    const made = cloneToCanvas(root, { ATTR, sameSource });
+    f.append(made.copy);
+    changes.batch(`duplicate:${Date.now()}`, () => {
+      changes.insert(f, area, area.children.length, { what: 'copy', styles: {}, text: '', copyOf: { element: 'page' } });
+      matchLook(made, { position: 'static', margin: '0px', width: '100%', height: 'auto' });
+    });
+    select(f);
+    canvas.toSelection(f.getBoundingClientRect());
+    toast('Duplicated', 'An identical copy of the page is on the canvas, ready to work on.', { ms: 3000 });
+  }
+
   function selectAll(els) {
     select(els[0] ?? null);
     if (els.length > 1) {
@@ -1239,6 +1320,9 @@ function init() {
 
   function pasteClipboard() {
     if (!clipboard.length) return;
+    const target = canvasTarget();
+    if (target) { selectAll(pasteToCanvas(clipboard, target)); return; }
+    if (clipboard.some((it) => onCanvas(it.from))) { toast('Stays on the canvas', 'Things from the canvas paste onto the canvas.', { ms: 2500 }); return; }
     const sel = selection();
     const anchor = sel.length ? inOrder(sel).at(-1) : clipboard.at(-1).from;
     if (!anchor?.isConnected) return;

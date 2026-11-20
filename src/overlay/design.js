@@ -15,7 +15,8 @@ const MIN_H = 1000;
 const ROOM = 400; // free space kept to the right of and below the content
 const SAVE_MS = 400;
 
-export function createDesign() {
+// `starter()`: the frame a fresh canvas starts with ({ width, height } in CSS px).
+export function createDesign({ starter = () => null } = {}) {
   let area = null;
   let observer = null;
   let timer = 0;
@@ -55,7 +56,18 @@ export function createDesign() {
     loading = true;
     try {
       const data = await (await fetch('/@edit-mode/canvas')).json();
-      if (area) {
+      if (area && data.fresh) {
+        // A fresh canvas starts with one empty frame the size of the page, to design within.
+        const s = starter();
+        if (s) {
+          const f = document.createElement('div');
+          f.dataset.emKind = 'frame';
+          f.dataset.emName = 'Page';
+          f.style.cssText = `position: absolute; left: 0px; top: 0px; width: ${s.width}px; height: ${s.height}px; background-color: #FFFFFF;`;
+          area.append(f);
+          timer = setTimeout(save, 0);
+        }
+      } else if (area) {
         area.innerHTML = data.html || '';
         // Session-only markers would clash with this session's numbering ("All like this" families).
         for (const n of area.querySelectorAll('[data-em-new], [data-em-copy-of], [contenteditable]')) {
@@ -104,4 +116,61 @@ export function createDesign() {
     get el() { return area; },
     saveNow: () => save(), // for tests
   };
+}
+
+// ---------- Copies from the page (C3) ----------
+// A copy keeps its classes, and remembers its source: each node's data-src
+// becomes data-em-from="file:line:col#index" (the index among elements
+// rendered from that line), so Push can compare it with its original (B3)
+// and "All like this" never mixes copies with the page. Ids move to
+// data-em-id (no duplicate ids in the document).
+export function cloneToCanvas(orig, { ATTR, sameSource }) {
+  const copy = orig.cloneNode(true);
+  const from = [orig, ...orig.querySelectorAll('*')];
+  const to = [copy, ...copy.querySelectorAll('*')];
+  to.forEach((n, i) => {
+    const o = from[i];
+    const src = o.getAttribute?.(ATTR);
+    if (src) n.dataset.emFrom = `${src}#${sameSource(o).indexOf(o)}`;
+    n.removeAttribute(ATTR);
+    for (const a of ['data-em-new', 'data-em-copy-of', 'data-em-kind', 'contenteditable']) n.removeAttribute(a);
+    if (n.id) { n.dataset.emId = n.id; n.removeAttribute('id'); }
+  });
+  // How it sat in its parent (its "slot"), for Push to keep (B3).
+  const cs = getComputedStyle(orig);
+  const parentSrc = orig.parentElement?.closest(`[${ATTR}]`);
+  copy.dataset.emSlot = JSON.stringify({
+    parent: parentSrc ? `${parentSrc.getAttribute(ATTR)}#${sameSource(parentSrc).indexOf(parentSrc)}` : null,
+    index: orig.parentElement ? [...orig.parentElement.children].indexOf(orig) : 0,
+    styles: Object.fromEntries(SLOT.map((p) => [p, cs.getPropertyValue(p)])),
+  });
+  return { copy, from, to, looks: from.map((o) => snapshot(o)) };
+}
+
+// How the original looked, captured before the copy is placed.
+const SKIP = new Set(['width', 'height', 'inline-size', 'block-size', 'min-width', 'min-height', 'min-inline-size', 'min-block-size',
+  'transform-origin', 'perspective-origin']); // sizes stay free to reflow inside the copy
+const SLOT = ['position', 'top', 'right', 'bottom', 'left', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+  'grid-area', 'grid-column', 'grid-row', 'align-self', 'justify-self', 'flex', 'order', 'z-index', 'width', 'height'];
+function snapshot(el) {
+  const cs = getComputedStyle(el);
+  const out = {};
+  for (let i = 0; i < cs.length; i++) { const p = cs[i]; if (!SKIP.has(p) && !p.startsWith('--')) out[p] = cs.getPropertyValue(p); }
+  return out;
+}
+
+// Once the copy is in place: write inline every style that came out
+// different from the original (ancestor selectors, inherited font and
+// color, variables set on a parent). Top-down, so a parent's fix reaches
+// its children before they're compared. The copy's root sheds its slot.
+export function matchLook({ to, looks }, rootStyles) {
+  to.forEach((n, i) => {
+    const want = looks[i];
+    const now = getComputedStyle(n);
+    for (const p in want) {
+      if (i === 0 && SLOT.includes(p)) continue;
+      if (now.getPropertyValue(p) !== want[p]) n.style.setProperty(p, want[p]);
+    }
+  });
+  for (const [p, v] of Object.entries(rootStyles)) to[0].style.setProperty(p, v);
 }

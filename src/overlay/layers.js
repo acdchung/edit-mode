@@ -18,7 +18,7 @@ const h = (tag, cls, html) => {
   return el;
 };
 
-export function createLayers({ state, changes, host, pageRoot, select, selectAll, onToggle }) {
+export function createLayers({ state, changes, host, pageRoot, select, selectAll, onToggle, duplicatePage }) {
   const el = h('div', 'layers glassy');
   el.hidden = true;
   el.innerHTML = `<div class="lh"><span>Layers</span><button class="lbtn lraw" aria-pressed="false" title="Show all layers (the code's own tree)" aria-label="Show all layers">${ICON.listTree}</button></div><div class="lb" role="tree"></div><div class="ldrop" hidden></div><div class="lresize" title="Drag to resize · double-click to reset"></div>`;
@@ -96,6 +96,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   function nameOf(n) {
     if (n === pageRoot()) return 'Page'; // the app's root element, like a Figma page
     if (n === canvasArea()) return 'Canvas';
+    if (n.dataset.emName) return n.dataset.emName; // a canvas frame's name ("Page", "Page copy")
     const kind = { frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse' }[n.dataset.emKind];
     if (kind) return kind; // drawn on the canvas
     const tag = n.tagName.toLowerCase();
@@ -171,7 +172,14 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     const eye = h('button', 'lbtn eye' + (hiddenByUs(n) ? ' on' : ''), hiddenByUs(n) ? ICON.eyeOff : ICON.eye);
     eye.title = hiddenByUs(n) ? 'Show' : 'Hide';
     // The Canvas row is a section header: open/close only (no hide, lock, select or drag).
-    if (n === canvasArea()) row.append(caret, icon, name);
+    if (n === canvasArea()) {
+      const dup = h('button', 'lbtn dup', ICON.copy);
+      dup.title = 'Duplicate the page onto the canvas';
+      dup.setAttribute('aria-label', 'Duplicate page');
+      dup.addEventListener('pointerdown', (e) => e.stopPropagation());
+      dup.addEventListener('click', (e) => { e.stopPropagation(); duplicatePage(); });
+      row.append(caret, icon, name, dup);
+    }
     else row.append(caret, icon, name, lock, eye);
     if (kids.length) row.setAttribute('aria-expanded', String(!!open));
     body.append(row);

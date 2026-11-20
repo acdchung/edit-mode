@@ -180,6 +180,7 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .lname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lbtn { all: unset; flex: none; display: none; place-items: center; width: 22px; height: 22px; border-radius: 5px; color: var(--dim); cursor: pointer; }
 .lbtn .i { width: 12px; height: 12px; }
+.lrow .lbtn.dup { display: grid; margin-left: auto; }
 .lbtn:hover { color: var(--text); background: var(--field-hover); }
 .lrow:hover .lbtn, .lbtn.on { display: grid; }
 .lrow:not(:hover) .lbtn.lock.on + .lbtn.eye:not(.on) { visibility: hidden; display: grid; }
