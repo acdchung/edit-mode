@@ -12,17 +12,21 @@ Figma is the reference for every behavior. Where a live web page can't work like
 
 ## Next up
 
-### Phase A: any page, seen the Figma way (agreed with the user, 2026-11-20)
-Edit Mode should work on any page structure, not only code shaped like Figma, because the user may open-source it and other people's pages (and agents) won't follow our rules. The code stays as developers wrote it. Edit Mode shows it through a Figma lens, and Push turns structural edits into code that fits the project.
+### The plan from here (agreed with the user, 2026-11-20)
+Edit Mode should work on any codebase (the user may open-source it; think a designer on a branch of a large app with its own components and tokens). Perfect handoff isn't possible; the goal is as close as possible. Two places to edit, each doing what it's best at:
 
-- **Two kinds of edits.** Style edits (padding, gap, font, color, size, radius…) stay exact, as today. Structural edits (move, group, wrap or unwrap, delete a container) are recorded as intent ("put the nav after the hero"), and Claude picks the cleanest way to do that in this codebase.
-- **A1. Pass-through layers.** Done 2026-11-20 (`util.js` › `passThrough`/`visualParent`/`visualKids`/`friendlyName`, `tests/a1.mjs`). Final rule: skip a plain wrapper around one thing, `display: contents`, and `<main>`; a wrapper around several things is a real group and stays. It must also have no fill, stroke, shadow, padding, clipping or transform, be static, hold no text, and be exactly as big as its contents. Friendly layer names are included. Original plan: Wrappers you can't see (no fill, stroke, shadow or padding of their own, adding no layout you'd notice: `<main>`, `#root`, fragments, `display: contents`) are skipped in Layers and on the canvas, so their children show as siblings of the frame around them. On Payloom, Nav, Hero and Logos become siblings under Page. A Layers toggle, "Show all layers", shows the raw tree for developers.
-- **A2. Moves across hidden containers.** Dragging in the Figma view moves the element in the page right away; the Push entry says where it now sits visually (its neighbours in the Figma view, not just in the code). `apply-edits.md` tells Claude it may move the JSX across components or files, or move a neighbour instead, whichever is cleanest. Test case: drag the Payloom nav below the hero.
-- **A3. Honest readings.** When a layout doesn't map to Figma, say so instead of guessing: "Pinned" for sticky/fixed (with what that means), grid cells, a child pushed over by an auto margin, a height that comes from a CSS variable. Re-check the Hug/Fill reads the user found confusing on Payloom.
+- **Live page: exact edits.** Padding, gap, font, color, text, radius, sizes, and simple reorders (a different spot inside the same frame, as you see it in the Figma view). Push makes small, exact changes to the existing code. Edits that change structure (moving into another frame, grouping, wrapping) go to the canvas instead.
+- **Canvas: structure and new design.** Edit Mode owns the layout model there (frames, auto layout, Hug/Fill, gap, absolute position), so it always behaves like Figma. Real pieces copied from the page keep their identity (source file and line, component, props), so Push builds with the project's own components instead of guessing from pixels. Only the layout and genuinely new elements become new code.
+
+Steps:
+
+- **A1. Figma view on the live page.** Done 2026-11-20 (`util.js` › `passThrough`/`visualParent`/`visualKids`/`friendlyName`, `tests/a1.mjs`). Skips a plain wrapper around one thing, `display: contents`, and `<main>`; a wrapper around several things is a real group and stays. It must also have no fill, stroke, shadow, padding, clipping or transform, be static, hold no text, and be exactly as big as its contents. Friendly layer names; "Show all layers" for the code's own tree.
+- **A2. Simple reorders, recorded as you saw them.** Started 2026-11-20 and not yet committed: a move's Push entry carries `visual` (its neighbours in the Figma view plus an `intent` sentence); `apply-edits.md` tells Claude to treat that as the goal; the Push list shows the sentence. Finish it: limit live moves to reorders inside the same visual frame (structural moves point you to the canvas), test with one real Push on the test copy (the user agreed: drag the nav below the hero).
+- **A3. Guards on the live page.** Offer only what maps to Figma, and say plainly when something doesn't. Known case: Hug on `hero-visual` collapsed it to 0px, because its only child is absolutely positioned (Figma only offers Hug on auto layout with content in flow). Also: "Pinned" for sticky/fixed, grid cells, auto-margin pushes. Recheck the Hug/Fill reads the user found confusing.
+- **B1. Project conventions file.** A short file in each project (layout primitives, design tokens, where CSS lives, component library) that Push reads, so any team's agent follows their rules without our context. Edit Mode can offer to draft it from the codebase.
+- **B2. The canvas.** Lives inside Edit Mode next to the live page. Copy a piece of the page onto it in one step; copies keep their look and their source identity. Design new components there too. **The user has ideas for it: ask before planning B2.**
+- **B3. Push from the canvas: replace in the slot.** Push rebuilds what's inside the copied piece and keeps its slot (how it sits in its parent: pinned over a corner, a grid cell, its place in a row), so overlapping pieces and one widget in a big dashboard work. Changing the slot itself is a change to the parent (copy the parent, or tweak live). After Push: a before/after toggle in place, plus Undo (and git, on a branch). Option at Push: "add as a new section below" for whole sections, to compare side by side.
 - Keep `demo-app/` (Payloom) as written by a typical team: it's the realistic test page.
-
-### Phase B: design page
-A blank canvas beside the app for designing new components, plus pasting copies of real elements (each copy keeps its look). Push adds the result as a new section next to the original, written in the project's own conventions; the user deletes the old section by hand. Plan it together with the full-canvas idea under "Later".
 
 ### Then: roadmap items 5–9 below (unchanged).
 
@@ -69,7 +73,7 @@ A blank canvas beside the app for designing new components, plus pasting copies 
 ### Breakpoint frames: a full canvas (option C)
 - Edit Mode becomes its own canvas page, and the app runs inside one or more iframes shown as frames, e.g. Desktop 1440, Tablet 768 and Mobile 375 side by side. Each frame is a real copy of the page with its own responsive layout.
 - Reuse the zoom and pan from `canvas.js`. The overlay moves to the parent page and reaches into the frames (same origin), so selection, panels and Push need to know which frame an element is in.
-- Big change: plan it as its own phase, after items 3–9.
+- Big change: plan it as its own phase, after items 3–9. Plan it together with B2 (the canvas): the two may share one board.
 
 ## Later / maybe
 - Movable panels: a grabber to place the properties panel and Layers wherever you like, remembered per browser (the user's idea, 2026-11-19). They still never move on their own. (Layers can already be resized.)
