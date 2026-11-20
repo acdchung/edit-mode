@@ -6,7 +6,7 @@
 // `changes.set(...)`, which previews the edit as an inline style.
 
 import {
-  ATTR, box, colorFromText, describe, family, fmt, isNumber, num, parseColor, parseSrc, resolveColor, sameSource,
+  ATTR, box, colorFromText, describe, family, fmt, isNumber, num, onCanvas, parseColor, parseSrc, resolveColor, sameSource,
 } from './util.js';
 import { textNodeOf } from './changes.js';
 import { ICON, KEY } from './icons.js';
@@ -1381,7 +1381,14 @@ export function createPanel(ctx) {
       : 'no source';
     metaEl.title = src ? `${src.file}:${src.line}:${src.col}` : 'Not rendered from a JSX file in this project';
 
-    openBtn.hidden = copyBtn.hidden = !src || !!isNew;
+    if (onCanvas(el)) { // on the design canvas: its kind (or the copy's tag) and where it lives
+      const kind = { frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', text: 'Text' }[el.dataset.emKind];
+      nameEl.textContent = nameEl.title = kind || describe(el);
+      metaEl.textContent = 'on the canvas · not pushed';
+      metaEl.title = 'The design canvas beside your page. It\'s saved with the project, and never part of Push.';
+    }
+
+    openBtn.hidden = copyBtn.hidden = !src || !!isNew || onCanvas(el);
     if (src) {
       srcText = `${src.file}:${src.line}:${src.col}`;
       openBtn.href = `vscode://file/${ROOT}/${srcText}`;

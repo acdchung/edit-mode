@@ -258,6 +258,11 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
     const t = targets(el, scope);
     const st = step();
     for (const x of t.els) {
+      if (onCanvas(x)) { // on the canvas it's really removed (the saved canvas stays clean); undo puts it back
+        touch(st, x, POS);
+        x.remove();
+        continue;
+      }
       touch(st, x, 'display');
       x.style.setProperty('display', 'none', 'important');
     }

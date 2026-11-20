@@ -33,7 +33,7 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 | ⌘Z / ⌘⇧Z | Undo / redo |
 | ⌘↵ | Push |
 | Drag an element | Reorder it inside the frame it's in, as Layers shows it (the drop line shows where). Letting go outside the frame moves nothing: moving into another frame changes structure, which will be the canvas's job (see ROADMAP). With several selected from the same frame, drag any of them to move them all, in page order. Push applies the move as you saw it ("Put Nav after Hero and before Logos") |
-| V / R / O / T | Select, Rectangle, Ellipse, Text tools (toolbar above the pill). Hold Shift while drawing for a square or circle |
+| V / F / R / O / T | Select, Frame (canvas only), Rectangle, Ellipse, Text tools (toolbar above the pill). Hold Shift while drawing for a square or circle |
 | Shift-click | Add to / remove from the selection, at the same depth as what's selected (title selected → Shift-click another card's title adds that title). Holding Shift previews it. ⇧⌘-click adds exactly the deepest element |
 | Tab / Shift-Tab | Next / previous sibling |
 | ⌘A | Select all siblings |
@@ -76,7 +76,7 @@ Push styles a family through one shared CSS rule, so the copies match the origin
 
 **Push:** shows the list of changes; **Proceed** snapshots your source, runs Claude in the background to apply them, then reloads the page. **Undo** (in the pill afterwards) restores the files Claude changed and brings your edits back so you can adjust and push again.
 
-**Canvas (being built, roadmap B2):** while Edit Mode is on, a design canvas sits on the board 160px to the right of your page (pan over, or ⇧1 to fit both). It has its own **Canvas** section in Layers. What's on it can be selected and edited like the page and undone with ⌘Z, but it's never part of Push. It's saved in `.editmode/canvas.json`, so it survives reloads. Frames, copying pieces of the page onto it and structural editing come next.
+**Canvas (being built, roadmap B2):** while Edit Mode is on, a design canvas sits on the board 160px to the right of your page (pan over, or ⇧1 to fit both). It has its own **Canvas** section in Layers. What's on it can be selected and edited like the page and undone with ⌘Z, but it's never part of Push. It's saved in `.editmode/canvas.json`, so it survives reloads. The **Frame tool (F)** draws frames on it: auto layout (vertical), white, at the size you drag (a click makes 100 × 100). Rectangle, Ellipse and Text draw into canvas frames, or loose on the canvas. Loose items sit where you put them: drag them anywhere, and arrows nudge them (Shift: 10px). Delete on the canvas really removes the item (⌘Z brings it back). The Frame tool doesn't work on the live page: structure lives on the canvas. Copying pieces of the page onto it and structural editing come next.
 
 **EDITMODE.md (your project's conventions):** a short file at the project root that tells Push how your team writes UI code: how styles are written (plain CSS, CSS modules, Tailwind…), where design tokens live, which layout and shared components to reuse, and what to avoid. Push reads it first, and it wins over Edit Mode's defaults. If a project doesn't have one, the Push dialog offers **Draft one**: Claude reads your codebase and writes only that file (anything else it touches is put back), for you to review and edit. Point `EDIT_MODE_CLAUDE` (or the plugin's `claudePath` option) at a different `claude` binary if needed.
 

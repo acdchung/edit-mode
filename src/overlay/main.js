@@ -53,6 +53,7 @@ function init() {
         <div class="slot"></div>
         <div class="tools glassy" hidden>
           <button data-tool="select" title="Select (V)" aria-label="Select tool">${ICON.select}</button>
+          <button data-tool="frame" title="Frame (F) · on the canvas" aria-label="Frame tool">${ICON.frame}</button>
           <button data-tool="rect" title="Rectangle (R)" aria-label="Rectangle tool">${ICON.rect}</button>
           <button data-tool="ellipse" title="Ellipse (O)" aria-label="Ellipse tool">${ICON.ellipse}</button>
           <button data-tool="text" title="Text (T)" aria-label="Text tool">${ICON.text}</button>
@@ -789,7 +790,7 @@ function init() {
       }
     }
     if (state.tool !== 'select') {
-      const drop = dropAt(e.clientX, e.clientY);
+      const drop = toolDrop(e.clientX, e.clientY);
       if (drop) draw = { x: e.clientX, y: e.clientY, drop };
       return;
     }
@@ -815,7 +816,7 @@ function init() {
     const y = e.clientY;
     pointer = { x, y, shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey };
     if (draw) return showDraw(x, y, e.shiftKey);
-    if (state.tool !== 'select') { state.hovered = null; return showDrop(dropAt(x, y), true); }
+    if (state.tool !== 'select') { state.hovered = null; return showDrop(toolDrop(x, y), true); }
     if (press && !drag && press.target && Math.hypot(x - press.x, y - press.y) > 4) {
       // Several selected: they all move (pressed one leads), in page order.
       const els = press.keep ? [press.target, ...state.multi.filter((k) => k !== press.target)] : [press.target];
@@ -851,7 +852,8 @@ function init() {
 
   // Elements that hold text or are controls never become containers.
   const LEAF = /^(P|H[1-6]|SPAN|A|BUTTON|LABEL|IMG|INPUT|TEXTAREA|SELECT|svg|SVG|VIDEO|CANVAS|IFRAME|STRONG|EM|B|I|SMALL|CODE)$/;
-  const canContain = (n) => (n.hasAttribute(ATTR) || !!n.dataset.emNew || !!n.dataset.emCopyOf) && !LEAF.test(n.tagName) && !n.closest('svg');
+  const isFrame = (n) => n.dataset?.emKind === 'frame'; // a canvas frame (kept across reloads)
+  const canContain = (n) => (n.hasAttribute(ATTR) || !!n.dataset.emNew || !!n.dataset.emCopyOf || isFrame(n)) && !LEAF.test(n.tagName) && !n.closest('svg');
 
   // The insertion line beside sibling `s` (rect `r`), centred in the gap to
   // its neighbour when there is one.
@@ -875,7 +877,7 @@ function init() {
     const hitEl = document.elementsFromPoint(x, y).find((n) => n !== host);
     let container = null;
     for (let n = hitEl; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
-      if (!canContain(n) || (!flowKids(n).length && !n.dataset.emNew)) continue;
+      if (!canContain(n) || (!flowKids(n).length && !n.dataset.emNew && !isFrame(n))) continue;
       container = n;
       break;
     }
@@ -936,11 +938,24 @@ function init() {
     return { container, toIndex, line, frame: frameEl };
   }
 
+  // Where a tool draws at (x, y). On the canvas: into the frame under the
+  // pointer, or loose on the board (`free`: placed at x/y, like Figma's
+  // top-level frames). The Frame tool only works on the canvas: structure
+  // lives there (ROADMAP › "The plan from here").
+  function toolDrop(x, y) {
+    const area = canvasArea();
+    const overCanvas = !!area && document.elementsFromPoint(x, y).includes(area);
+    if (!overCanvas) return state.tool === 'frame' ? null : dropAt(x, y);
+    const d = dropAt(x, y);
+    if (d && d.container !== area && onCanvas(d.container)) return d;
+    return { container: area, toIndex: area.children.length, line: null, free: true };
+  }
+
   function showDrop(drop, alwaysTarget = false) {
     insertLine.hidden = !drop?.line;
     if (drop?.line) place(insertLine, drop.line);
     const box = drop?.frame ?? drop?.container;
-    targetBox.hidden = !drop || (!alwaysTarget && box === drag?.frame);
+    targetBox.hidden = !drop || drop.free || (!alwaysTarget && box === drag?.frame);
     if (!targetBox.hidden) place(targetBox, box.getBoundingClientRect());
   }
 
@@ -950,14 +965,31 @@ function init() {
     const parent = el?.parentElement;
     if (!parent || parent === document.documentElement || el === document.body) { press = null; return; }
     const r = unionRect(els);
-    drag = { el, els: inOrder(els), parent, frame: levelUp(el), rect: r, dx: p.x - r.left, dy: p.y - r.top, drop: null };
+    // Loose on the canvas (top-level): they move freely, live, like Figma's top-level frames.
+    const area = canvasArea();
+    const free = !!area && els.every((k) => k.parentElement === area);
+    drag = { el, els: inOrder(els), parent, frame: levelUp(el), rect: r, dx: p.x - r.left, dy: p.y - r.top, drop: null,
+      free: free && { x: p.x, y: p.y, at: els.map((k) => [k, num(getComputedStyle(k).left), num(getComputedStyle(k).top)]) } };
     state.hovered = null;
     glass.classList.add('dragging');
+    if (free) return;
     frame.classList.add('moving');
     multiLayer.classList.add('moving');
   }
 
   function updateDrag(x, y) {
+    if (drag.free) {
+      const dx = Math.round((x - drag.free.x) / view.z);
+      const dy = Math.round((y - drag.free.y) / view.z);
+      drag.group ||= `free:${Date.now()}`;
+      changes.batch(drag.group, () => {
+        for (const [k, l, t] of drag.free.at) {
+          changes.set(k, 'one', 'left', `${l + dx}px`);
+          changes.set(k, 'one', 'top', `${t + dy}px`);
+        }
+      });
+      return;
+    }
     drag.drop = reorderAt(x, y, drag.el, drag.els);
     showDrop(drag.drop);
     place(ghostBox, { left: x - drag.dx, top: y - drag.dy, width: drag.rect.width, height: drag.rect.height });
@@ -974,9 +1006,10 @@ function init() {
   // Drop: everything dragged lands together, in page order, before `anchor`
   // (the container's child that was at toIndex). One undo step.
   function finishDrag() {
-    const { els, drop, group } = drag;
+    const { els, drop, group, free } = drag;
     drag = null;
     endDragUI();
+    if (free) { panel.show(state.selected); return; } // already where it was dropped
     if (!drop) return;
     const { container } = drop;
     const anchor = [...container.children].filter((k) => !els.includes(k))[drop.toIndex] ?? null;
@@ -1084,13 +1117,24 @@ function init() {
       el = document.createElement('p');
       el.textContent = 'Text';
       info = { what: 'text', styles: { margin: '0px' }, text: 'Text' };
+    } else if (tool === 'frame') {
+      // A frame: auto layout (vertical) at a fixed size, white, like a new Figma frame.
+      el = document.createElement('div');
+      info = { what: 'frame', styles: { width: `${w}px`, height: `${h}px`, 'background-color': '#FFFFFF',
+        display: 'flex', 'flex-direction': 'column', 'flex-shrink': '0' } };
     } else {
       el = document.createElement('div');
       info = { what: tool === 'ellipse' ? 'ellipse' : 'rectangle',
         styles: { width: `${w}px`, height: `${h}px`, 'background-color': '#D9D9D9', 'flex-shrink': '0',
                   ...(tool === 'ellipse' ? { 'border-radius': '50%' } : {}) } };
     }
-    Object.assign(info.styles, rhythm(drop.container, drop.toIndex));
+    if (drop.free) {
+      // Loose on the canvas: placed where it was drawn.
+      const a = drop.container.getBoundingClientRect();
+      const at = box.width < 4 && box.height < 4 ? { left: draw.x, top: draw.y } : box;
+      Object.assign(info.styles, { position: 'absolute', left: `${Math.round((at.left - a.left) / view.z)}px`, top: `${Math.round((at.top - a.top) / view.z)}px` });
+    } else Object.assign(info.styles, rhythm(drop.container, drop.toIndex));
+    if (onCanvas(drop.container)) el.dataset.emKind = info.what; // frame / rectangle / ellipse / text, kept across reloads
     for (const [k, v] of Object.entries(info.styles)) el.style.setProperty(k, v);
     changes.insert(el, drop.container, drop.toIndex, info);
     setTool('select');
@@ -1488,7 +1532,7 @@ function init() {
       if (action) { stop(); action(); return; }
     }
     if (e.shiftKey && !mod && !e.altKey && e.code === 'KeyA') { stop(); autoLayoutSelection(); return; }
-    const TOOLS = { KeyV: 'select', KeyR: 'rect', KeyO: 'ellipse', KeyT: 'text' };
+    const TOOLS = { KeyV: 'select', KeyF: 'frame', KeyR: 'rect', KeyO: 'ellipse', KeyT: 'text' };
     if (!mod && !e.altKey && !e.shiftKey && TOOLS[e.code]) { stop(); setTool(TOOLS[e.code]); return; }
 
     const sel = state.selected;
@@ -1520,6 +1564,11 @@ function init() {
         const stuck = new Set();
         changes.batch(`nudge:${Date.now()}`, () => {
           for (const k of back ? els : els.reverse()) {
+            if (k.parentElement && k.parentElement === canvasArea()) { // loose on the canvas: nudge its position
+              const side = prop === 'margin-left' ? 'left' : 'top';
+              changes.set(k, scope, side, `${num(getComputedStyle(k)[side]) + dir * (e.shiftKey ? 10 : 1)}px`);
+              continue;
+            }
             const pcs = k.parentElement && getComputedStyle(k.parentElement);
             if (pcs && /flex/.test(pcs.display)) {
               const along = pcs.flexDirection.startsWith('column') ? ['ArrowUp', 'ArrowDown'] : ['ArrowLeft', 'ArrowRight'];

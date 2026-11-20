@@ -55,7 +55,15 @@ export function createDesign() {
     loading = true;
     try {
       const data = await (await fetch('/@edit-mode/canvas')).json();
-      if (area) area.innerHTML = data.html || '';
+      if (area) {
+        area.innerHTML = data.html || '';
+        // Session-only markers would clash with this session's numbering ("All like this" families).
+        for (const n of area.querySelectorAll('[data-em-new], [data-em-copy-of], [contenteditable]')) {
+          n.removeAttribute('data-em-new');
+          n.removeAttribute('data-em-copy-of');
+          n.removeAttribute('contenteditable');
+        }
+      }
     } catch {}
     loading = false;
     if (!area) return;
