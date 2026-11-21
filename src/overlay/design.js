@@ -63,7 +63,7 @@ export function createDesign({ starter = () => null } = {}) {
           const f = document.createElement('div');
           f.dataset.emKind = 'frame';
           f.dataset.emName = 'Page';
-          f.style.cssText = `position: absolute; left: 0px; top: 0px; width: ${s.width}px; height: ${s.height}px; background-color: #FFFFFF;`;
+          f.style.cssText = `position: absolute; left: 0px; top: 0px; width: ${s.width}px; height: ${s.height}px; background-color: #FFFFFF; overflow: hidden;`;
           area.append(f);
           timer = setTimeout(save, 0);
         }

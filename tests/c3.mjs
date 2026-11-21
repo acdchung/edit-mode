@@ -110,6 +110,32 @@ check('with two selected, ⌥D aligns their right edges to each other (not the f
 await p.keyboard.press('Alt+KeyV'); await wait();
 // tops 50 (h 40) and 200 (h 60): the selection spans 50–260, centre 155.
 check('…and ⌥V centers them vertically on each other', (await lt('.ra'))[1] === 155 - 20 && (await lt('.rb'))[1] === 155 - 30, `${await lt('.ra')} / ${await lt('.rb')}`);
+// Distribute: needs three; equal gaps in the order they sit, the outer two stay put.
+await R(() => { const s = window.__editMode.state; s.selected = document.querySelector('.ra'); s.multi = [document.querySelector('.ra'), document.querySelector('.rb')]; window.__editMode.panel.refresh(); }); await wait();
+check('with two selected, distribute is greyed out, with the reason', /three or more/.test((await alignBtn('hspace'))?.title || '') && (await alignBtn('hspace')).disabled && !(await alignBtn('left')).disabled, JSON.stringify(await alignBtn('hspace')));
+await R(() => {
+  const f = document.querySelector('[data-em-canvas] > [data-em-name="Page"]');
+  f.insertAdjacentHTML('beforeend', '<div class="d1" data-em-kind="rectangle" style="position:absolute;left:0px;top:500px;width:50px;height:50px"></div><div class="d2" data-em-kind="rectangle" style="position:absolute;left:90px;top:500px;width:100px;height:50px"></div><div class="d3" data-em-kind="rectangle" style="position:absolute;left:400px;top:500px;width:50px;height:50px"></div>');
+  const s = window.__editMode.state; s.selected = f.querySelector('.d1'); s.multi = [...f.querySelectorAll('.d1,.d2,.d3')];
+}); await wait();
+await p.keyboard.press('Control+Alt+KeyH'); await wait();
+// span 0–450, widths 200: gaps (450-200)/2 = 125; d2 goes to 50+125 = 175.
+check('⌃⌥H distributes the horizontal spacing evenly (125px gaps); the outer two stay put', (await lt('.d1'))[0] === 0 && (await lt('.d2'))[0] === 175 && (await lt('.d3'))[0] === 400, `${await lt('.d1')} / ${await lt('.d2')} / ${await lt('.d3')}`);
+const groups = await R(() => [...document.querySelector('edit-mode-root').shadowRoot.querySelectorAll('.align-row .align-seg')].map((g) => [...g.children].map((b) => b.dataset.align).join(',')));
+check('the align row has two groups: horizontal and vertical', groups.join(' | ') === 'left,hcenter,right,hspace | top,vcenter,bottom,vspace', groups.join(' | '));
+
+// Clip content
+const clip = () => R(() => getComputedStyle(document.querySelector('[data-em-canvas] > [data-em-name="Page"]')).overflow);
+check('a fresh canvas’s Page frame clips its content (like a new Figma frame)', (await clip()) === 'hidden', await clip());
+await R(() => window.__editMode.select(document.querySelector('[data-em-canvas] > [data-em-name="Page"]'))); await wait();
+const box = () => R(() => { const c = document.querySelector('edit-mode-root').shadowRoot.querySelector('.checkrow'); const i = c.querySelector('input'); const r = i.getBoundingClientRect(); return { shown: !c.hidden && !!c.offsetParent, checked: i.checked, at: [r.x + r.width / 2, r.y + r.height / 2] }; });
+let cb = await box();
+check('the panel shows "Clip content", checked', cb.shown && cb.checked, JSON.stringify(cb));
+await p.mouse.click(...cb.at); await wait();
+check('unchecking it lets content show past the frame’s edges', (await clip()) === 'visible' && !(await box()).checked, await clip());
+await p.keyboard.press('Meta+z'); await wait();
+check('⌘Z clips it again', (await clip()) === 'hidden');
+
 await R(() => window.__editMode.select(document.querySelector('[data-em-canvas] > [data-em-name="Page"]'))); await wait();
 const top = await alignBtn('left');
 check('a single top-level frame: the align row is greyed out, with the reason', top?.shown && top.disabled && /isn’t inside a frame/.test(top.title), JSON.stringify(top));
@@ -123,6 +149,7 @@ await p.mouse.click(...dup); await wait(300);
 const dupMs = Date.now() - t1;
 const pc = await R(() => { const f = [...document.querySelectorAll('[data-em-canvas] > [data-em-kind="frame"]')].find((x) => x.dataset.emName === 'Page copy'); const s = document.querySelector('[data-em-canvas] > [data-em-name="Page"]'); return f && { left: f.offsetLeft, startRight: s.offsetLeft + s.offsetWidth, w: f.offsetWidth, nav: !!f.querySelector('.nav'), hero: !!f.querySelector('.hero') }; });
 check('Duplicate page puts a page-wide "Page copy" frame to the right of what’s there', pc && pc.left >= pc.startRight + 100 && pc.nav && pc.hero, JSON.stringify(pc));
+check('…and clips at the page’s edges', await R(() => getComputedStyle(document.querySelector('[data-em-canvas] [data-em-name="Page copy"]')).overflow) === 'hidden');
 diff = await compare('[data-em-canvas] [data-em-name="Page copy"] > *', '#root');
 check('the whole page copy looks identical, node by node', diff.length === 0, `${diff.length}: ${diff.slice(0, 6).join(' | ')}`);
 check(`copying the whole page is quick (${dupMs}ms)`, dupMs < 3000);

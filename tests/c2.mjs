@@ -43,6 +43,7 @@ let k = await canvasKids();
 check('dragging with the Frame tool on the canvas draws a frame', k.length === 1 && k[0] === 'frame', k.join());
 const f1 = await R(() => { const f = document.querySelector('[data-em-canvas] > [data-em-kind="frame"]'); const cs = getComputedStyle(f); return { pos: cs.position, w: f.offsetWidth, h: f.offsetHeight, flex: cs.display, bg: cs.backgroundColor }; });
 check('…placed where it was drawn, 320 × 220, white, no auto layout (freeform, like a new Figma frame)', f1.pos === 'absolute' && f1.w === 320 && f1.h === 220 && f1.flex === 'block' && f1.bg === 'rgb(255, 255, 255)', JSON.stringify(f1));
+check('…and clips its content', await R(() => getComputedStyle(document.querySelector('[data-em-canvas] > [data-em-kind="frame"]')).overflow) === 'hidden');
 check('it’s selected and the tool goes back to Select', (await sel()) === 'frame' && await R(() => window.__editMode.state.tool) === 'select');
 const names = await R(() => [...document.querySelector('edit-mode-root').shadowRoot.querySelectorAll('.lrow .lname')].map((n) => n.textContent));
 check('Layers lists it as "Frame" under Canvas', names.slice(names.indexOf('Canvas')).includes('Frame'), names.join(' | '));

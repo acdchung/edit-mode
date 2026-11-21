@@ -115,6 +115,8 @@ const PATHS = {
   alignRight: '<rect width="16" height="6" x="2" y="4" rx="2" /><rect width="9" height="6" x="9" y="14" rx="2" /><path d="M22 22V2" />', // align-end-vertical
   alignTop: '<rect width="6" height="16" x="4" y="6" rx="2" /><rect width="6" height="9" x="14" y="6" rx="2" /><path d="M22 2H2" />', // align-start-horizontal
   alignVCenter: '<path d="M2 12h20" /><path d="M10 16v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4" /><path d="M10 8V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v4" /><path d="M20 16v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1" /><path d="M14 8V7c0-1.1.9-2 2-2h2a2 2 0 0 1 2 2v1" />', // align-center-horizontal
+  distributeH: '<rect width="6" height="10" x="9" y="7" rx="2" /><path d="M4 22V2" /><path d="M20 22V2" />', // align-horizontal-space-around
+  distributeV: '<rect width="10" height="6" x="7" y="9" rx="2" /><path d="M22 20H2" /><path d="M22 4H2" />', // align-vertical-space-around
   alignBottom: '<rect width="6" height="16" x="4" y="2" rx="2" /><rect width="6" height="9" x="14" y="9" rx="2" /><path d="M22 22H2" />', // align-end-horizontal
   listTree: '<path d="M8 5h13" /><path d="M13 12h8" /><path d="M13 19h8" /><path d="M3 10a2 2 0 0 0 2 2h3" /><path d="M3 5v12a2 2 0 0 0 2 2h3" />', // list-tree
   ratioOn: '<path d="M9 17H7A5 5 0 0 1 7 7h2" /><path d="M15 7h2a5 5 0 1 1 0 10h-2" /><line x1="8" x2="16" y1="12" y2="12" />', // link-2

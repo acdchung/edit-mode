@@ -38,7 +38,8 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 | Tab / Shift-Tab | Next / previous sibling |
 | ⌘A | Select all siblings |
 | Hold ⌥ | Measure distances to the hovered element (or to the parent) |
-| ⌥A / ⌥H / ⌥D · ⌥W / ⌥V / ⌥S | On the canvas: align left / horizontal centers / right · top / vertical centers / bottom (also the row at the top of the panel). One thing aligns to its frame; several align to each other. Not for things inside auto layout (greyed out, with the reason) |
+| ⌥A / ⌥H / ⌥D · ⌥W / ⌥V / ⌥S | On the canvas: align left / horizontal centers / right · top / vertical centers / bottom (also the two groups at the top of the panel: horizontal, vertical). One thing aligns to its frame; several align to each other. Not for things inside auto layout (greyed out, with the reason) |
+| ⌃⌥H / ⌃⌥V | On the canvas: distribute horizontal / vertical spacing (three or more: equal gaps, the outer two stay put) |
 | ⌥-drag | Duplicate and move the copy (or copies) |
 | ⌥1, or the Layers button in the toolbar | Show / hide the Layers panel |
 | ⌘+ / ⌘− / ⌘0 | Zoom in / out / to 100% (or use the % menu in the toolbar) |
@@ -54,7 +55,7 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 | Drag a handle | Resize (hold Shift to keep proportions). With several selected, the handles are on the frame around all of them, and each element's size scales by the same amount |
 | In a field: type, ↑/↓, or drag its label | Change a value (accepts %, and math like `8*2`) |
 
-**Panel:** Layout (size, gap, padding, margin). Sizing menus only offer what works: Hug is greyed out, with the reason, when nothing inside takes up space, and Fill when the element is placed by position. Appearance (opacity, roundness), Text, Fill, Stroke (inside = border, outside = outline; the sides button next to the weight picks All, one side, or Custom with a weight per side), Effects (shadow). Line height shows the way the code writes it (a multiplier like 1.35, Auto, or pixels). Fill shows solid colors and gradients (angle and stops) or images. Empty fill/stroke/effects show as **+**. Colors, sizes and CSS variables already on the page are offered as quick picks.
+**Panel:** Layout (size, gap, padding, margin, and **Clip content** for anything that holds content: hides what sticks out past its edges; canvas frames start clipped, as in Figma). Sizing menus only offer what works: Hug is greyed out, with the reason, when nothing inside takes up space, and Fill when the element is placed by position. Appearance (opacity, roundness), Text, Fill, Stroke (inside = border, outside = outline; the sides button next to the weight picks All, one side, or Custom with a weight per side), Effects (shadow). Line height shows the way the code writes it (a multiplier like 1.35, Auto, or pixels). Fill shows solid colors and gradients (angle and stops) or images. Empty fill/stroke/effects show as **+**. Colors, sizes and CSS variables already on the page are offered as quick picks.
 
 **Several selected:** the panel shows Group / Auto layout / Delete, then the properties they share. Text, Gap and Auto layout show when every selected element has them; Fill, Stroke and Effects when any of them does. A field reads **Mixed** when the values differ. Typing a value sets it on all of them; ↑/↓ or dragging the label on a Mixed field shifts each one's own value by the same amount. Every edit is one ⌘Z.
 

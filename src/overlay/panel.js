@@ -892,12 +892,26 @@ export function createPanel(ctx) {
       modes: { options: (el) => sizeOptions(el, axis), read: (el) => sizeMode(el, axis), write: (m) => setSizing(axis, m) },
     })));
 
+  // Clip content (Figma): hide whatever sticks out past the frame's edges.
+  const clipRow = h('label', 'checkrow');
+  const clipBox = h('input');
+  clipBox.type = 'checkbox';
+  clipRow.append(clipBox, h('span', '', 'Clip content'));
+  clipBox.addEventListener('change', () => act(null, () => apply('overflow', clipBox.checked ? 'hidden' : 'visible')));
+  fields.push(() => {
+    if (!sel()) return;
+    const v = common((x, cs) => (cs.overflowX !== 'visible' || cs.overflowY !== 'visible' ? 'on' : 'off'));
+    clipBox.indeterminate = v === MIXED;
+    clipBox.checked = v === 'on';
+  });
+
   const layout = section('Layout',
     autoBlock,
     sizeRow,
     gapRow,
     spacing('padding', 'padding', 0),
-    spacing('margin', 'margin', -9999));
+    spacing('margin', 'margin', -9999),
+    clipRow);
 
   layout.head.append(h('span', 'sh-acts')); // W/H keep their full width; the link lives in the title row
   layout.head.lastChild.append(ratioBtn, autoAdd);
@@ -1395,24 +1409,33 @@ export function createPanel(ctx) {
   // Alignment (Figma's row at the top of the panel): one thing aligns to its
   // frame, several align to each other. Only for things placed freely on the
   // canvas; `ctx.alignState()` says why not otherwise (greyed out, reason in the tooltip).
-  const ALIGN_BTNS = [['left', 'alignLeft', 'Align left', '⌥A'], ['hcenter', 'alignHCenter', 'Align horizontal centers', '⌥H'], ['right', 'alignRight', 'Align right', '⌥D'],
-    ['top', 'alignTop', 'Align top', '⌥W'], ['vcenter', 'alignVCenter', 'Align vertical centers', '⌥V'], ['bottom', 'alignBottom', 'Align bottom', '⌥S']];
+  // Two groups: horizontal (left, centers, right, distribute) and vertical (top, middles, bottom, distribute).
+  const ALIGN_BTNS = [
+    [['left', 'alignLeft', 'Align left', '⌥A'], ['hcenter', 'alignHCenter', 'Align horizontal centers', '⌥H'], ['right', 'alignRight', 'Align right', '⌥D'], ['hspace', 'distributeH', 'Distribute horizontal spacing', '⌃⌥H']],
+    [['top', 'alignTop', 'Align top', '⌥W'], ['vcenter', 'alignVCenter', 'Align vertical centers', '⌥V'], ['bottom', 'alignBottom', 'Align bottom', '⌥S'], ['vspace', 'distributeV', 'Distribute vertical spacing', '⌃⌥V']],
+  ];
   const alignRow = h('section', 'align-row');
-  const alignBtns = ALIGN_BTNS.map(([how, icon, title, key]) => {
-    const b = h('button', 'icon', ICON[icon]);
-    b.dataset.align = how;
-    b.setAttribute('aria-label', title);
-    b.dataset.title = `${title} (${key})`;
-    b.addEventListener('click', () => ctx.align(how));
-    alignRow.append(b);
-    return b;
+  const alignBtns = ALIGN_BTNS.flatMap((group) => {
+    const seg = h('div', 'seg align-seg');
+    alignRow.append(seg);
+    return group.map(([how, icon, title, key]) => {
+      const b = h('button', '', ICON[icon]);
+      b.dataset.align = how;
+      b.setAttribute('aria-label', title);
+      b.dataset.title = `${title} (${key})`;
+      b.addEventListener('click', () => ctx.align(how));
+      seg.append(b);
+      return b;
+    });
   });
   fields.push(() => {
     const st = ctx.alignState();
     alignRow.hidden = !st.show;
     for (const b of alignBtns) {
-      b.disabled = !st.ok;
-      b.title = st.ok ? b.dataset.title : st.why;
+      const spread = /space$/.test(b.dataset.align);
+      const why = !st.ok ? st.why : spread && !st.spread ? 'Select three or more to distribute the spacing between them.' : null;
+      b.disabled = !!why;
+      b.title = why || b.dataset.title;
     }
   });
 
@@ -1488,6 +1511,7 @@ export function createPanel(ctx) {
     typography.hidden = !all((x) => /^(INPUT|TEXTAREA|SELECT)$/.test(x.tagName) || textNodeOf(x) ||
       [...x.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim()));
     gapRow.hidden = !all((x, s) => /flex|grid/.test(s.display));
+    clipRow.hidden = !all((x) => x.children.length > 0 || x.dataset.emKind === 'frame'); // things that can hold content
     const flex = all((x, s) => /flex/.test(s.display));
     autoBlock.hidden = !flex;
     autoAdd.hidden = many() || flex || !el.children.length || /grid/.test(cs.display); // several: the ⇧A button above

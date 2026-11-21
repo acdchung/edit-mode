@@ -1135,7 +1135,7 @@ function init() {
       // (what you put in stays where you put it; ⇧A adds auto layout).
       el = document.createElement('div');
       info = { what: 'frame', styles: { width: `${w}px`, height: `${h}px`, 'background-color': '#FFFFFF',
-        position: 'relative', 'flex-shrink': '0' } };
+        position: 'relative', 'flex-shrink': '0', overflow: 'hidden' } }; // clips its content, like a new Figma frame
     } else {
       el = document.createElement('div');
       info = { what: tool === 'ellipse' ? 'ellipse' : 'rectangle',
@@ -1242,11 +1242,32 @@ function init() {
     if (!els.length || !els.every(onCanvas)) return { show: false };
     if (!els.every(isLoose)) return { show: true, ok: false, why: 'Inside auto layout, the frame’s layout places it. Use the frame’s alignment instead.' };
     if (els.length === 1 && els[0].parentElement === canvasArea()) return { show: true, ok: false, why: 'Nothing to align to: it isn’t inside a frame. Select more than one to align them.' };
-    return { show: true, ok: true };
+    return { show: true, ok: true, spread: els.length >= 3 };
   }
   function alignSelection(how) {
-    if (!alignState().ok) return;
+    const st = alignState();
+    if (!st.ok) return;
     const els = selection();
+    if (/space$/.test(how)) {
+      // Distribute spacing: equal gaps, in the order they sit; the outer two stay put.
+      if (!st.spread) return;
+      const h = how === 'hspace';
+      const items = els.map((el) => ({ el, r: el.getBoundingClientRect() })).sort((a, b) => (h ? a.r.left - b.r.left : a.r.top - b.r.top));
+      const span = h ? items.at(-1).r.right - items[0].r.left : items.at(-1).r.bottom - items[0].r.top;
+      const gap = (span - items.reduce((t, { r }) => t + (h ? r.width : r.height), 0)) / (items.length - 1);
+      let at = h ? items[0].r.right : items[0].r.bottom;
+      changes.batch(`distribute:${Date.now()}`, () => {
+        for (const { el, r } of items.slice(1, -1)) {
+          at += gap;
+          const side = h ? 'left' : 'top';
+          const d = at - (h ? r.left : r.top);
+          if (Math.abs(d) > 0.01) changes.set(el, 'one', side, `${Math.round(num(getComputedStyle(el)[side]) + d / view.z)}px`);
+          at += h ? r.width : r.height;
+        }
+      });
+      panel.refresh();
+      return;
+    }
     let ref;
     if (els.length === 1) {
       const p = els[0].parentElement; // the frame's inside (within its border)
@@ -1343,7 +1364,7 @@ function init() {
     const f = document.createElement('div');
     f.dataset.emKind = 'frame';
     f.dataset.emName = 'Page copy';
-    f.style.cssText = `position: absolute; left: ${area.children.length ? right : 0}px; top: 0px; width: ${Math.round(box(root).width)}px; background-color: ${getComputedStyle(document.body).backgroundColor === 'rgba(0, 0, 0, 0)' ? '#FFFFFF' : getComputedStyle(document.body).backgroundColor};`;
+    f.style.cssText = `position: absolute; overflow: hidden; left: ${area.children.length ? right : 0}px; top: 0px; width: ${Math.round(box(root).width)}px; background-color: ${getComputedStyle(document.body).backgroundColor === 'rgba(0, 0, 0, 0)' ? '#FFFFFF' : getComputedStyle(document.body).backgroundColor};`;
     const made = cloneToCanvas(root, { ATTR, sameSource });
     f.append(made.copy);
     changes.batch(`duplicate:${Date.now()}`, () => {
@@ -1594,7 +1615,7 @@ function init() {
     const path = e.composedPath();
     const inOverlay = path.includes(host);
     const target = path[0];
-    const typing = inOverlay && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName);
+    const typing = inOverlay && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName) && target.type !== 'checkbox'; // a checkbox isn't typing
     const onControl = inOverlay && (typing || /^(BUTTON|A|LABEL)$/.test(target.tagName));
     const mod = e.metaKey || e.ctrlKey;
     const stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
@@ -1660,6 +1681,7 @@ function init() {
     if (e.altKey && !mod && e.code === 'Digit1') { stop(); toggleLayers(); return; } // ⌥1, as in Figma
     const ALIGN_KEYS = { KeyA: 'left', KeyH: 'hcenter', KeyD: 'right', KeyW: 'top', KeyV: 'vcenter', KeyS: 'bottom' };
     if (e.altKey && !mod && !e.shiftKey && ALIGN_KEYS[e.code] && state.selected && onCanvas(state.selected)) { stop(); alignSelection(ALIGN_KEYS[e.code]); return; } // ⌥A/H/D/W/V/S (Figma)
+    if (e.altKey && e.ctrlKey && !e.metaKey && /^Key[HV]$/.test(e.code) && state.selected && onCanvas(state.selected)) { stop(); alignSelection(e.code === 'KeyH' ? 'hspace' : 'vspace'); return; } // ⌃⌥H / ⌃⌥V: distribute
     // Zoom (Figma): ⌘+ / ⌘− / ⌘0, ⇧0 100%, ⇧1 fit, ⇧2 selection.
     if (mod && !e.altKey && /^(Equal|NumpadAdd)$/.test(e.code)) { stop(); canvas.step(1); return; }
     if (mod && !e.altKey && /^(Minus|NumpadSubtract)$/.test(e.code)) { stop(); canvas.step(-1); return; }

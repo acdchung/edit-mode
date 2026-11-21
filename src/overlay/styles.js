@@ -181,8 +181,19 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .lbtn { all: unset; flex: none; display: none; place-items: center; width: 22px; height: 22px; border-radius: 5px; color: var(--dim); cursor: pointer; }
 .lbtn .i { width: 12px; height: 12px; }
 .lrow .lbtn.dup { display: grid; margin-left: auto; }
-.align-row { display: flex; justify-content: space-between; }
-.align-row .icon:disabled { opacity: .35; cursor: default; }
+.align-row { display: flex; gap: 8px; }
+.align-row .align-seg { flex: 1; min-width: 0; }
+.align-row .align-seg button { padding: 0; min-width: 0; color: var(--muted); }
+.align-row .align-seg button:disabled { opacity: .35; cursor: default; }
+.align-row .align-seg button:disabled:hover { color: var(--muted); }
+.checkrow { display: flex; align-items: center; gap: 8px; height: 28px; color: var(--muted); cursor: pointer; }
+.checkrow input { appearance: none; display: grid; place-items: center; margin: 0; width: 14px; height: 14px; border-radius: 4px;
+                  border: 1px solid var(--hair-strong); background: var(--field); cursor: pointer; }
+.checkrow input:checked, .checkrow input:indeterminate { border-color: var(--accent); background: var(--accent) center / 10px no-repeat; }
+.checkrow input:checked { background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E\"); } /* Lucide check */
+.checkrow input:indeterminate { background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round'%3E%3Cpath d='M5 12h14'/%3E%3C/svg%3E\"); } /* Lucide minus */
+.checkrow input:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 1px; }
+.checkrow:hover { color: var(--text); }
 .lbtn:hover { color: var(--text); background: var(--field-hover); }
 .lrow:hover .lbtn, .lbtn.on { display: grid; }
 .lrow:not(:hover) .lbtn.lock.on + .lbtn.eye:not(.on) { visibility: hidden; display: grid; }
