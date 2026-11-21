@@ -3,8 +3,9 @@
 // one row (style, text, delete, add, reorder, move into another container,
 // group, auto layout, placed freely with constraints); repeated items get a
 // "Just this one / All N" switch; two copies changing the same thing
-// differently are flagged; a copy can be unticked; canvas rows aren't sent
-// yet (B3b). Push is intercepted: Claude never runs. Runs on the demo copy
+// differently are flagged (and block Proceed until one copy is unticked); a
+// copy can be unticked; Push sends page changes plus the ticked copies'
+// changes (B3b). Push is intercepted: Claude never runs. Runs on the demo copy
 // (5391). COPY=<demo copy dir>; leaves its canvas empty.
 import { chromium } from 'playwright-core';
 import { writeFileSync } from 'node:fs';
@@ -125,7 +126,7 @@ const conflictPS = one('…and in the pasted payslip', ps, (c) => c.kind === 'st
 check('…are flagged as a conflict, each naming the other copy', conflictPC?.conflict === 'Payslip' && conflictPS?.conflict === 'Page copy', `${conflictPC?.conflict} / ${conflictPS?.conflict}`);
 const known = new Set([...pc, ...ps].filter((c) => [place, grp, al, kenji, conflictPC, conflictPS].includes(c)));
 const extra = pc.filter((c) => !known.has(c) && !(
-  (c.kind === 'style' && c.element === 'div.payslip' && /^background-(image|color)$/.test(c.property)) || (c.kind === 'style' && c.element === 'div.payslip-net' && c.property === 'width') ||
+  (c.kind === 'style' && c.element === 'div.payslip' && c.property === 'background-image') || (c.kind === 'style' && c.element === 'div.payslip-net' && c.property === 'width') ||
   (c.kind === 'move' && /payslip-(net|avatar)/.test(c.element)) || /^(text|delete|insert)$/.test(c.kind)));
 check('nothing else is listed (no noise from how copies are made)', extra.length === 0 && ps.length === 1, JSON.stringify(extra.map((c) => `${c.kind} ${c.element} ${c.property ?? ''} ${c.from ?? ''} → ${c.to ?? ''}`)));
 
@@ -138,31 +139,38 @@ const dlg = () => S(`(root) => { const d = root.querySelector('.dialog'); if (!d
   title: d.querySelector('h3').textContent, secs: [...d.querySelectorAll('h4.sec')].map((h) => h.textContent),
   copies: [...d.querySelectorAll('.copyrow')].map((r) => [r.querySelector('.name').textContent, r.querySelector('.n').textContent, r.querySelector('input').checked]),
   rows: [...d.querySelectorAll('.list li')].map((l) => l.textContent), conflicts: d.querySelectorAll('.list li.conflict').length,
-  scopes: [...d.querySelectorAll('.list li .scope')].map((s) => s.textContent), proceed: d.querySelector('.pbtn.primary').disabled }; }`);
+  scopes: [...d.querySelectorAll('.list li .scope')].map((s) => s.textContent), proceed: d.querySelector('.pbtn.primary').disabled, hint: d.querySelector('.actions .hint')?.textContent ?? '' }; }`);
 let g = await dlg();
 await p.screenshot({ path: new URL('./b3a.png', import.meta.url).pathname, clip: await S(`(root) => { const r = root.querySelector('.dialog').getBoundingClientRect(); return { x: r.x - 8, y: r.y - 8, width: r.width + 16, height: r.height + 16 }; }`) });
-check('the dialog has a "From the canvas" section, marked not sent yet', g && g.secs.join() === 'From the canvasNot sent yet', JSON.stringify(g?.secs));
+check('the dialog has a "From the canvas" section', g && g.secs.join() === 'From the canvas', JSON.stringify(g?.secs));
 check('…a ticked row per copy, with its count', g && JSON.stringify(g.copies) === JSON.stringify([['Payslip', '1', true], ['Page copy', String(pc.length), true]]) || JSON.stringify(g?.copies) === JSON.stringify([['Page copy', String(pc.length), true], ['Payslip', '1', true]]), JSON.stringify(g?.copies));
 check('…each change in words', g && g.rows.some((r) => /^Place span\.payslip-net-value freely in div\.payslip-net, pinned right and bottom$/.test(r)) && g.rows.some((r) => /^Auto layout frame around div\.payslip-line, div\.payslip-line$/.test(r)) &&
   g.rows.some((r) => /^Move div\.payslip-net before div\.payslip-kicker$/.test(r)) && g.rows.some((r) => /^Text of .*Lucía F\./.test(r)), JSON.stringify(g?.rows));
 check('…the conflicting rows stand out', g?.conflicts === 2);
 check('…the repeated item has a "Just this one" switch', g && g.scopes.join() === 'Just this one', JSON.stringify(g?.scopes));
-check('…Proceed is off: there’s nothing on the page to send, and canvas changes are sent from B3b on', g?.proceed === true);
+check('…Proceed is off while two ticked copies conflict, and says which to untick', g?.proceed === true && /^Untick (Payslip or Page copy|Page copy or Payslip)/.test(g.hint), g?.hint);
 await clickAt(await S(`(root) => { const r = root.querySelector('.list li .scope').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }`));
 g = await dlg();
 check('the switch flips to "All 3", and the row says so', g.scopes.join() === 'All 3' && g.rows.some((r) => /span\.shot-name \(all 3\)/.test(r)), JSON.stringify(g.rows.filter((r) => /shot-name/.test(r))));
 await clickAt(await S(`(root) => { const r = [...root.querySelectorAll('.copyrow')].find((x) => x.textContent.startsWith('Payslip')).querySelector('input').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }`));
 g = await dlg();
 check('unticking a copy takes its changes out of the count', g.title === `Push ${pc.length} changes to code` && (await pill())?.n === String(pc.length), `${g.title} / ${JSON.stringify(await pill())}`);
+check('…and with the conflict gone, Proceed is on', g.proceed === false && g.hint === '', g.hint);
 await p.keyboard.press('Escape'); await wait();
 
-// ---------- With a change on the page too, only that one is sent (for now) ----------
+// ---------- With a change on the page too: both are sent, minus the unticked copy ----------
 await R(() => window.__editMode.changes.set(document.querySelector('#root .hero-title'), 'one', 'color', 'rgb(200, 0, 100)')); await settle();
 await p.keyboard.press('Meta+Enter'); await wait(200);
 g = await dlg();
-check('"On the page" and "From the canvas", and Proceed is on', g.secs.join('|') === 'On the page|From the canvasNot sent yet' && g.proceed === false, JSON.stringify(g.secs));
+check('"On the page" and "From the canvas", and Proceed is on', g.secs.join('|') === 'On the page|From the canvas' && g.proceed === false, JSON.stringify(g.secs));
 await p.keyboard.press('Meta+Enter'); await wait(400);
-check('Push sends the page change only', pushed.length === 1 && pushed[0].changes.length === 1 && pushed[0].changes[0].element === 'h1.hero-title', JSON.stringify(pushed.map((x) => x.changes.map((c) => c.element))));
+const sent = pushed[0]?.changes ?? [];
+check('Push sends the page change first, then the page copy’s changes', pushed.length === 1 && sent[0]?.element === 'h1.hero-title' && sent[0].fromCanvas == null &&
+  sent.slice(1).length === pc.length && sent.slice(1).every((c) => c.copyName === 'Page copy'), JSON.stringify(sent.map((c) => `${c.copyName ?? 'page'}: ${c.kind} ${c.element}`)));
+check('…not the unticked payslip’s', !sent.some((c) => c.copyName === 'Payslip'));
+check('…the repeated item as switched to all 3, for the shared rule', sent.some((c) => c.element === 'span.shot-name' && c.scope === 'all' && c.family === c.source));
+check('…the fill as one change (image, with the colour in `also`)', sent.filter((c) => c.element === 'div.payslip' && /^background/.test(c.property ?? '')).length === 1 && sent.find((c) => c.element === 'div.payslip' && c.property === 'background-image')?.also?.['background-color'] != null);
+check('…and the context describes the originals they point at', pushed[0].context.some((x) => x.element === 'div.payslip-net' && /HeroShot\.jsx/.test(x.source)));
 await wait(300);
 await S(`(root) => root.querySelectorAll('.toast').forEach((t) => t.remove())`);
 

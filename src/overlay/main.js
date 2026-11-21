@@ -14,7 +14,7 @@ import { cloneToCanvas, createDesign, keepLook, lookOf, matchLook } from './desi
 import { ICON, KEY as GLYPH } from './icons.js';
 import { IMAGE_FIT, isImageFile, uploadImage } from './assets.js';
 import { frameBox, placeBox } from './constraints.js';
-import { compareCanvas } from './compare.js';
+import { compareCanvas, relinkCanvas } from './compare.js';
 
 if (!window.__editModeOverlay) {
   window.__editModeOverlay = true;
@@ -22,7 +22,7 @@ if (!window.__editModeOverlay) {
 }
 
 function init() {
-  const KEY = { on: 'edit-mode:on', toast: 'edit-mode:toast', reapply: 'edit-mode:reapply' };
+  const KEY = { on: 'edit-mode:on', toast: 'edit-mode:toast', reapply: 'edit-mode:reapply', relink: 'edit-mode:relink' };
   const store = {
     get: (k) => { try { return sessionStorage.getItem(k); } catch { return null; } },
     set: (k, v) => { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch {} },
@@ -265,7 +265,7 @@ function init() {
   else document.addEventListener('DOMContentLoaded', mount);
 
   // window.__editMode is handy for poking at state from the browser console.
-  window.__editMode = { state, changes, layers, panel, select: (el) => select(el), compareCanvas };
+  window.__editMode = { state, changes, layers, panel, select: (el) => select(el), compareCanvas, relinkCanvas };
 
   const h = (tag, cls, html) => {
     const el = document.createElement(tag);
@@ -300,7 +300,11 @@ function init() {
 
     if (next) {
       canvas.enter();
-      design.mount().then(() => scheduleCanvasDiff(0));
+      design.mount().then(() => setTimeout(() => {
+        // After a Push or an Undo the code moved under the copies: match them to the page again.
+        if (store.get(KEY.relink)) { try { if (relinkCanvas({ force: true })) store.set(KEY.relink, null); } catch (err) { console.error(err); } }
+        scheduleCanvasDiff(0);
+      }, 300));
       calmPage(true);
       if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
       state.tokens = null;
@@ -362,11 +366,25 @@ function init() {
   // Canvas copies compared with the page (B3), recomputed a moment after
   // edits settle: a whole-page copy takes a few ms, too much for every frame.
   const skipCopies = new WeakSet(); // copies unticked in the Push dialog
+  const scopes = new WeakMap(); // copy → Map(change key → 'all'): "All N" picked in the Push dialog
+  const scopeKey = (c) => `${c.kind}|${c.source}#${c.index}|${c.property ?? ''}`;
+  function compareNow() {
+    const out = compareCanvas().filter((r) => r.changes.length);
+    for (const r of out) {
+      const m = scopes.get(r.top);
+      if (m) for (const c of r.changes) if (m.get(scopeKey(c)) === 'all') { c.scope = 'all'; c.family = c.source; }
+    }
+    return out;
+  }
+  function rememberScope(top, c) {
+    if (!scopes.has(top)) scopes.set(top, new Map());
+    scopes.get(top).set(scopeKey(c), c.scope);
+  }
   let diffTimer = 0;
   function scheduleCanvasDiff(ms = 300) {
     clearTimeout(diffTimer);
     diffTimer = setTimeout(() => {
-      try { state.canvasDiff = state.on ? compareCanvas().filter((r) => r.changes.length) : []; } catch (err) { console.error(err); state.canvasDiff = []; }
+      try { state.canvasDiff = state.on ? compareNow() : []; } catch (err) { console.error(err); state.canvasDiff = []; }
       renderPill();
     }, ms);
   }
@@ -456,7 +474,7 @@ function init() {
     if (state.phase !== 'idle') return;
     if (state.editing) stopText();
     clearTimeout(diffTimer);
-    try { state.canvasDiff = compareCanvas().filter((r) => r.changes.length); } catch (err) { console.error(err); state.canvasDiff = []; }
+    try { state.canvasDiff = compareNow(); } catch (err) { console.error(err); state.canvasDiff = []; }
     const list = changes.list();
     if (!list.length && !state.canvasDiff.length) return;
     const d = h('div', 'dialog glassy');
@@ -486,9 +504,7 @@ function init() {
       blocks.push(listBlock(list, plainRow));
     }
     if (state.canvasDiff.length) {
-      const head = h('h4', 'sec', 'From the canvas');
-      head.append(h('span', 'tag', 'Not sent yet'));
-      blocks.push(head);
+      blocks.push(h('h4', 'sec', 'From the canvas'));
       for (const r of state.canvasDiff) {
         const row = h('label', 'checkrow copyrow');
         const box = h('input');
@@ -506,7 +522,7 @@ function init() {
             const label = () => { sc.textContent = c.scope === 'all' ? `All ${c.count}` : 'Just this one'; };
             label();
             sc.title = 'Apply to just this one, or to every one like it';
-            sc.addEventListener('click', (e) => { e.preventDefault(); c.scope = c.scope === 'all' ? 'one' : 'all'; label(); paint(); });
+            sc.addEventListener('click', (e) => { e.preventDefault(); c.scope = c.scope === 'all' ? 'one' : 'all'; c.family = c.scope === 'all' ? c.source : undefined; rememberScope(r.top, c); label(); paint(); gate(); });
             li.append(sc);
           }
           return li;
@@ -516,6 +532,7 @@ function init() {
           block.classList.toggle('off', !box.checked);
           setTitle();
           renderPill();
+          gate();
         });
         block.classList.toggle('off', !box.checked);
         blocks.push(row, block);
@@ -523,7 +540,15 @@ function init() {
     }
     const a = actions('Proceed', push);
     a.ok.insertAdjacentHTML('beforeend', `<kbd>${GLYPH.command}${GLYPH.enter}</kbd>`);
-    a.ok.disabled = !list.length; // canvas changes are sent from B3b on
+    const hint = h('span', 'hint');
+    a.row.prepend(hint);
+    // Two ticked copies that change the same thing differently: pick one first.
+    function gate() {
+      const clash = conflicting();
+      hint.textContent = clash ? `Untick ${clash[0]} or ${clash[1]}: they change the same thing differently` : '';
+      a.ok.disabled = !!clash || !(list.length + canvasCount());
+    }
+    gate();
     const conv = h('div', 'conv');
     conv.hidden = true;
     d.append(...blocks, conv, a.row);
@@ -617,6 +642,7 @@ function init() {
       }
       if (c.kind === 'group') return `${c.autoLayout ? 'Auto layout frame' : 'Group'} around ${c.children.map((k) => k.element).join(', ')}`;
       if (c.kind === 'move') return `Move ${who} ${c.into ? `into ${c.parent?.element}, ` : ''}${spot}`;
+      if (c.kind === 'style' && c.also && c.property === 'background-image') return `Fill of ${who}: ${pretty(c.to === 'none' ? c.also['background-color'] ?? 'none' : c.to)}`;
       if (c.kind === 'insert') return `Add ${c.what === 'text' ? `text “${pretty(c.text ?? '')}”` : c.element.replace(/^new /, '')} in ${c.parent?.element}, ${spot}`;
     }
     if (c.kind === 'insert' && c.what === 'copy') {
@@ -667,9 +693,19 @@ function init() {
     return [...seen.values()];
   }
 
+  // Ticked copies' changes, and the first pair of ticked copies that conflict.
+  const canvasToSend = () => state.canvasDiff.filter((r) => !skipCopies.has(r.top)).flatMap((r) => r.changes);
+  function conflicting() {
+    const ticked = new Set(state.canvasDiff.filter((r) => !skipCopies.has(r.top)).map((r) => r.copy.name));
+    const c = canvasToSend().find((x) => x.conflict && ticked.has(x.conflict));
+    return c ? [c.copyName, c.conflict] : null;
+  }
+
   async function push() {
-    const list = changes.list();
+    if (conflicting()) return;
+    const list = [...changes.list(), ...canvasToSend()];
     if (!list.length) return;
+    if (list.some((c) => c.fromCanvas != null)) store.set(KEY.relink, '1'); // the code moves under the copies: link them again on the next load
     closeDialog();
     select(null);
     state.phase = 'running';
@@ -729,8 +765,9 @@ function init() {
       const res = await fetch('/@edit-mode/undo', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Undo failed');
-      store.set(KEY.reapply, JSON.stringify(data.changes));
+      store.set(KEY.reapply, JSON.stringify(data.changes.filter((c) => c.fromCanvas == null))); // canvas rows: the copies still have them
       store.set(KEY.on, '1');
+      store.set(KEY.relink, '1');
       if (data.skipped?.length) {
         store.set(KEY.toast, JSON.stringify({ label: 'Undone, mostly', summary: `Left alone because they were edited after Claude: ${data.skipped.join(', ')}` }));
       }

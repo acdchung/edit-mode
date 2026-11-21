@@ -4,7 +4,7 @@ The edits only exist as a browser preview. Your job is to make the real source c
 Batch folder: {{BATCH}}
 
 - `{{BATCH}}/changes.json`: every edit, in order. Fields:
-  - `kind`: `style`, `text` or `delete`
+  - `kind`: `style`, `text`, `delete`, `move`, `insert` or `group` (and `place` from the canvas, rule 10)
   - `element`: tag and classes, e.g. `button.btn.cta-primary`
   - `source`: `file:line:col` of the JSX tag that renders the element
   - `scope`: `all` = the element's whole `family`; `one` = only this element (for code elements, the instance at `index` (0-based) among the `count` rendered from that line)
@@ -32,6 +32,13 @@ Rules:
    `kind: "group"`: the listed `children` were wrapped in a new `<div>` (its `newId`). If `fromDifferentContainers` is true, the children came from different places: move each one into the wrapper. Add the wrapper in the JSX with a descriptive class name; later style changes with that `newId` (often auto layout: `display: flex`, `gap`, alignment) style the wrapper.
    `property: "display"` with `to: "none"`: the designer hid the layer with the eye in the Layers panel (Figma's hide). Keep the element in the JSX and hide it with CSS (a modifier class for `scope: "one"`). Don't delete it.
 9. Images: a `url(…)` value containing `/@edit-mode/assets/` (an image fill the designer picked) points at a file that only exists while Edit Mode runs. `context.json` › `images` lists each one with the copy already made in the project (`file`) and its URL there (`src`): use `src` in the CSS. If `EDITMODE.md` says images live somewhere else, still use `src` and mention it in your summary (you can't move image files). An image fill is `background-image` plus `background-size`/`background-position`/`background-repeat` (cover = Figma's Fill, contain = Fit, repeat = Tile).
-10. Only edit the files the changes point to and the files that style those elements (including token files, if `EDITMODE.md` says new values belong there). Never edit `EDITMODE.md` itself. If something wider seems needed, don't do it; mention it in your summary.
-11. Don't run shell commands and don't install anything.
-12. When finished, reply with one or two short sentences for a designer: what you changed, and anything you couldn't do. No code, no file paths unless something needs their attention.
+10. Changes from the design canvas (`fromCanvas` set; `copyName` names the copy): the designer copied part of the page onto a canvas beside it, reworked the copy, and these are its differences from the page as it renders now. `source`/`index` always point at the original on the page; apply them like the live edits above. Treat each copy as one design: make the page look like it. What's specific to the canvas:
+   - `style`: `also` lists more properties of the same change (a fill is `background-image` plus `background-color`, size, position…); apply them together.
+   - `kind: "place"`: the element is placed freely in `parent` instead of sitting in its flow (Figma's absolute position). Make it `position: absolute` with exactly the insets in `styles` (they encode its constraints: `right`/`bottom` = pinned to that edge, both `left` and `right` = stretches, `calc(50% …)` with `translate` = centered, `%` = scales), and give `parent` `position: relative` if it has none. `box` is where it sits and how big its frame was, for reference. Mention in your summary that pinned elements may need a look on small screens.
+   - `kind: "move"` with `into: true`: moved into another container (`parent`), between `after` and `before`. Without `into`: reordered among its siblings, now between `after` and `before`.
+   - `kind: "group"`: a new wrapper around `children` (each a `source`/`index`, or `newId` for something new), between `after` and `before` in `parent`. `autoLayout: true` means it's an auto-layout frame. Its `styles` are its look and layout (`display: flex`, direction, gap, alignment, padding, fill…): put them in a CSS rule with a descriptive class name, not inline. Leave out what only placed it on the canvas, such as `flex-shrink: 0` when its parent isn't flex.
+   - `kind: "insert"`: something new (`what`: text, rectangle, ellipse, image, frame…), between `after` and `before` in `parent` (or inside the new wrapper `insideNew`). `html` is its markup with inline styles: rebuild it as JSX with descriptive class names and the styles in CSS. Use `text` as its content.
+   - Values were measured in the browser (`rgb(…)`, pixels): map them to the project's tokens and existing values (rule 4).
+11. Only edit the files the changes point to and the files that style those elements (including token files, if `EDITMODE.md` says new values belong there). Never edit `EDITMODE.md` itself. If something wider seems needed, don't do it; mention it in your summary.
+12. Don't run shell commands and don't install anything.
+13. When finished, reply with one or two short sentences for a designer: what you changed, and anything you couldn't do. No code, no file paths unless something needs their attention.

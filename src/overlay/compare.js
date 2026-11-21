@@ -91,11 +91,11 @@ export function compareCopy({ top, roots }, copy = { id: 0, name: copyName(top) 
   for (const n of nodes) {
     if (!n.hasAttribute(FROM)) continue;
     const o = originalOf(n);
-    if (o?.el) { linked.set(n, o); copyOf.set(o.el, n); } else missing++;
+    if (o?.el && compatible(n, o.el)) { linked.set(n, o); copyOf.set(o.el, n); } else missing++;
   }
   // Things the project's code doesn't render itself (an icon library's <svg>)
   // carry no source: they're matched by position inside their matched parent.
-  const untagged = (k) => !k.hasAttribute(FROM) && !k.dataset?.emKind && !k.dataset?.emName;
+  const untagged = (k) => !k.hasAttribute(FROM) && !k.hasAttribute(WAS) && !k.dataset?.emKind && !k.dataset?.emName;
   const pairUp = (c, o) => {
     const ck = [...c.children].filter(untagged), ok = [...o.children].filter((k) => !k.hasAttribute(ATTR) && !NOT_LAYER.test(k.tagName));
     if (!ck.length || ck.length !== ok.length || ck.some((k, i) => k.tagName !== ok[i].tagName)) return;
@@ -134,6 +134,13 @@ export function compareCopy({ top, roots }, copy = { id: 0, name: copyName(top) 
       // A frame made `relative` only so things can be placed freely in it: part of placing them.
       if (p === 'position' && to === 'relative' && from === 'static' && [...c.children].some((k) => placed.has(k))) continue;
       out.push({ kind: 'style', ...ref(o), property: p, from, to, value: c.style.getPropertyValue(p) });
+    }
+    // A fill is several background properties (image, color, size…): one entry, the rest in `also`.
+    const bg = out.filter((e) => e.kind === 'style' && e.fromCanvas === copy.id && e.source === o.source && e.index === o.index && e.element === ref(o).element && /^background-/.test(e.property));
+    if (bg.length > 1) {
+      const main = bg.find((e) => e.property === 'background-image') || bg[0];
+      main.also = Object.fromEntries(bg.filter((e) => e !== main).map((e) => [e.property, e.value]));
+      for (const e of bg) if (e !== main) out.splice(out.indexOf(e), 1);
     }
     if (placed.has(c)) {
       const b = frameBox(c);
@@ -219,8 +226,166 @@ function longestRun(a) {
   return keep;
 }
 
+// ---------- Re-linking (B3c) ----------
+// After a Push (or any code edit) line numbers move, so a copy's links can
+// point at nothing or at the wrong element. Each copy is then matched to
+// the page again by structure (same tags, shared classes, children that line
+// up) and its links rewritten, including new groups and new elements that
+// now exist in the code. What can't be matched is set aside
+// (data-em-from-was), never guessed, so it shows up as still different.
+const WAS = 'data-em-from-was';
+const shares = (a, b) => [...a.classList].filter((c) => b.classList.contains(c)).length;
+const compatible = (c, o) => !!o && c.tagName === o.tagName && (!c.classList.length || !o.classList.length || shares(c, o) > 0);
+const kidsOf = (n) => [...n.children].filter((k) => !NOT_LAYER.test(k.tagName) && k.tagName !== 'EDIT-MODE-ROOT' && !k.hasAttribute('data-em-canvas'));
+
+export function linksOk({ roots }) {
+  for (const r of roots) for (const n of [r, ...r.querySelectorAll(`[${FROM}]`)]) {
+    if (!n.hasAttribute(FROM)) continue;
+    if (!compatible(n, originalOf(n)?.el)) return false;
+  }
+  return true;
+}
+
+function matcher() {
+  const memo = new Map();
+  function sim(c, p, depth) {
+    if (c.tagName !== p.tagName) return -Infinity;
+    let m = memo.get(c);
+    if (!m) memo.set(c, (m = new Map()));
+    const key = `${depth}`;
+    let byP = m.get(key);
+    if (!byP) m.set(key, (byP = new Map()));
+    if (byP.has(p)) return byP.get(p);
+    const sh = shares(c, p);
+    // Same classes (or neither has any): a likely pair. A copy node with no
+    // class (a group or frame made on the canvas) vs a page node with one
+    // (the wrapper Claude wrote): only if their contents line up. Different
+    // classes: unlikely.
+    let score = c.classList.length ? (p.classList.length ? (sh ? 1 + 2 * sh : -1.5) : 0.5) : (p.classList.length ? -0.5 : 1);
+    // Inline styles the code sets itself (React's style prop: a bar's width) stay on the copy.
+    for (let i = 0; i < p.style.length; i++) { const q = p.style[i]; if (c.style.getPropertyValue(q) === p.style.getPropertyValue(q)) score += 0.5; }
+    const ck = kidsOf(c), pk = kidsOf(p);
+    if (!ck.length && !pk.length && c.textContent.trim() === p.textContent.trim()) score += 2;
+    if (depth > 0 && ck.length && pk.length) score += 0.5 * align(ck, pk, depth - 1).total;
+    byP.set(p, score);
+    return score;
+  }
+  // The best order-keeping pairing of two child lists.
+  function align(a, b, depth) {
+    const n = a.length, m = b.length;
+    const dp = Array.from({ length: n + 1 }, () => new Float64Array(m + 1));
+    const S = a.map((x) => b.map((y) => sim(x, y, depth)));
+    for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++) {
+      const s = S[i - 1][j - 1];
+      dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1], s > 0 ? dp[i - 1][j - 1] + s : -Infinity);
+    }
+    const pairs = [];
+    for (let i = n, j = m; i > 0 && j > 0;) {
+      const s = S[i - 1][j - 1];
+      if (s > 0 && dp[i][j] === dp[i - 1][j - 1] + s) { pairs.push([a[i - 1], b[j - 1]]); i--; j--; }
+      else if (dp[i][j] === dp[i - 1][j]) i--;
+      else j--;
+    }
+    return { pairs: pairs.reverse(), total: dp[n][m] };
+  }
+  return { sim, align };
+}
+
+function setLink(c, p) {
+  const src = p.getAttribute(ATTR);
+  if (src) {
+    const i = [...document.querySelectorAll(`[${ATTR}="${CSS.escape(src)}"]`)].indexOf(p);
+    c.setAttribute(FROM, `${src}#${i}`);
+    c.removeAttribute(WAS);
+  } else if (c.hasAttribute(FROM)) { // matched something the project doesn't render itself: paired by position at compare time
+    c.setAttribute(WAS, c.getAttribute(FROM));
+    c.removeAttribute(FROM);
+  }
+}
+function setAside(n) {
+  for (const x of [n, ...n.querySelectorAll(`[${FROM}]`)]) {
+    if (!x.hasAttribute(FROM)) continue;
+    x.setAttribute(WAS, x.getAttribute(FROM));
+    x.removeAttribute(FROM);
+  }
+}
+
+// Match one copy to the page again. Returns false (and changes nothing) when
+// a root has no counterpart yet, e.g. the app hasn't rendered.
+// Children are matched in any order (the designer may have reordered them);
+// the insides of a group or frame made on the canvas are matched against
+// the page container it sits in; something moved into another container is
+// looked for anywhere in the copied piece.
+export function relinkCopy({ roots }) {
+  const { sim } = matcher();
+  const pageEls = [...document.querySelectorAll(`[${ATTR}]`)];
+  const used = new Set();
+  const plan = [];
+  for (const r of roots) {
+    const file = (r.getAttribute(FROM) || r.getAttribute(WAS) || '').split(':')[0];
+    let cands = pageEls.filter((p) => p.tagName === r.tagName && (!r.classList.length || shares(r, p) > 0));
+    if (file && cands.some((p) => p.getAttribute(ATTR).startsWith(file + ':'))) cands = cands.filter((p) => p.getAttribute(ATTR).startsWith(file + ':'));
+    if (cands.length > 300) cands = cands.slice(0, 300);
+    let best = null, bestScore = 0;
+    for (const p of cands) { if (used.has(p)) continue; const sc = sim(r, p, 2); if (sc > bestScore) { best = p; bestScore = sc; } }
+    if (!best) return false;
+    used.add(best);
+    plan.push([r, best]);
+  }
+  // A group or frame made on the canvas: no class, not linked to anything yet.
+  // (Made on the canvas = it has a kind; a copy of the page never does. Once
+  // pushed it's linked to the wrapper in the code, until that's gone again.)
+  const canvasWrapper = (k) => kidsOf(k).length > 0 && (/^(group|frame)$/.test(k.dataset.emKind || '') || (!k.classList.length && !k.hasAttribute(FROM) && !k.hasAttribute(WAS)));
+  // Best pairs, highest score first (ties: closest in order), each side once.
+  const assign = (cs, ps) => {
+    const all = [];
+    const at = (i, n) => (n > 1 ? i / (n - 1) : 0); // relative position in the list
+    cs.forEach((c, i) => ps.forEach((p, j) => { if (used.has(p)) return; const sc = sim(c, p, 2); if (sc > 0) all.push([sc, Math.abs(at(i, cs.length) - at(j, ps.length)), c, p]); }));
+    all.sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+    const got = new Map();
+    for (const [, , c, p] of all) if (!got.has(c) && !used.has(p)) { got.set(c, p); used.add(p); }
+    return got;
+  };
+  const pending = [];
+  const walk = (c, p) => {
+    setLink(c, p);
+    const pk = kidsOf(p);
+    const pairs = assign(kidsOf(c), pk);
+    const open = (k) => {
+      if (pairs.has(k)) return;
+      if (canvasWrapper(k)) { // its insides belong to this container on the page
+        if (k.hasAttribute(FROM)) { k.setAttribute(WAS, k.getAttribute(FROM)); k.removeAttribute(FROM); } // the code's wrapper is gone
+        const inner = assign(kidsOf(k), pk);
+        for (const [x, y] of inner) pairs.set(x, y);
+        for (const x of kidsOf(k)) open(x);
+        return;
+      }
+      pending.push(k);
+    };
+    for (const k of kidsOf(c)) open(k);
+    for (const [x, y] of pairs) walk(x, y);
+  };
+  for (const [r, p] of plan) walk(r, p);
+  // Moved into another container: look anywhere in the copied piece (same classes needed).
+  const scope = plan.flatMap(([, p]) => [p, ...p.querySelectorAll('*')]);
+  for (const k of pending) {
+    let best = null, bestScore = 2.5;
+    for (const p of scope) { if (used.has(p) || p.tagName !== k.tagName || !shares(k, p)) continue; const sc = sim(k, p, 2); if (sc > bestScore) { best = p; bestScore = sc; } }
+    if (best) { used.add(best); walk(k, best); } else setAside(k);
+  }
+  return true;
+}
+
+// Re-link copies whose links broke (or all of them, after a Push). True when any changed.
+export function relinkCanvas({ force = false } = {}) {
+  let any = false;
+  for (const u of copiesOnCanvas()) if (force || !linksOk(u)) any = relinkCopy(u) || any;
+  return any;
+}
+
 // Every copy on the canvas, compared. Two copies changing the same thing differently are flagged.
 export function compareCanvas() {
+  relinkCanvas();
   const results = copiesOnCanvas().map((u, i) => compareCopy(u, { id: i + 1, name: copyName(u.top) }));
   const seen = new Map();
   for (const r of results) {
