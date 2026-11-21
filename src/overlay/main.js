@@ -14,6 +14,7 @@ import { cloneToCanvas, createDesign, keepLook, lookOf, matchLook } from './desi
 import { ICON, KEY as GLYPH } from './icons.js';
 import { IMAGE_FIT, isImageFile, uploadImage } from './assets.js';
 import { frameBox, placeBox } from './constraints.js';
+import { createSnapper } from './snap.js';
 import { buildHtml, compareCanvas, componentName, designName, linkDesign, newDesigns, relinkCanvas, rememberLinks } from './compare.js';
 
 if (!window.__editModeOverlay) {
@@ -40,6 +41,7 @@ function init() {
       <div class="board-label" hidden>Canvas</div>
       <div class="layer sibs"></div>
       <div class="layer hints"></div>
+      <div class="layer guides"></div>
       <div class="hover" hidden></div>
       <div class="target" hidden></div>
       <div class="ghost" hidden></div>
@@ -154,6 +156,14 @@ function init() {
     if (e.composedPath()[0].closest?.('button, a')) e.preventDefault();
   });
   const multiLayer = $('.multis');
+  const snapper = createSnapper($('.guides'));
+  // What a canvas move or resize snaps to: canvas items, the live page, and the frames it's in.
+  const ancestorsOf = (els) => { const out = []; for (let n = els[0]?.parentElement; n && n !== document.body; n = n.parentElement) out.push(n); return out.filter((n) => !n.hasAttribute(CANVAS_ATTR)); };
+  function snapTargetsFor(els) {
+    if (onCanvas(els[0])) return snapper.targets(els, { canvas: canvasArea(), page: document.body, near: ancestorsOf(els) });
+    const parent = els[0].parentElement; // on the live page: its siblings and its parent
+    return snapper.targets(els, { near: [parent, ...[...(parent?.children ?? [])].filter((k) => k.getClientRects().length)] });
+  }
   for (const b of toolsBar.querySelectorAll('button[data-tool]')) b.addEventListener('click', () => setTool(b.dataset.tool));
   ui.append(panel.el, panel.pop);
 
@@ -1377,8 +1387,28 @@ function init() {
   function updateDrag(x, y) {
     if (drag.canvas) {
       const { lifted } = drag.canvas;
-      const dx = (x - drag.canvas.x) / view.z;
-      const dy = (y - drag.canvas.y) / view.z;
+      let sx = x - drag.canvas.x;
+      let sy = y - drag.canvas.y;
+      // Snap (⌃ places freely): its edges and centre to what's around.
+      const key = `${view.z}|${canvasArea()?.getBoundingClientRect().left}|${canvasArea()?.getBoundingClientRect().top}`;
+      if (drag.canvas.snapKey !== key) { // first move, or the view moved: measure again
+        drag.canvas.snapKey = key;
+        drag.canvas.ts = snapTargetsFor(drag.els);
+        const r = unionRect(drag.els);
+        const [ax, ay] = drag.canvas.applied || [0, 0]; // how far they've been moved so far (screen px)
+        drag.canvas.r0 = { left: r.left - ax, top: r.top - ay, right: r.right - ax, bottom: r.bottom - ay, width: r.width, height: r.height };
+      }
+      const r0 = drag.canvas.r0;
+      if (!pointer?.ctrlKey) {
+        const at = (ax, ay) => ({ left: r0.left + ax, top: r0.top + ay, right: r0.right + ax, bottom: r0.bottom + ay, width: r0.width, height: r0.height });
+        const s = snapper.move(at(sx, sy), drag.canvas.ts);
+        sx += s.dx;
+        sy += s.dy;
+        snapper.show(at(sx, sy), drag.canvas.ts);
+      } else snapper.clear();
+      drag.canvas.applied = [sx, sy];
+      const dx = sx / view.z;
+      const dy = sy / view.z;
       for (const [k, l, t] of lifted.at) {
         k.style.setProperty('left', `${l + dx}px`, 'important');
         k.style.setProperty('top', `${t + dy}px`, 'important');
@@ -1394,6 +1424,7 @@ function init() {
   }
 
   function endDragUI() {
+    snapper.clear();
     ghostBox.hidden = insertLine.hidden = targetBox.hidden = true;
     glass.classList.remove('dragging');
     frame.classList.remove('moving');
@@ -2209,6 +2240,7 @@ function init() {
       const x0 = e.clientX;
       const y0 = e.clientY;
       const group = `resize:${Date.now()}`;
+      const ts = snapTargetsFor(els);
 
       const move = (ev) => {
         if (!(ev.buttons & 1)) return up(); // the button is up (a lost release): hovering must never resize
@@ -2222,7 +2254,17 @@ function init() {
           const corner = /[ew]/.test(dir) && /[ns]/.test(dir);
           if (corner ? Math.abs(w / r0.width - 1) > Math.abs(h / r0.height - 1) : /[ew]/.test(dir)) h = w / ratio;
           else w = h * ratio;
-        }
+          snapper.clear();
+        } else if (!ev.ctrlKey) { // snap the dragged edge, or the size to another's (⌃ resizes freely)
+          const at = (ww, hh) => {
+            const left = dir.includes('w') ? r0.right - ww : r0.left, top = dir.includes('n') ? r0.bottom - hh : r0.top;
+            return { left, top, width: ww, height: hh, right: left + ww, bottom: top + hh };
+          };
+          const s = snapper.resize(at(w, h), dir, ts);
+          w = s.width;
+          h = s.height;
+          snapper.show(at(w, h), ts, s.size);
+        } else snapper.clear();
         // New size of each element: scaled with the frame (or, from nothing, the frame's own size).
         const size = (b0, frame0, now) => Math.max(0, Math.round(frame0 ? b0 * (now / frame0) : now / view.z)); // screen → CSS px
         changes.batch(group, () => {
@@ -2242,6 +2284,7 @@ function init() {
         });
       };
       const up = () => {
+        snapper.clear();
         handle.removeEventListener('pointermove', move);
         handle.removeEventListener('pointerup', up);
         handle.removeEventListener('pointercancel', up);

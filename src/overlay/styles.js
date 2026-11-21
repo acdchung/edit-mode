@@ -171,6 +171,8 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 
 /* ---------- Panel ---------- */
 .mline { position: fixed; background: #f24822; pointer-events: none; }
+.sguide { position: fixed; background: #f24822; pointer-events: none; }
+.sbox { position: fixed; outline: 1px solid #f24822; outline-offset: -1px; pointer-events: none; }
 .mlabel { position: fixed; transform: translate(-50%, -50%); background: #f24822; color: #fff; padding: 1px 4px; border-radius: 3px;
           font: 500 10.5px/14px var(--sans); font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; }
 .mtarget { position: fixed; outline: 1px solid #f24822; pointer-events: none; }
