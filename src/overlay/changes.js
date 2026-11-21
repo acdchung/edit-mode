@@ -257,6 +257,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
 
   function remove(el, scope) {
     const t = targets(el, scope);
+    const info = meta(el, t); // before it's taken out: a detached element no longer reads as on the canvas
     const st = step();
     for (const x of t.els) {
       if (onCanvas(x)) { // on the canvas it's really removed (the saved canvas stays clean); undo puts it back
@@ -267,7 +268,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
       touch(st, x, 'display');
       x.style.setProperty('display', 'none', 'important');
     }
-    put(`${t.key}|#delete`, { kind: 'delete', ...meta(el, t) });
+    put(`${t.key}|#delete`, { kind: 'delete', ...info });
     onChange();
   }
 

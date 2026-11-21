@@ -14,6 +14,7 @@ import { cloneToCanvas, createDesign, keepLook, lookOf, matchLook } from './desi
 import { ICON, KEY as GLYPH } from './icons.js';
 import { IMAGE_FIT, isImageFile, uploadImage } from './assets.js';
 import { frameBox, placeBox } from './constraints.js';
+import { compareCanvas } from './compare.js';
 
 if (!window.__editModeOverlay) {
   window.__editModeOverlay = true;
@@ -92,6 +93,7 @@ function init() {
 
   // ---------- State ----------
   const state = {
+    canvasDiff: [], // B3: each copy on the canvas compared with the page (compare.js), refreshed shortly after changes
     multi: [], // all selected elements (siblings) when shift-clicking
     tool: 'select', // select | rect | ellipse | text
     on: false,
@@ -110,6 +112,7 @@ function init() {
   let pingTimer = 0;
 
   const changes = createChanges(() => {
+    scheduleCanvasDiff();
     renderPill();
     if (state.selected) panel.refresh(); // Layers watches the page itself
   }, {
@@ -262,7 +265,7 @@ function init() {
   else document.addEventListener('DOMContentLoaded', mount);
 
   // window.__editMode is handy for poking at state from the browser console.
-  window.__editMode = { state, changes, layers, panel, select: (el) => select(el) };
+  window.__editMode = { state, changes, layers, panel, select: (el) => select(el), compareCanvas };
 
   const h = (tag, cls, html) => {
     const el = document.createElement(tag);
@@ -297,7 +300,7 @@ function init() {
 
     if (next) {
       canvas.enter();
-      design.mount();
+      design.mount().then(() => scheduleCanvasDiff(0));
       calmPage(true);
       if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
       state.tokens = null;
@@ -356,8 +359,21 @@ function init() {
   // Rebuild the pill only when its shape changes, and morph its width when it does.
   const pill = $('.pill');
   let pillSig = '';
+  // Canvas copies compared with the page (B3), recomputed a moment after
+  // edits settle: a whole-page copy takes a few ms, too much for every frame.
+  const skipCopies = new WeakSet(); // copies unticked in the Push dialog
+  let diffTimer = 0;
+  function scheduleCanvasDiff(ms = 300) {
+    clearTimeout(diffTimer);
+    diffTimer = setTimeout(() => {
+      try { state.canvasDiff = state.on ? compareCanvas().filter((r) => r.changes.length) : []; } catch (err) { console.error(err); state.canvasDiff = []; }
+      renderPill();
+    }, ms);
+  }
+  const canvasCount = () => state.canvasDiff.reduce((n, r) => n + (skipCopies.has(r.top) ? 0 : r.changes.length), 0);
+
   function renderPill() {
-    const n = changes.count;
+    const n = changes.count + canvasCount();
     const sig = [state.phase, state.on, n > 0, !!state.server?.last?.undoable].join('|');
     if (sig === pillSig) {
       const badge = pillEnd.querySelector('.n');
@@ -395,7 +411,7 @@ function init() {
       return;
     }
     if (state.on) {
-      const n = changes.count;
+      const n = changes.count + canvasCount();
       const push = h('button', 'act', 'Push');
       push.title = 'Send changes to Claude (⌘↵)';
       push.disabled = !n;
@@ -437,32 +453,80 @@ function init() {
   }
 
   function openPushDialog() {
-    if (!changes.count || state.phase !== 'idle') return;
+    if (state.phase !== 'idle') return;
     if (state.editing) stopText();
+    clearTimeout(diffTimer);
+    try { state.canvasDiff = compareCanvas().filter((r) => r.changes.length); } catch (err) { console.error(err); state.canvasDiff = []; }
     const list = changes.list();
+    if (!list.length && !state.canvasDiff.length) return;
     const d = h('div', 'dialog glassy');
-    d.append(h('h3', '', `Push ${list.length} change${list.length === 1 ? '' : 's'} to code`));
+    const title = h('h3');
+    const setTitle = () => { const n = list.length + canvasCount(); title.textContent = `Push ${n} change${n === 1 ? '' : 's'} to code`; };
+    setTitle();
+    d.append(title);
     d.append(Object.assign(h('p'), { textContent: 'Claude will update your source to match. You can undo afterwards.' }));
-    const wrap = h('div', 'list-wrap');
-    const ul = h('ul', 'list');
-    for (const c of list) {
-      const li = h('li');
-      li.textContent = describeChange(c);
-      li.title = li.textContent;
-      ul.append(li);
+    // A list of rows, folded to four with "Show all".
+    const listBlock = (rows, render) => {
+      const wrap = h('div', 'list-wrap');
+      const ul = h('ul', 'list');
+      for (const c of rows) ul.append(render(c));
+      const more = h('button', 'more', `Show all ${rows.length}`);
+      more.hidden = rows.length <= 4;
+      more.addEventListener('click', () => {
+        const open = ul.classList.toggle('open');
+        more.textContent = open ? 'Show less' : `Show all ${rows.length}`;
+      });
+      wrap.append(ul, more);
+      return wrap;
+    };
+    const plainRow = (c) => { const li = h('li'); li.textContent = li.title = describeChange(c); return li; };
+    const blocks = [];
+    if (list.length) {
+      if (state.canvasDiff.length) blocks.push(h('h4', 'sec', 'On the page'));
+      blocks.push(listBlock(list, plainRow));
     }
-    const more = h('button', 'more', `Show all ${list.length}`);
-    more.hidden = list.length <= 4;
-    more.addEventListener('click', () => {
-      const open = ul.classList.toggle('open');
-      more.textContent = open ? 'Show less' : `Show all ${list.length}`;
-    });
-    wrap.append(ul, more);
+    if (state.canvasDiff.length) {
+      const head = h('h4', 'sec', 'From the canvas');
+      head.append(h('span', 'tag', 'Not sent yet'));
+      blocks.push(head);
+      for (const r of state.canvasDiff) {
+        const row = h('label', 'checkrow copyrow');
+        const box = h('input');
+        box.type = 'checkbox';
+        box.checked = !skipCopies.has(r.top);
+        row.append(box, h('span', 'name', r.copy.name), h('span', 'n', String(r.changes.length)));
+        const block = listBlock(r.changes, (c) => {
+          const li = h('li', c.conflict ? 'conflict' : '');
+          const text = h('span', 'text');
+          const paint = () => { text.textContent = describeChange(c); li.title = text.textContent + (c.conflict ? ` · also changed differently in ${c.conflict}` : ''); };
+          paint();
+          li.append(text);
+          if (c.count > 1 && c.source && !/^(insert|group)$/.test(c.kind)) { // a repeated item: this one, or all of them
+            const sc = h('button', 'scope');
+            const label = () => { sc.textContent = c.scope === 'all' ? `All ${c.count}` : 'Just this one'; };
+            label();
+            sc.title = 'Apply to just this one, or to every one like it';
+            sc.addEventListener('click', (e) => { e.preventDefault(); c.scope = c.scope === 'all' ? 'one' : 'all'; label(); paint(); });
+            li.append(sc);
+          }
+          return li;
+        });
+        box.addEventListener('change', () => {
+          if (box.checked) skipCopies.delete(r.top); else skipCopies.add(r.top);
+          block.classList.toggle('off', !box.checked);
+          setTitle();
+          renderPill();
+        });
+        block.classList.toggle('off', !box.checked);
+        blocks.push(row, block);
+      }
+    }
     const a = actions('Proceed', push);
     a.ok.insertAdjacentHTML('beforeend', `<kbd>${GLYPH.command}${GLYPH.enter}</kbd>`);
+    a.ok.disabled = !list.length; // canvas changes are sent from B3b on
     const conv = h('div', 'conv');
     conv.hidden = true;
-    d.append(wrap, conv, a.row);
+    d.append(...blocks, conv, a.row);
     slot.replaceChildren(d);
     a.ok.focus();
     conventionsRow(conv, a.ok);
@@ -541,7 +605,20 @@ function init() {
     });
     return s.length > 40 ? s.slice(0, 39) + '…' : s;
   };
+  const PIN = { h: { start: 'left', end: 'right', both: 'left and right', center: 'centered', scale: 'scaling' }, v: { start: 'top', end: 'bottom', both: 'top and bottom', center: 'centered', scale: 'scaling' } };
   function describeChange(c) {
+    if (c.fromCanvas != null) {
+      const who = c.element + (c.scope === 'all' ? ` (all ${c.count})` : c.count > 1 ? ' (just this one)' : '');
+      const spot = c.after ? `after ${c.after.element}` : c.before ? `before ${c.before.element}` : 'first';
+      if (c.kind === 'place') {
+        const { h: ph, v: pv } = c.constraints;
+        const pins = ph === pv && ph === 'center' ? 'centered' : `pinned ${PIN.h[ph]} and ${PIN.v[pv]}`;
+        return `Place ${who} freely in ${c.parent?.element}, ${pins}`;
+      }
+      if (c.kind === 'group') return `${c.autoLayout ? 'Auto layout frame' : 'Group'} around ${c.children.map((k) => k.element).join(', ')}`;
+      if (c.kind === 'move') return `Move ${who} ${c.into ? `into ${c.parent?.element}, ` : ''}${spot}`;
+      if (c.kind === 'insert') return `Add ${c.what === 'text' ? `text “${pretty(c.text ?? '')}”` : c.element.replace(/^new /, '')} in ${c.parent?.element}, ${spot}`;
+    }
     if (c.kind === 'insert' && c.what === 'copy') {
       return `Duplicate ${c.copyOf?.element} into ${c.parent?.element}` + (c.after ? `, after ${c.after.element}` : ', first');
     }

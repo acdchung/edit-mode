@@ -126,6 +126,19 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .list li::before { content: ""; position: absolute; left: 1px; top: 8px; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
 .list-wrap .more { all: unset; display: block; margin-top: 6px; color: var(--muted); font-size: 11px; cursor: pointer; }
 .list-wrap .more:hover { color: var(--text); }
+.dialog h4.sec { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; font-size: 11px; font-weight: 600; color: var(--muted); }
+.dialog h4.sec .tag { padding: 1px 6px; border-radius: 4px; background: var(--field); color: var(--dim); font-weight: 500; }
+.copyrow { margin-top: 4px; height: 26px; color: var(--text); font-size: 12px; }
+.copyrow .name { flex: 1; }
+.copyrow .n { color: var(--dim); font-variant-numeric: tabular-nums; }
+.copyrow + .list-wrap { margin-top: 2px; }
+.list-wrap.off .list { opacity: .4; }
+.list li:has(.scope) { display: flex; align-items: center; gap: 8px; }
+.list li .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.list li .scope { all: unset; flex: none; padding: 0 6px; border-radius: 4px; background: var(--field); color: var(--muted); font-size: 11px; line-height: 18px; cursor: pointer; }
+.list li .scope:hover { background: var(--field-hover); color: var(--text); }
+.list li.conflict::before { background: var(--danger); }
+.list li.conflict .text, .list li.conflict:not(:has(.text)) { color: var(--danger); }
 .conv { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--hair);
         color: var(--muted); font-size: 12px; line-height: 17px; }
 .conv > span:first-child { flex: 1; }
