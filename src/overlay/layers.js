@@ -97,7 +97,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     if (n === pageRoot()) return 'Page'; // the app's root element, like a Figma page
     if (n === canvasArea()) return 'Canvas';
     if (n.dataset.emName) return n.dataset.emName; // a canvas frame's name ("Page", "Page copy")
-    const kind = { frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse' }[n.dataset.emKind];
+    const kind = { frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', image: 'Image' }[n.dataset.emKind];
     if (kind) return kind; // drawn on the canvas
     const tag = n.tagName.toLowerCase();
     if (n.dataset.emNew && !n.children.length && !textNodeOf(n)) return n.style.borderRadius === '50%' ? 'Ellipse' : 'Rectangle';
@@ -115,6 +115,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     if (n.dataset.emKind === 'frame') return /flex/.test(getComputedStyle(n).display) ? (getComputedStyle(n).flexDirection.startsWith('column') ? ICON.stackCol : ICON.stackRow) : ICON.frame;
     if (n.dataset.emKind === 'rectangle') return ICON.rect;
     if (n.dataset.emKind === 'ellipse') return ICON.ellipse;
+    if (n.dataset.emKind === 'image') return ICON.image;
     if (tag === 'svg') return ICON.vector;
     if (/^(img|picture|video)$/.test(tag)) return ICON.image;
     if (textNodeOf(n)) return ICON.text;

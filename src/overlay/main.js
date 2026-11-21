@@ -12,6 +12,7 @@ import { createLayers } from './layers.js';
 import { createSpacing } from './spacing.js';
 import { cloneToCanvas, createDesign, matchLook } from './design.js';
 import { ICON, KEY as GLYPH } from './icons.js';
+import { IMAGE_FIT, isImageFile, uploadImage } from './assets.js';
 
 if (!window.__editModeOverlay) {
   window.__editModeOverlay = true;
@@ -137,6 +138,7 @@ function init() {
     alignState: () => alignState(),
     autoLayoutSelection: () => autoLayoutSelection(),
     deleteSelection: () => deleteSelection(),
+    toast: (...a) => toast(...a),
   });
   const toolsBar = $('.tools');
   // Clicking toolbar, pill and panel buttons shouldn't leave them keyboard-focused
@@ -1207,6 +1209,9 @@ function init() {
     const els = inOrder(selection());
     if (!els.length) return;
     clipboard = els.map((el) => ({ clone: cloneFor(el), from: el }));
+    // Replace whatever the system clipboard held, so an image copied earlier
+    // in another app doesn't win over this copy at ⌘V.
+    navigator.clipboard?.writeText(els.map(describe).join('\n')).catch(() => {});
     toast('Copied', `${els.length === 1 ? describe(els[0]) : `${els.length} elements`}. Paste with ⌘V.`, { ms: 1800 });
   }
 
@@ -1393,6 +1398,115 @@ function init() {
     const anchor = sel.length ? inOrder(sel).at(-1) : clipboard.at(-1).from;
     if (!anchor?.isConnected) return;
     selectAll(insertCopies(clipboard, anchor, `paste:${Date.now()}`));
+  }
+
+  // ---------- Images (C3b): pasted or dropped from Finder ----------
+  let pasteTimer = null;
+  function armPaste() {
+    clearTimeout(pasteTimer);
+    pasteTimer = setTimeout(() => { pasteTimer = null; pasteClipboard(); }, 80); // no paste event came
+  }
+  window.addEventListener('paste', (e) => {
+    if (!pasteTimer) return; // not our ⌘V (e.g. typing in a field)
+    clearTimeout(pasteTimer);
+    pasteTimer = null;
+    e.preventDefault();
+    const files = [...(e.clipboardData?.files || [])].filter(isImageFile);
+    if (files.length) addImages(files, imageTarget());
+    else pasteClipboard();
+  }, true);
+
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+  window.addEventListener('dragover', (e) => {
+    if (!state.on || !hasFiles(e)) return;
+    e.preventDefault(); // a file dropped on the page would otherwise open it, losing your edits
+    const d = imageDrop(e.clientX, e.clientY);
+    e.dataTransfer.dropEffect = d ? 'copy' : 'none';
+    showDrop(d && { container: d.container, line: d.line, free: d.container === canvasArea() }, true);
+  }, true);
+  window.addEventListener('dragleave', (e) => { if (state.on && hasFiles(e) && !e.relatedTarget) showDrop(null); }, true);
+  window.addEventListener('drop', (e) => {
+    if (!state.on || !hasFiles(e)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    showDrop(null);
+    const files = [...e.dataTransfer.files].filter(isImageFile);
+    if (!files.length) { toast('Only images', 'Drop PNG, JPG, GIF, WebP, AVIF or SVG files.', { ms: 2500 }); return; }
+    const d = imageDrop(e.clientX, e.clientY);
+    if (!d) { toast('Drop images on the canvas', 'For something on the page, use Fill › Image.', { ms: 3000 }); return; }
+    addImages(files, d);
+  }, true);
+
+  // Where a dropped image lands: into the canvas frame under the pointer
+  // (its flow if it has auto layout), or loose on the canvas, centered on the pointer.
+  function imageDrop(x, y) {
+    const area = canvasArea();
+    const hits = document.elementsFromPoint(x, y);
+    if (!area || !hits.includes(area)) return null;
+    const into = hits.find((n) => n === area || (onCanvas(n) && isFrame(n)));
+    if (into !== area && /flex|grid/.test(getComputedStyle(into).display)) {
+      const f = flowSpot(into, x, y);
+      return { container: into, index: f.toIndex, line: f.line };
+    }
+    return { container: into, at: { x, y } };
+  }
+  // Where a pasted image lands: like ⌘V for layers (canvasTarget), else to
+  // the right of everything on the canvas.
+  function imageTarget() {
+    const t = canvasTarget();
+    if (t?.samePlace) { // a selected frame: centered in it
+      const r = t.container.getBoundingClientRect();
+      return { container: t.container, at: { x: r.left + r.width / 2, y: r.top + r.height / 2 } };
+    }
+    return t;
+  }
+
+  const MAX_IMAGE = 1000; // CSS px on the longest side, so a big photo doesn't cover the board
+  async function addImages(files, target) {
+    const imgs = [];
+    for (const f of files) {
+      try { imgs.push(await uploadImage(f)); } catch (err) { toast('Couldn\'t add that image', err.message, { error: true, ms: 3500 }); }
+    }
+    const area = canvasArea();
+    if (!imgs.length || !area) return;
+    const sizes = imgs.map((im) => {
+      const k = Math.min(1, MAX_IMAGE / Math.max(im.width, im.height));
+      return [Math.round(im.width * k), Math.round(im.height * k)];
+    });
+    let t = target?.container?.isConnected ? target : null;
+    let left;
+    let top;
+    if (!t) { // nowhere in particular: to the right of what's on the canvas
+      t = { container: area, reveal: true };
+      left = area.children.length ? Math.max(0, ...[...area.children].map((k) => k.offsetLeft + k.offsetWidth + 160)) : 0;
+      top = 0;
+    } else if (t.at) { // centered on the point, several side by side
+      const c = t.container;
+      const cr = c.getBoundingClientRect();
+      const total = sizes.reduce((a, [w]) => a + w, 0) + 20 * (sizes.length - 1);
+      left = Math.round((t.at.x - cr.left) / view.z - c.clientLeft - total / 2);
+      top = Math.round((t.at.y - cr.top) / view.z - c.clientTop - Math.max(...sizes.map(([, hh]) => hh)) / 2);
+    }
+    const added = [];
+    changes.batch(`image:${Date.now()}`, () => {
+      let i = t.index ?? t.container.children.length;
+      imgs.forEach((im, k) => {
+        const [w, hh] = sizes[k];
+        const el = document.createElement('div');
+        el.dataset.emKind = 'image';
+        el.dataset.emName = im.name;
+        const styles = { width: `${w}px`, height: `${hh}px`, 'flex-shrink': '0', 'background-image': `url("${im.url}")`, ...IMAGE_FIT.fill };
+        if (t.index == null) {
+          Object.assign(styles, { position: 'absolute', left: `${left}px`, top: `${top}px` });
+          left += w + 20;
+        }
+        for (const [p, v] of Object.entries(styles)) el.style.setProperty(p, v);
+        changes.insert(el, t.container, i++, { what: 'image', styles, text: '' });
+        added.push(el);
+      });
+    });
+    selectAll(added);
+    if (t.reveal) canvas.toSelection(unionRect(added));
   }
 
   function duplicateSelection() {
@@ -1635,6 +1749,8 @@ function init() {
       return;
     }
     if (!state.on || typing || state.phase !== 'idle') return;
+    // A gradient stop handle in the panel: its own Delete and arrow keys.
+    if (inOverlay && target.classList?.contains('gstop') && /^(Backspace|Delete|ArrowLeft|ArrowRight)$/.test(e.key)) return;
 
     if (e.key === 'Escape') {
       stop();
@@ -1693,7 +1809,10 @@ function init() {
     }
     if (mod && e.code === 'Backslash') { stop(); ui.classList.toggle('ui-hidden'); return; } // ⌘\ hides the panel and tools, like Figma
     if (mod && !e.shiftKey && !e.altKey) {
-      const action = { KeyC: copySelection, KeyV: pasteClipboard, KeyD: duplicateSelection, KeyX: cutSelection }[e.code];
+      // ⌘V: let the browser fire its paste event, which says whether an image
+      // (copied in another app, or a file in Finder) is on the clipboard.
+      if (e.code === 'KeyV') { e.stopImmediatePropagation(); armPaste(); return; }
+      const action = { KeyC: copySelection, KeyD: duplicateSelection, KeyX: cutSelection }[e.code];
       if (action) { stop(); action(); return; }
     }
     if (e.shiftKey && !mod && !e.altKey && e.code === 'KeyA') { stop(); autoLayoutSelection(); return; }

@@ -350,8 +350,28 @@ input::selection { background: rgba(13,153,255,.4); }
 .mbtn span { flex: 1; }
 .grad { margin-bottom: 6px; }
 .grad .crow { margin-bottom: 4px; }
-.kind { flex: 1 !important; padding: 0 8px; color: var(--text); }
-.grad .crow > .f { flex: 0 0 84px; }
+.kind { flex: 1 !important; min-width: 0; color: var(--text); }
+.kind .thumb { flex: none; width: 14px; height: 14px; margin-right: 6px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
+.grad .crow > .f, .grad .crow > .fit { flex: 0 0 68px; }
+.grad .crow.stop > .f { flex: 0 0 56px; }
+.grad .crow.stop > .field { min-width: 0; }
+.icon:disabled { opacity: .35; cursor: default; }
+.icon:disabled:hover { background: none; color: var(--muted); }
+/* Gradient stops: the bar (drag a handle, click the bar to add one) */
+.gbar { padding: 2px 7px; margin-bottom: 8px; }
+.gtrack { position: relative; height: 12px; border-radius: 4px; cursor: copy;
+          background-image: var(--g, none), repeating-conic-gradient(#bbb 0 25%, #fff 0 50%);
+          background-size: 100% 100%, 8px 8px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
+.gstop { all: unset; position: absolute; top: 50%; width: 14px; height: 14px; box-sizing: border-box; padding: 2px;
+         transform: translate(-50%, -50%); border-radius: 4px; background: #fff; cursor: grab;
+         box-shadow: 0 1px 3px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.25); }
+.gstop i { display: block; width: 100%; height: 100%; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+.gstop.on { box-shadow: 0 1px 3px rgba(0,0,0,.45), 0 0 0 2px var(--accent); }
+.gstop:focus-visible { outline: none; }
+.gstop:active { cursor: grabbing; }
+.types { margin-bottom: 10px; }
+.types button { flex: 1 1 auto; padding: 0 4px; }
+.pop:has(.types) { width: 252px; max-width: 252px; }
 
 /* ---------- Motion: quick, small, and off when reduced motion is preferred ---------- */
 /* What animates is what you see occasionally: dialogs, toasts, menus you

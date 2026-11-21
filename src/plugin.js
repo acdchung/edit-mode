@@ -10,6 +10,7 @@
 //      in-progress edits. Updates that arrive meanwhile are applied (as one
 //      page reload) when edit mode is turned off.
 //   4. Push: hands the edits to Claude Code (see runner.js), and Undo.
+//   5. Stores images you drop, paste or pick in .editmode/assets/ and serves them.
 //
 // Options: { claudePath } to point at a specific `claude` binary (or set EDIT_MODE_CLAUDE).
 
@@ -29,6 +30,7 @@ const FREEZE_WINDOW_MS = 75_000;
 export default function editMode(options = {}) {
   const include = options.include ?? /\.[jt]sx$|\.js$/;
   let root = process.cwd();
+  let publicDir;
   let server;
   let runner;
   let lastPing = 0;
@@ -48,11 +50,12 @@ export default function editMode(options = {}) {
 
     configResolved(config) {
       root = config.root;
+      publicDir = config.publicDir || undefined; // false when the project turned it off: then <root>/public
     },
 
     configureServer(s) {
       server = s;
-      runner = createRunner({ root, claudePath: options.claudePath, log });
+      runner = createRunner({ root, publicDir, claudePath: options.claudePath, log });
       server.middlewares.use(BASE, (req, res, next) => handle(req, res, next));
     },
 
@@ -116,6 +119,17 @@ export default function editMode(options = {}) {
       if (name === 'draft-conventions' && req.method === 'POST') return send(200, runner.draftConventions());
       if (name === 'canvas' && req.method === 'GET') return send(200, runner.readCanvas());
       if (name === 'canvas' && req.method === 'PUT') return send(200, runner.writeCanvas(JSON.parse(await readBody(req))));
+      if (name === 'assets' && req.method === 'POST') {
+        const file = new URL(req.url, 'http://x').searchParams.get('name') || '';
+        return send(200, runner.saveAsset(file, await readBytes(req)));
+      }
+      if (name.startsWith('assets/') && req.method === 'GET') {
+        const asset = runner.readAsset(name.slice(7));
+        if (!asset) return next();
+        res.setHeader('Content-Type', asset.type);
+        res.setHeader('Cache-Control', 'max-age=31536000, immutable'); // named by content
+        return res.end(asset.bytes);
+      }
     } catch (err) {
       return send(400, { error: err.message });
     }
@@ -137,6 +151,15 @@ export default function editMode(options = {}) {
       let body = '';
       req.on('data', (c) => (body += c));
       req.on('end', () => resolve(body));
+      req.on('error', reject);
+    });
+  }
+
+  function readBytes(req) {
+    return new Promise((resolve, reject) => {
+      const parts = [];
+      req.on('data', (c) => parts.push(c));
+      req.on('end', () => resolve(Buffer.concat(parts)));
       req.on('error', reject);
     });
   }

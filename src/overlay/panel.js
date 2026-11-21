@@ -10,6 +10,7 @@ import {
 } from './util.js';
 import { textNodeOf } from './changes.js';
 import { ICON, KEY } from './icons.js';
+import { IMAGE_FIT, fitOf, pickImage, uploadImage } from './assets.js';
 
 const ROOT = (window.__EDIT_MODE__ && window.__EDIT_MODE__.root) || '';
 
@@ -103,7 +104,41 @@ function parseGradient(layer) {
 }
 const buildGradient = (g) =>
   `${g.repeating ? 'repeating-' : ''}${g.type}-gradient(${[g.dir, ...g.stops.map((s) => (s.pos ? `${s.color} ${s.pos}` : s.color))].filter(Boolean).join(', ')})`;
-const MAX_STOPS = 4;
+const MAX_STOPS = 10;
+const FILL_TYPES = [['solid', 'Solid'], ['linear', 'Linear'], ['radial', 'Radial'], ['conic', 'Angular'], ['image', 'Image']];
+const GRAD_DIR = { linear: '180deg', radial: null, conic: null }; // CSS defaults: top to bottom; from the center
+
+// Each stop's position in %, filling in the ones CSS leaves implicit (first
+// 0%, last 100%, the rest evenly between). null when a stop is placed in px
+// or has two positions: those gradients keep their stops as written.
+function stopPositions(stops) {
+  const out = stops.map((st) => {
+    if (!st.pos) return null;
+    const m = /^(-?[\d.]+)%$/.exec(st.pos);
+    return m ? +m[1] : NaN;
+  });
+  if (!out.length || out.some(Number.isNaN)) return null;
+  out[0] ??= 0;
+  if (out.length > 1) out[out.length - 1] ??= 100;
+  for (let i = 1; i < out.length - 1; i++) {
+    if (out[i] != null) continue;
+    let j = i;
+    while (out[j] == null) j++;
+    for (let k = i; k < j; k++) out[k] = out[i - 1] + ((out[j] - out[i - 1]) * (k - i + 1)) / (j - i + 1);
+  }
+  return out;
+}
+// The color a fraction `t` of the way from a to b (a new stop between two).
+function mixColor(a, b, t) {
+  const rgba = (c) => {
+    const p = parseColor(c) ?? parseColor(resolveColor(c));
+    if (!p) return [0, 0, 0, 0];
+    return [...[1, 3, 5].map((i) => parseInt(p.hex.slice(i, i + 2), 16)), p.a];
+  };
+  const [x, y] = [rgba(a), rgba(b)];
+  const m = x.map((v, i) => v + (y[i] - v) * Math.min(1, Math.max(0, t)));
+  return `rgba(${m.slice(0, 3).map(Math.round).join(', ')}, ${Math.round(m[3] * 100) / 100})`;
+}
 
 const buildShadow = (s) => `${s.inset ? 'inset ' : ''}${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${s.color}`;
 
@@ -223,9 +258,10 @@ export function createPanel(ctx) {
     });
   }
 
-  function colorPop(anchor, current, onPick) {
+  function colorPop(anchor, current, onPick, head) {
     const t = ctx.tokens();
     openPop(anchor, (box) => {
+      head?.(box);
       const grid = (title, items) => {
         if (!items.length) return;
         box.append(h('div', 'pop-title', title));
@@ -468,6 +504,7 @@ export function createPanel(ctx) {
     const alpha = h('input', 'alpha');
     alpha.setAttribute('aria-label', def.title + ' opacity');
     wrap.append(sw, hex, h('span', 'divider'), alpha, h('span', 'sfx', '%'));
+    if (def.lead) row.append(def.lead);
     row.append(wrap);
 
     let eye;
@@ -489,7 +526,7 @@ export function createPanel(ctx) {
     const write = (value, group) => act(group, () => def.write(typeof value === 'function' ? value() : value));
     let pickerGroup = 0;
     sw.addEventListener('click', () =>
-      colorPop(sw, current(), (v, from) => write(v, from === 'picker' ? `c${id}:picker:${pickerGroup}` : null)));
+      colorPop(sw, current(), (v, from) => write(v, from === 'picker' ? `c${id}:picker:${pickerGroup}` : null), def.popHead));
     sw.addEventListener('pointerdown', () => pickerGroup++);
 
     hex.addEventListener('focus', () => hex.select());
@@ -1093,6 +1130,7 @@ export function createPanel(ctx) {
   };
   const fillRow = colorRow({
     title: 'Fill',
+    popHead: (box) => { if (!layers().length) typeTabs(box, 'solid', (t) => setFillType(t, 'solid')); },
     read: (el, cs) => (fillHidden() ? hiddenStore.get(el).fill : cs.backgroundColor),
     write: (v) => { if (fillHidden()) delete stash(sel()).fill; apply('background-color', v); },
     eye: {
@@ -1114,7 +1152,10 @@ export function createPanel(ctx) {
       clear(['background-color'], (cs) => !isClear(cs.backgroundColor), () => apply('background-color', 'transparent'));
     },
   });
-  // Gradient / image layer (first background-image layer).
+  // The layer: background-image's first layer, a gradient or an image
+  // (several layers stacked: roadmap item 8). Figma's fill types map to
+  // Solid = background-color, Linear/Radial/Angular = linear/radial/conic-gradient,
+  // Image = url() with Fill (cover), Fit (contain) or Tile.
   const layers = () => splitList(gradHidden() ? hiddenStore.get(sel()).grad : getComputedStyle(sel()).backgroundImage);
   const gradHidden = () => {
     const el = sel();
@@ -1124,48 +1165,232 @@ export function createPanel(ctx) {
     return false;
   };
   const gradient = () => parseGradient(layers()[0]);
-  function gradSet(patch) {
+  const isImage = (layer) => /^url\(/.test(layer || '');
+  function unhideLayer() {
     if (gradHidden()) { apply('background-image', stash(sel()).grad); delete stash(sel()).grad; }
+  }
+  function setLayers(list) {
+    if (list.length) return apply('background-image', list.join(', '));
+    clear(['background-image', 'background'], (cs) => cs.backgroundImage !== 'none', () => apply('background-image', 'none'));
+  }
+  function gradSet(patch) {
+    unhideLayer();
     const list = layers();
     const g = parseGradient(list[0]);
     if (!g) return;
-    list[0] = buildGradient(patch(g));
+    const next = patch(g);
+    if (!next) return false;
+    list[0] = buildGradient(next);
     apply('background-image', list.join(', '));
   }
-  const gradKind = h('div', 'field kind');
+  const resetImageFit = () => clear(['background-size', 'background-position', 'background-repeat'], () => false, () => {});
+
+  // Switch a fill's type. `from`: the solid row or the layer row. Gradients
+  // keep their stops; a solid becomes its color fading out (Figma's default).
+  async function setFillType(type, from) {
+    const els = picked();
+    const scope = many() ? 'one' : state.scope;
+    let image = null;
+    if (type === 'image') {
+      const file = await pickImage(column);
+      if (!file) return;
+      try { image = await uploadImage(file); } catch (err) { ctx.toast('Couldn\'t add that image', err.message, { ms: 3500 }); return; }
+    }
+    changes.batch(null, () => { for (const el of els) if (el.isConnected) withEl(el, () => fillTypeOne(type, from, image), scope); });
+    ctx.onEdit();
+  }
+  function fillTypeOne(type, from, image) {
+    const cs = getComputedStyle(sel());
+    const list = layers();
+    const first = from === 'layer' ? list[0] : null;
+    const g = parseGradient(first);
+    const wasImage = isImage(first);
+    const rest = from === 'layer' ? list.slice(1) : list;
+    const solid = fillHidden() ? stash(sel()).fill : cs.backgroundColor;
+    if (gradHidden()) delete stash(sel()).grad;
+    if (type === 'solid') {
+      if (from === 'solid') return;
+      setLayers(rest);
+      if (wasImage) resetImageFit();
+      apply('background-color', g ? g.stops[0].color : DEFAULT_FILL);
+      return;
+    }
+    let layer;
+    if (type === 'image') layer = `url("${image.url}")`;
+    else if (g) layer = buildGradient({ ...g, type, dir: GRAD_DIR[type] });
+    else {
+      const base = from === 'solid' && !isClear(solid) ? solid : '#000000';
+      layer = buildGradient({ repeating: false, type, dir: GRAD_DIR[type],
+        stops: [{ color: withAlpha(base, 1), pos: '0%' }, { color: withAlpha(base, 0), pos: '100%' }] });
+    }
+    apply('background-image', [layer, ...rest].join(', '));
+    if (type === 'image' && !wasImage) for (const [k, v] of Object.entries(IMAGE_FIT.fill)) apply(k, v);
+    if (type !== 'image' && wasImage) resetImageFit();
+    if (from === 'solid') {
+      delete stash(sel()).fill;
+      clear(['background-color'], (c) => !isClear(c.backgroundColor), () => apply('background-color', 'transparent'));
+    }
+  }
+  const typeOf = (layer) => (isImage(layer) ? 'image' : parseGradient(layer)?.type ?? 'pattern');
+  // Fill types, as a row of tabs at the top of the solid fill's color menu.
+  function typeTabs(box, now, onPick) {
+    const seg = h('div', 'seg types');
+    for (const [v, label] of FILL_TYPES) {
+      const b = h('button', v === now ? 'on' : '', label);
+      b.addEventListener('click', () => { closePop(); onPick(v); });
+      seg.append(b);
+    }
+    box.prepend(seg);
+  }
+
+  // Header row: [preview + type ▾] [angle | image fit ▾] [eye] [×]
+  const kindBtn = h('button', 'dd kind', '<i class="thumb"></i><span class="dd-label"></span>');
+  kindBtn.append(h('span', 'chev', ICON.chevron));
+  kindBtn.title = 'Fill type';
+  kindBtn.addEventListener('click', () => {
+    const now = typeOf(layers()[0]);
+    listPop(kindBtn, FILL_TYPES, now, (t) => {
+      if (t === now && t !== 'image') return;
+      setFillType(t, 'layer'); // Image again: choose another image
+    });
+  });
+  const fitBtn = h('button', 'dd fit', '<span class="dd-label"></span>');
+  fitBtn.append(h('span', 'chev', ICON.chevron));
+  fitBtn.title = 'How the image fills the layer';
+  fitBtn.addEventListener('click', () =>
+    listPop(fitBtn, [['fill', 'Fill'], ['fit', 'Fit'], ['tile', 'Tile']], fitOf(getComputedStyle(sel())), (v) =>
+      act(null, () => { for (const [k, val] of Object.entries(IMAGE_FIT[v])) apply(k, val); })));
   const gradEye = h('button', 'icon', ICON.eye);
   gradEye.addEventListener('click', () => act(null, () => {
-    if (gradHidden()) { apply('background-image', stash(sel()).grad); delete stash(sel()).grad; }
+    if (gradHidden()) unhideLayer();
     else { stash(sel()).grad = getComputedStyle(sel()).backgroundImage; apply('background-image', 'none'); }
   }));
   const gradX = h('button', 'icon', ICON.x);
   gradX.title = 'Remove';
   gradX.setAttribute('aria-label', 'Remove gradient or image');
   gradX.addEventListener('click', () => act(null, () => {
+    const was = layers()[0];
     delete stash(sel()).grad;
-    clear(['background-image', 'background'], (cs) => cs.backgroundImage !== 'none', () => apply('background-image', 'none'));
+    setLayers(layers().slice(1));
+    if (isImage(was)) resetImageFit();
   }));
+  const angleOf = (dir) => /^(?:from\s+)?(-?[\d.]+)deg/.exec(dir || '');
   const angleField = numField({ prefix: ICON.angle, title: 'Gradient angle', min: -360, suffix: '°',
     read: () => {
-      const d = gradient()?.dir;
-      if (!d) return '180';
-      const deg = /^(-?[\d.]+)deg$/.exec(d);
-      return deg ? fmt(+deg[1]) : d;
+      const g = gradient();
+      if (!g?.dir) return g?.type === 'conic' ? '0' : '180';
+      const deg = angleOf(g.dir);
+      return deg ? fmt(+deg[1]) : g.dir;
     },
-    write: (t) => (isNumber(t) ? gradSet((g) => ({ ...g, dir: `${+t}deg` })) : false) });
+    write: (t) => (isNumber(t) ? gradSet((g) => ({ ...g,
+      dir: g.type === 'conic' ? `from ${+t}deg${/\sat\s.*/.exec(g.dir || '')?.[0] ?? ''}` : `${+t}deg` })) : false) });
   const gradHead = h('div', 'crow');
-  gradHead.append(gradKind, angleField, gradEye, gradX);
-  const stopRows = Array.from({ length: MAX_STOPS }, (_, i) => colorRow({
-    title: `Gradient stop ${i + 1}`,
-    read: () => gradient()?.stops[i]?.color ?? 'transparent',
-    write: (v) => gradSet((g) => {
-      const stops = g.stops.slice();
-      stops[i] = { ...stops[i], color: v };
-      return { ...g, stops };
-    }),
-  }));
+  gradHead.append(kindBtn, angleField, fitBtn, gradEye, gradX);
+
+  // Stops: a bar with a handle per stop (drag to move, click the bar to add,
+  // Delete removes the selected one), and a row per stop: position, color, ×.
+  let stopSel = 0;
+  // Rewrite the stops with explicit % positions, in order. `edit(stops)`
+  // changes the list and returns the stop to keep selected.
+  function stopsEdit(edit) {
+    return gradSet((g) => {
+      const ps = stopPositions(g.stops);
+      if (!ps) return null; // positions in px: not editable here
+      const stops = g.stops.map((st, i) => ({ color: st.color, p: ps[i] }));
+      const keep = edit(stops);
+      if (keep === false) return null;
+      stops.sort((a, b) => a.p - b.p);
+      if (keep) stopSel = stops.indexOf(keep);
+      return { ...g, stops: stops.map((st) => ({ color: st.color, pos: `${Math.round(Math.min(100, Math.max(0, st.p)) * 10) / 10}%` })) };
+    });
+  }
+  const writeStops = (edit, group = null) => act(group, () => stopsEdit(edit));
+  const removeEdit = (i) => (stops) => {
+    if (stops.length <= 2) return false; // a gradient needs two
+    stops.splice(i, 1);
+    return stops[Math.min(i, stops.length - 1)];
+  };
+  const removeStop = (i) => writeStops(removeEdit(i));
+  const bar = h('div', 'gbar');
+  const track = h('div', 'gtrack');
+  bar.append(track);
+  const pAt = (x) => {
+    const r = track.getBoundingClientRect();
+    return Math.min(100, Math.max(0, ((x - r.left) / r.width) * 100));
+  };
+  const handles = Array.from({ length: MAX_STOPS }, (_, i) => {
+    const b = h('button', 'gstop', '<i></i>');
+    b.title = 'Drag to move · Delete to remove';
+    b.setAttribute('aria-label', `Gradient stop ${i + 1}`);
+    b.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      stopSel = i;
+      b.focus();
+      refresh();
+      const group = `gstop:${Date.now()}`;
+      const startX = e.clientX;
+      const move = (ev) => {
+        if (Math.abs(ev.clientX - startX) < 2) return;
+        writeStops((stops) => { stops[stopSel].p = pAt(ev.clientX); return stops[stopSel]; }, group);
+        handles[stopSel]?.focus();
+      };
+      const up = () => { window.removeEventListener('pointermove', move, true); window.removeEventListener('pointerup', up, true); };
+      window.addEventListener('pointermove', move, true);
+      window.addEventListener('pointerup', up, true);
+    });
+    b.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); removeStop(i); handles[stopSel]?.focus(); }
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const d = (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 10 : 1);
+        writeStops((stops) => { stops[i].p += d; return stops[i]; }, `gnudge:${i}`);
+        handles[stopSel]?.focus();
+      }
+    });
+    track.append(b);
+    return b;
+  });
+  track.addEventListener('pointerdown', (e) => {
+    if (e.target !== track) return;
+    e.preventDefault();
+    const p = pAt(e.clientX);
+    writeStops((stops) => {
+      if (stops.length >= MAX_STOPS) return false;
+      const after = stops.findIndex((st) => st.p > p);
+      const a = stops[after - 1] ?? stops[0];
+      const b = stops[after] ?? stops.at(-1);
+      const made = { color: mixColor(a.color, b.color, a === b ? 0 : (p - a.p) / (b.p - a.p || 1)), p };
+      stops.push(made);
+      return made;
+    });
+    handles[stopSel]?.focus();
+  });
+
+  const stopRows = Array.from({ length: MAX_STOPS }, (_, i) => {
+    const pos = numField({ title: `Stop ${i + 1} position`, suffix: '%', min: 0, max: 100,
+      read: () => {
+        const g = gradient();
+        const ps = g && stopPositions(g.stops);
+        return ps ? fmt(Math.round(ps[i] * 10) / 10) : g?.stops[i]?.pos || '';
+      },
+      write: (t) => (isNumber(t) ? stopsEdit((stops) => { stops[i].p = Math.min(100, Math.max(0, +t)); return stops[i]; }) : false) });
+    const row = colorRow({
+      title: `Gradient stop ${i + 1}`,
+      lead: pos,
+      read: () => gradient()?.stops[i]?.color ?? 'transparent',
+      write: (v) => gradSet((g) => {
+        const stops = g.stops.slice();
+        stops[i] = { ...stops[i], color: v };
+        return { ...g, stops };
+      }),
+      remove: () => { stopSel = i; return stopsEdit(removeEdit(i)); },
+    });
+    row.classList.add('stop');
+    return row;
+  });
   const gradBlock = h('div', 'grad');
-  gradBlock.append(gradHead, ...stopRows);
+  gradBlock.append(gradHead, bar, ...stopRows);
   fields.push(() => {
     const el = sel();
     if (!el) return;
@@ -1174,9 +1399,34 @@ export function createPanel(ctx) {
     const off = gradHidden();
     // Several selected: only when they share the same layers (stops are edited by position).
     gradBlock.hidden = !list.length || (many() && common((x, cs) => cs.backgroundImage) === MIXED);
-    gradKind.textContent = g ? `${g.type[0].toUpperCase()}${g.type.slice(1)}` : /^url\(/.test(list[0] || '') ? 'Image' : 'Pattern';
-    angleField.hidden = g?.type !== 'linear' || (g.dir && !/deg$/.test(g.dir));
-    stopRows.forEach((r, i) => (r.hidden = !g || i >= g.stops.length));
+    if (gradBlock.hidden) return;
+    const type = typeOf(list[0]);
+    kindBtn.querySelector('.dd-label').textContent = Object.fromEntries(FILL_TYPES)[type] ?? 'Pattern';
+    const thumb = kindBtn.querySelector('.thumb');
+    thumb.style.background = list[0] || '';
+    thumb.style.backgroundSize = 'cover';
+    thumb.style.backgroundPosition = 'center';
+    angleField.hidden = !g || g.type === 'radial' || (g.dir && !angleOf(g.dir));
+    fitBtn.hidden = type !== 'image';
+    if (type === 'image') fitBtn.querySelector('.dd-label').textContent = { fill: 'Fill', fit: 'Fit', tile: 'Tile', custom: 'Custom' }[fitOf(getComputedStyle(el))];
+    const ps = g && stopPositions(g.stops);
+    bar.hidden = !ps;
+    if (ps) {
+      stopSel = Math.min(stopSel, g.stops.length - 1);
+      track.style.setProperty('--g', `linear-gradient(90deg, ${g.stops.map((st, i) => `${st.color} ${ps[i]}%`).join(', ')})`);
+      handles.forEach((b, i) => {
+        b.hidden = i >= g.stops.length;
+        if (b.hidden) return;
+        b.style.left = `${ps[i]}%`;
+        b.firstChild.style.background = g.stops[i].color;
+        b.classList.toggle('on', i === stopSel);
+      });
+    }
+    stopRows.forEach((r, i) => {
+      r.hidden = !g || i >= g.stops.length;
+      const x = r.querySelector(':scope > .icon:last-child');
+      if (x) { x.disabled = !g || g.stops.length <= 2; x.title = x.disabled ? 'A gradient needs two stops' : 'Remove stop'; }
+    });
     gradEye.innerHTML = off ? ICON.eyeOff : ICON.eye;
     gradBlock.classList.toggle('off', off);
   });
@@ -1479,7 +1729,7 @@ export function createPanel(ctx) {
     metaEl.title = src ? `${src.file}:${src.line}:${src.col}` : 'Not rendered from a JSX file in this project';
 
     if (onCanvas(el)) { // on the design canvas: its kind (or the copy's tag) and where it lives
-      const kind = { frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', text: 'Text' }[el.dataset.emKind];
+      const kind = { frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', text: 'Text', image: 'Image' }[el.dataset.emKind];
       nameEl.textContent = nameEl.title = el.dataset.emName || kind || describe(el);
       const from = parseSrc((el.dataset.emFrom || '').replace(/#\d+$/, ''));
       metaEl.textContent = from ? `copy of ${from.file.split('/').pop()}:${from.line} · on the canvas` : 'on the canvas · not pushed';

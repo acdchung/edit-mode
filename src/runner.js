@@ -8,11 +8,14 @@
 //     changes.json, context.json   what the designer changed
 //     snapshot.json               source files before Claude ran
 //     result.json                 what Claude changed + its summary
+//   canvas.json                 the design canvas beside the page
+//   assets/<hash>.<ext>         images added in Edit Mode, until Push copies them into the project
 
 import { spawn, execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, relative } from 'node:path';
+import { createHash } from 'node:crypto';
+import { extname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PROMPT = fileURLToPath(new URL('./apply-edits.md', import.meta.url));
@@ -25,8 +28,10 @@ const SOURCE_EXT = /\.(jsx?|tsx?|mjs|cjs|css|scss|sass|less|html|json|svg|md)$/;
 const MAX_FILE = 1_000_000;
 const TIMEOUT_MS = 10 * 60_000;
 const TOOLS = 'Read,Edit,Write,Glob,Grep';
+const MAX_ASSET = 25_000_000;
+const IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', svg: 'image/svg+xml' };
 
-export function createRunner({ root, claudePath, log }) {
+export function createRunner({ root, publicDir = join(root, 'public'), claudePath, log }) {
   const dir = join(root, '.editmode');
   const statePath = join(dir, 'state.json');
   let running = null; // batch id (or 'draft') while Claude works
@@ -100,7 +105,9 @@ export function createRunner({ root, claudePath, log }) {
     const batchDir = join(dir, id);
     mkdirSync(batchDir);
     writeJSON(join(batchDir, 'changes.json'), payload.changes);
-    writeJSON(join(batchDir, 'context.json'), { url: payload.url, viewport: payload.viewport, elements: payload.context });
+    const images = copyImages(payload.changes);
+    writeJSON(join(batchDir, 'context.json'), { url: payload.url, viewport: payload.viewport, elements: payload.context,
+      ...(images.map.length ? { images: images.map } : {}) });
     const before = scan();
     writeJSON(join(batchDir, 'snapshot.json'), before);
 
@@ -112,7 +119,7 @@ export function createRunner({ root, claudePath, log }) {
       const after = scan();
       const changed = Object.keys(after).filter((f) => f in before && before[f] !== after[f]);
       const created = Object.keys(after).filter((f) => !(f in before));
-      const record = { id, ...result, files: [...changed, ...created], changed, created, at: Date.now() };
+      const record = { id, ...result, files: [...changed, ...created], changed, created, images: images.copied, at: Date.now() };
       writeJSON(join(batchDir, 'result.json'), { ...record, after: Object.fromEntries([...changed, ...created].map((f) => [f, after[f]])) });
       writeJSON(statePath, { last: record });
       log(result.ok ? `Claude finished: ${result.summary}` : `Claude failed: ${result.error}`);
@@ -196,6 +203,10 @@ export function createRunner({ root, claudePath, log }) {
       else rmSync(abs);
       restored.push(f);
     }
+    for (const f of last.images || []) { // images this pass copied into the project
+      const abs = join(root, f);
+      if (existsSync(abs)) { rmSync(abs); restored.push(f); }
+    }
     writeJSON(statePath, { last: { ...last, undone: true } });
     log(`undid ${last.id}: restored ${restored.length} file(s)` + (skipped.length ? `, skipped ${skipped.join(', ')}` : ''));
     return { changes: readJSON(join(batchDir, 'changes.json'), []), restored, skipped };
@@ -211,5 +222,49 @@ export function createRunner({ root, claudePath, log }) {
     return { ok: true };
   }
 
-  return { push, undo, status, draftConventions, readCanvas, writeCanvas, isRunning: () => !!running };
+  // Images dropped, pasted or picked in Edit Mode (C3b). They live in
+  // .editmode/assets/ until Push copies one into the project's own assets.
+  // Named by content, so the same image twice is one file.
+  const assetsDir = join(dir, 'assets');
+  function saveAsset(name, bytes) {
+    const ext = (extname(name || '').slice(1) || '').toLowerCase().replace('jpeg', 'jpg');
+    if (!IMAGE_TYPES[ext]) throw new Error('Assets: only images (png, jpg, gif, webp, avif, svg).');
+    if (!bytes.length || bytes.length > MAX_ASSET) throw new Error('Assets: images up to 25 MB.');
+    ensureDir();
+    mkdirSync(assetsDir, { recursive: true });
+    const file = `${createHash('sha1').update(bytes).digest('hex').slice(0, 12)}.${ext}`;
+    const path = join(assetsDir, file);
+    if (!existsSync(path)) writeFileSync(path, bytes);
+    return { file, url: `/@edit-mode/assets/${file}`, path: `.editmode/assets/${file}` };
+  }
+  // Push: Claude can't copy binary files, so images the changes use are
+  // copied into the project's public folder first (Vite serves it at /).
+  // → map: [{ url (as in changes.json), file (in the project), src (its URL there) }]
+  //   copied: the files this pass added (Undo removes them).
+  function copyImages(list) {
+    const names = [...new Set([...JSON.stringify(list).matchAll(/\/@edit-mode\/assets\/([0-9a-f]{12}\.[a-z]+)/g)].map((m) => m[1]))];
+    const map = [];
+    const copied = [];
+    for (const name of names) {
+      const from = join(assetsDir, name);
+      if (!existsSync(from)) continue;
+      const to = join(publicDir, 'images', name);
+      if (!existsSync(to)) {
+        mkdirSync(join(publicDir, 'images'), { recursive: true });
+        writeFileSync(to, readFileSync(from));
+        copied.push(relative(root, to));
+      }
+      map.push({ url: `/@edit-mode/assets/${name}`, file: relative(root, to), src: `/images/${name}` });
+    }
+    if (copied.length) log(`copied ${copied.length} image(s) into ${relative(root, publicDir) || '.'}/images`);
+    return { map, copied };
+  }
+
+  function readAsset(file) {
+    if (!/^[0-9a-f]{12}\.[a-z]+$/.test(file) || !IMAGE_TYPES[extname(file).slice(1)]) return null;
+    const path = join(assetsDir, file);
+    return existsSync(path) ? { bytes: readFileSync(path), type: IMAGE_TYPES[extname(file).slice(1)] } : null;
+  }
+
+  return { push, undo, status, draftConventions, readCanvas, writeCanvas, saveAsset, readAsset, isRunning: () => !!running };
 }
