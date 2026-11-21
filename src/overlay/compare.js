@@ -26,6 +26,17 @@ const ROOT_SLOT = /^(position|top|right|bottom|left|inset|margin|grid|align-self
 const PLACE = /^(position|top|right|bottom|left|inset|translate)/;
 const KIND_NAME = { frame: 'frame', rectangle: 'rectangle', ellipse: 'ellipse', text: 'text', image: 'image', group: 'group' };
 
+const FAMILIES = [
+  ['background', /^background-/],
+  ['border-radius', /^border-(top|bottom)-(left|right)-radius$/],
+  ['padding', /^padding-(top|right|bottom|left)$/],
+  ['margin', /^margin-(top|right|bottom|left)$/],
+  ['border-width', /^border-(top|right|bottom|left)-width$/],
+  ['border-style', /^border-(top|right|bottom|left)-style$/],
+  ['border-color', /^border-(top|right|bottom|left)-color$/],
+  ['gap', /^(row|column)-gap$/],
+];
+
 // The original on the page for a copied node: { el, source, index, count }.
 export function originalOf(n) {
   const m = /^(.*)#(\d+)$/.exec(n.getAttribute(FROM) || '');
@@ -138,6 +149,9 @@ const clear = (v) => stops(v).replace(/rgba\(\s*\d+,\s*\d+,\s*\d+,\s*0\s*\)/g, '
 export function sameValue(prop, a, b) {
   if (a === b) return true;
   if (NORMAL_IS[prop] && (a === 'normal' ? NORMAL_IS[prop] : a) === (b === 'normal' ? NORMAL_IS[prop] : b)) return true;
+  // Colours a few steps apart (a value snapped to the project's token): the same to the eye.
+  const ca = /^rgba?\((\d+), (\d+), (\d+)(?:, ([\d.]+))?\)$/.exec(a), cb = /^rgba?\((\d+), (\d+), (\d+)(?:, ([\d.]+))?\)$/.exec(b);
+  if (ca && cb && Math.hypot(ca[1] - cb[1], ca[2] - cb[2], ca[3] - cb[3]) <= 12 && Math.abs((ca[4] ?? 1) - (cb[4] ?? 1)) <= 0.02) return true;
   const px = /^(-?[\d.]+)px$/;
   const ma = px.exec(a), mb = px.exec(b);
   if (ma && mb && Math.abs(ma[1] - mb[1]) < 0.5) return true;
@@ -200,16 +214,24 @@ export function compareCopy({ top, roots }, copy = { id: 0, name: copyName(top) 
       if (placed.has(c) && PLACE.test(p)) continue;
       const to = cs.getPropertyValue(p), from = os.getPropertyValue(p);
       if (sameValue(p, to, from)) continue;
+      // Shrinking only matters when space runs out: the same size on both sides, nothing to push.
+      if (p === 'flex-shrink' && Math.abs(c.offsetWidth - o.el.offsetWidth) < 1 && Math.abs(c.offsetHeight - o.el.offsetHeight) < 1) continue;
       // A frame made `relative` only so things can be placed freely in it: part of placing them.
       if (p === 'position' && to === 'relative' && from === 'static' && [...c.children].some((k) => placed.has(k))) continue;
       out.push({ kind: 'style', ...ref(o), property: p, from, to, value: c.style.getPropertyValue(p) });
     }
-    // A fill is several background properties (image, color, size…): one entry, the rest in `also`.
-    const bg = out.filter((e) => e.kind === 'style' && e.fromCanvas === copy.id && e.source === o.source && e.index === o.index && e.element === ref(o).element && /^background-/.test(e.property));
-    if (bg.length > 1) {
-      const main = bg.find((e) => e.property === 'background-image') || bg[0];
-      main.also = Object.fromEntries(bg.filter((e) => e !== main).map((e) => [e.property, e.value]));
-      for (const e of bg) if (e !== main) out.splice(out.indexOf(e), 1);
+    // One change, several properties: a fill (background image, colour, size…),
+    // four corners, four sides. One entry; when every side got the same value
+    // it's the shorthand (`border-radius: 20px`), else the rest are in `also`.
+    const mine = out.filter((e) => e.kind === 'style' && e.fromCanvas === copy.id && e.source === o.source && e.index === o.index && e.element === ref(o).element);
+    for (const [short, re] of FAMILIES) {
+      const fam = mine.filter((e) => re.test(e.property) && out.includes(e));
+      if (fam.length < 2) continue;
+      const main = (short === 'background' && fam.find((e) => e.property === 'background-image')) || fam[0];
+      const same = fam.every((e) => e.to === main.to && e.from === main.from && e.value === main.value);
+      if (same && short !== 'background') main.property = short;
+      else main.also = Object.fromEntries(fam.filter((e) => e !== main).map((e) => [e.property, e.value]));
+      for (const e of fam) if (e !== main) out.splice(out.indexOf(e), 1);
     }
     if (placed.has(c)) {
       const b = frameBox(c);
@@ -303,8 +325,14 @@ function longestRun(a) {
 // now exist in the code. What can't be matched is set aside
 // (data-em-from-was), never guessed, so it shows up as still different.
 const WAS = 'data-em-from-was';
+// A layer drawn on the canvas vs the tag Claude chose for it: a text layer may
+// be any text element, a frame or group any block. Otherwise the same tag.
+const TEXTY = /^(P|SPAN|DIV|H[1-6]|LABEL|STRONG|EM|SMALL|A|LI|DT|DD|FIGCAPTION|BLOCKQUOTE)$/;
+const BLOCKY = /^(DIV|SECTION|ARTICLE|HEADER|FOOTER|NAV|ASIDE|MAIN|UL|OL|LI|FIGURE|FORM|FIELDSET)$/;
+export const tagOk = (c, p) => c.tagName === p.tagName ||
+  (c.tagName === 'DIV' && ((c.dataset?.emKind === 'text' && TEXTY.test(p.tagName)) || (/^(frame|group|rectangle|ellipse)$/.test(c.dataset?.emKind || '') && BLOCKY.test(p.tagName))));
 const shares = (a, b) => [...a.classList].filter((c) => b.classList.contains(c)).length;
-const compatible = (c, o) => !!o && c.tagName === o.tagName && (!c.classList.length || !o.classList.length || shares(c, o) > 0);
+const compatible = (c, o) => !!o && tagOk(c, o) && (!c.classList.length || !o.classList.length || shares(c, o) > 0);
 const kidsOf = (n) => [...n.children].filter((k) => !NOT_LAYER.test(k.tagName) && k.tagName !== 'EDIT-MODE-ROOT' && !k.hasAttribute('data-em-canvas'));
 
 export function linksOk({ roots }) {
@@ -318,7 +346,7 @@ export function linksOk({ roots }) {
 function matcher() {
   const memo = new Map();
   function sim(c, p, depth) {
-    if (c.tagName !== p.tagName) return -Infinity;
+    if (!tagOk(c, p)) return -Infinity;
     let m = memo.get(c);
     if (!m) memo.set(c, (m = new Map()));
     const key = `${depth}`;
@@ -392,7 +420,7 @@ export function relinkCopy({ roots }, anchors = null) {
   const plan = [];
   for (const r of anchors ? [] : roots) {
     const file = (r.getAttribute(FROM) || r.getAttribute(WAS) || '').split(':')[0];
-    let cands = pageEls.filter((p) => p.tagName === r.tagName && (!r.classList.length || shares(r, p) > 0));
+    let cands = pageEls.filter((p) => tagOk(r, p) && (!r.classList.length || shares(r, p) > 0));
     if (file && cands.some((p) => p.getAttribute(ATTR).startsWith(file + ':'))) cands = cands.filter((p) => p.getAttribute(ATTR).startsWith(file + ':'));
     if (cands.length > 300) cands = cands.slice(0, 300);
     let best = null, bestScore = 0;
@@ -440,7 +468,7 @@ export function relinkCopy({ roots }, anchors = null) {
   const scope = plan.flatMap(([, p]) => [p, ...p.querySelectorAll('*')]);
   for (const k of pending) {
     let best = null, bestScore = 2.5;
-    for (const p of scope) { if (used.has(p) || p.tagName !== k.tagName || !shares(k, p)) continue; const sc = sim(k, p, 2); if (sc > bestScore) { best = p; bestScore = sc; } }
+    for (const p of scope) { if (used.has(p) || !tagOk(k, p) || !shares(k, p)) continue; const sc = sim(k, p, 2); if (sc > bestScore) { best = p; bestScore = sc; } }
     if (best) { used.add(best); walk(k, best); } else setAside(k);
   }
   return true;
@@ -457,7 +485,11 @@ export function linkDesign(design, placement) {
   if (el && before && el === before) el = null;
   el = el && tagged(el);
   if (!el) return false;
-  relinkCopy({ roots: [design] }, [[design, el]]);
+  // Claude may wrap it (in the page's layout container, say): the best match at the spot or inside it.
+  const { sim } = matcher();
+  let best = el, bestScore = -Infinity;
+  for (const c of [el, ...el.querySelectorAll(`[${ATTR}]`)]) { const sc = sim(design, c, 2); if (sc > bestScore) { best = c; bestScore = sc; } }
+  relinkCopy({ roots: [design] }, [[design, best]]);
   return design.hasAttribute(FROM);
 }
 
