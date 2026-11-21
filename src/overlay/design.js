@@ -156,8 +156,22 @@ function snapshot(el) {
   const cs = getComputedStyle(el);
   const out = {};
   for (let i = 0; i < cs.length; i++) { const p = cs[i]; if (!SKIP.has(p) && !p.startsWith('--')) out[p] = cs.getPropertyValue(p); }
+  for (const p of autoMargins(el)) out[p] = 'auto';
   return out;
 }
+// Margins that are `auto` (a centered column). Chrome sometimes reports an
+// auto margin as 0px after a re-layout, though the page still shows it
+// centered; and `auto` keeps a copy centered when its frame is resized.
+const MARGIN = /^margin-(top|right|bottom|left|inline-start|inline-end|block-start|block-end)$/;
+function autoMargins(el) {
+  const map = el.computedStyleMap?.();
+  if (!map) return [];
+  const out = [];
+  for (const [p, v] of map) if (MARGIN.test(p) && String(v) === 'auto') out.push(p);
+  return out;
+}
+// The value to compare with a snapshot: `auto` margins read as auto.
+function current(n, now, autos, p) { return autos.has(p) ? 'auto' : now.getPropertyValue(p); }
 
 // Once the copy is in place: write inline every style that came out
 // different from the original (ancestor selectors, inherited font and
@@ -167,9 +181,10 @@ export function matchLook({ to, looks }, rootStyles) {
   to.forEach((n, i) => {
     const want = looks[i];
     const now = getComputedStyle(n);
+    const autos = new Set(autoMargins(n));
     for (const p in want) {
       if (i === 0 && SLOT.includes(p)) continue;
-      if (now.getPropertyValue(p) !== want[p]) n.style.setProperty(p, want[p]);
+      if (current(n, now, autos, p) !== want[p]) n.style.setProperty(p, want[p]);
     }
   });
   for (const [p, v] of Object.entries(rootStyles)) to[0].style.setProperty(p, v);
@@ -190,9 +205,10 @@ export function keepLook({ to, looks }, set) {
   to.forEach((n, i) => {
     const want = looks[i];
     const now = getComputedStyle(n);
+    const autos = new Set(autoMargins(n));
     for (const p in want) {
       if (i === 0 && ROOT_PLACE.test(p)) continue;
-      if (now.getPropertyValue(p) !== want[p]) set(n, p, want[p]);
+      if (current(n, now, autos, p) !== want[p]) set(n, p, want[p]);
     }
   });
 }

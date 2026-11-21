@@ -50,12 +50,12 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 | ⌘\ | Hide / show the Edit Mode UI |
 | ⌘C / ⌘V / ⌘X | Copy, paste (after the selection, or into an empty box you added), cut |
 | ⌘D | Duplicate |
-| ⌘G | Group the selection. On the canvas: a group the size of what's inside, and nothing moves |
+| ⌘G | Group the selection. On the canvas: a group the size of what's inside, and nothing moves (things stacked in a copied component stay stacked: the group joins their flow) |
 | ⇧⌘G | Ungroup (canvas): what was inside takes the group's place, staying where it is |
 | ⌘] / ⌘[ | Bring forward / send backward one step (inside auto layout: later / earlier in the flow) |
 | ⌥⌘] / ⌥⌘[ | Bring to front / send to back |
 | ⌥⇧A | Remove auto layout. On the canvas everything inside stays where it is, now placed freely, and the frame keeps its size |
-| ⇧A | Auto layout: wraps a multi-selection or a single text/shape in a hugging frame; turns a container into auto layout |
+| ⇧A | Auto layout: wraps a multi-selection or a single text/shape in a hugging frame (rows that filled their parent's width keep filling it); turns a container into auto layout |
 | Drag a handle | Resize (hold Shift to keep proportions). With several selected, the handles are on the frame around all of them, and each element's size scales by the same amount |
 | In a field: type, ↑/↓, or drag its label | Change a value (accepts %, and math like `8*2`) |
 

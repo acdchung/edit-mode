@@ -1060,6 +1060,11 @@ export function createPanel(ctx) {
       const gaps = rects.slice(1).map((r, i) => (row ? r.left - rects[i].right : r.top - rects[i].bottom)).filter((g) => g >= 0);
       const gap = gaps.length ? Math.round(gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)]) : 0;
       const m = (k, side) => num(getComputedStyle(k)['margin' + side]);
+      // Stacked rows that filled their parent's width (bar lines, list rows)
+      // keep filling it: the frame fills too and stretches them (Figma's Fill),
+      // instead of hugging and shrinking them.
+      const inner = el.clientWidth - num(getComputedStyle(el).paddingLeft) - num(getComputedStyle(el).paddingRight);
+      const fill = !row && kids.every((k) => Math.abs(k.offsetWidth + m(k, 'Left') + m(k, 'Right') - inner) < 1);
       const outerTop = row ? Math.max(0, ...kids.map((k) => m(k, 'Top'))) : m(kids[0], 'Top');
       const outerBottom = row ? Math.max(0, ...kids.map((k) => m(k, 'Bottom'))) : m(kids.at(-1), 'Bottom');
       for (const k of kids) {
@@ -1071,9 +1076,9 @@ export function createPanel(ctx) {
       state.selected = el;
       apply('display', 'flex');
       apply('flex-direction', row ? 'row' : 'column');
-      apply('align-items', kids.length > 1 ? 'flex-start' : 'center');
+      apply('align-items', fill ? 'stretch' : kids.length > 1 ? 'flex-start' : 'center');
       apply('gap', `${gap}px`);
-      apply('width', 'fit-content');
+      if (!fill) apply('width', 'fit-content');
       if (outerTop) apply('margin-top', `${outerTop}px`);
       if (outerBottom) apply('margin-bottom', `${outerBottom}px`);
       state.selected = prev;

@@ -1765,6 +1765,17 @@ function init() {
     const u = unionRect(els);
     const g = `group:${Date.now()}`;
     let wrap;
+    // Things stacked in the normal flow of a plain parent (inside a copied
+    // component): the group just wraps them and stays in the flow, so nothing
+    // moves. Taking it out would let what's below slide up underneath.
+    const p0 = els[0].parentElement;
+    const inFlow = p0 !== canvasArea() && !/flex|grid/.test(getComputedStyle(p0).display) &&
+      els.every((k) => !/absolute|fixed/.test(getComputedStyle(k).position));
+    if (inFlow) {
+      changes.batch(g, () => { wrap = changes.group(els); wrap.dataset.emKind = 'group'; });
+      selectAll([wrap]);
+      return wrap;
+    }
     changes.batch(g, () => {
       wrap = changes.group(els);
       wrap.dataset.emKind = 'group';
