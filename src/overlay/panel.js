@@ -1392,8 +1392,32 @@ export function createPanel(ctx) {
     multiBtn('autoLayout', 'Auto layout', `${KEY.shift}A`, () => ctx.autoLayoutSelection()),
     multiBtn('trash', 'Delete', KEY.backspace, () => ctx.deleteSelection()));
 
+  // Alignment (Figma's row at the top of the panel): one thing aligns to its
+  // frame, several align to each other. Only for things placed freely on the
+  // canvas; `ctx.alignState()` says why not otherwise (greyed out, reason in the tooltip).
+  const ALIGN_BTNS = [['left', 'alignLeft', 'Align left', '⌥A'], ['hcenter', 'alignHCenter', 'Align horizontal centers', '⌥H'], ['right', 'alignRight', 'Align right', '⌥D'],
+    ['top', 'alignTop', 'Align top', '⌥W'], ['vcenter', 'alignVCenter', 'Align vertical centers', '⌥V'], ['bottom', 'alignBottom', 'Align bottom', '⌥S']];
+  const alignRow = h('section', 'align-row');
+  const alignBtns = ALIGN_BTNS.map(([how, icon, title, key]) => {
+    const b = h('button', 'icon', ICON[icon]);
+    b.dataset.align = how;
+    b.setAttribute('aria-label', title);
+    b.dataset.title = `${title} (${key})`;
+    b.addEventListener('click', () => ctx.align(how));
+    alignRow.append(b);
+    return b;
+  });
+  fields.push(() => {
+    const st = ctx.alignState();
+    alignRow.hidden = !st.show;
+    for (const b of alignBtns) {
+      b.disabled = !st.ok;
+      b.title = st.ok ? b.dataset.title : st.why;
+    }
+  });
+
   const body = h('div', 'pb');
-  body.append(multi, layout, appearance, typography, fill, strokeSec, effects);
+  body.append(alignRow, multi, layout, appearance, typography, fill, strokeSec, effects);
   column.append(header, body, footer);
   column.hidden = true;
 

@@ -181,6 +181,8 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .lbtn { all: unset; flex: none; display: none; place-items: center; width: 22px; height: 22px; border-radius: 5px; color: var(--dim); cursor: pointer; }
 .lbtn .i { width: 12px; height: 12px; }
 .lrow .lbtn.dup { display: grid; margin-left: auto; }
+.align-row { display: flex; justify-content: space-between; }
+.align-row .icon:disabled { opacity: .35; cursor: default; }
 .lbtn:hover { color: var(--text); background: var(--field-hover); }
 .lrow:hover .lbtn, .lbtn.on { display: grid; }
 .lrow:not(:hover) .lbtn.lock.on + .lbtn.eye:not(.on) { visibility: hidden; display: grid; }

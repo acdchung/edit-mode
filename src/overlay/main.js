@@ -133,6 +133,8 @@ function init() {
     },
     onEdit: () => panel.refresh(),
     groupSelection: () => groupSelection(),
+    align: (how) => alignSelection(how),
+    alignState: () => alignState(),
     autoLayoutSelection: () => autoLayoutSelection(),
     deleteSelection: () => deleteSelection(),
   });
@@ -1232,32 +1234,70 @@ function init() {
     return added;
   }
 
+  // ---------- Align (Figma's alignment row) ----------
+  // On the canvas, for things placed freely: one aligns to the frame it's in,
+  // several align to the edges of the whole selection.
+  function alignState() {
+    const els = selection();
+    if (!els.length || !els.every(onCanvas)) return { show: false };
+    if (!els.every(isLoose)) return { show: true, ok: false, why: 'Inside auto layout, the frame’s layout places it. Use the frame’s alignment instead.' };
+    if (els.length === 1 && els[0].parentElement === canvasArea()) return { show: true, ok: false, why: 'Nothing to align to: it isn’t inside a frame. Select more than one to align them.' };
+    return { show: true, ok: true };
+  }
+  function alignSelection(how) {
+    if (!alignState().ok) return;
+    const els = selection();
+    let ref;
+    if (els.length === 1) {
+      const p = els[0].parentElement; // the frame's inside (within its border)
+      const r = p.getBoundingClientRect();
+      const bl = p.clientLeft * view.z, bt = p.clientTop * view.z;
+      ref = { left: r.left + bl, top: r.top + bt, right: r.left + bl + p.clientWidth * view.z, bottom: r.top + bt + p.clientHeight * view.z };
+    } else ref = unionRect(els);
+    changes.batch(`align:${Date.now()}`, () => {
+      for (const el of els) {
+        const r = el.getBoundingClientRect();
+        const dx = how === 'left' ? ref.left - r.left : how === 'right' ? ref.right - r.right
+          : how === 'hcenter' ? (ref.left + ref.right) / 2 - (r.left + r.right) / 2 : 0;
+        const dy = how === 'top' ? ref.top - r.top : how === 'bottom' ? ref.bottom - r.bottom
+          : how === 'vcenter' ? (ref.top + ref.bottom) / 2 - (r.top + r.bottom) / 2 : 0;
+        const cs = getComputedStyle(el);
+        if (Math.abs(dx) > 0.01) changes.set(el, 'one', 'left', `${Math.round(num(cs.left) + dx / view.z)}px`);
+        if (Math.abs(dy) > 0.01) changes.set(el, 'one', 'top', `${Math.round(num(cs.top) + dy / view.z)}px`);
+      }
+    });
+    panel.refresh();
+  }
+
   // ---------- Copies onto the canvas (C3) ----------
-  // Where ⌘V lands on the canvas: under the pointer if it's over the canvas
-  // (into the frame there: its flow if it has auto layout, else at the
-  // pointer), otherwise into / next to a selected canvas frame or item.
+  // Where ⌘V lands on the canvas. A selected canvas frame first: into it, at
+  // the same spot the piece has on the page (its flow, if it has auto
+  // layout). A selected canvas item: next to it. Otherwise under the
+  // pointer, if it's over the canvas.
   function canvasTarget() {
     const area = canvasArea();
     if (!area) return null;
     const spot = (into, x, y) => (into !== area && /flex|grid/.test(getComputedStyle(into).display)
       ? { container: into, index: flowSpot(into, x, y).toIndex }
       : { container: into, at: { x, y } });
+    const s = state.selected;
+    if (s && onCanvas(s)) {
+      if (isFrame(s)) return /flex|grid/.test(getComputedStyle(s).display) ? { container: s, index: s.children.length } : { container: s, samePlace: true };
+      const r = s.getBoundingClientRect();
+      const p = s.parentElement;
+      return /flex|grid/.test(getComputedStyle(p).display)
+        ? { container: p, index: [...p.children].indexOf(s) + 1 }
+        : { container: p, at: { x: r.left + 20 * view.z, y: r.top + 20 * view.z } };
+    }
     const hits = cursor ? document.elementsFromPoint(cursor.x, cursor.y) : [];
     if (hits.includes(area)) return spot(hits.find((n) => n === area || (onCanvas(n) && isFrame(n))), cursor.x, cursor.y);
-    const s = state.selected;
-    if (!s || !onCanvas(s)) return null;
-    const r = s.getBoundingClientRect();
-    if (isFrame(s)) return spot(s, r.left + 20 * view.z, r.top + 20 * view.z);
-    const p = s.parentElement;
-    return /flex|grid/.test(getComputedStyle(p).display)
-      ? { container: p, index: [...p.children].indexOf(s) + 1 }
-      : { container: p, at: { x: r.left + 20 * view.z, y: r.top + 20 * view.z } };
+    return null;
   }
 
   // Paste `items` onto the canvas. Things from the page become canvas copies
   // (identical look, source remembered: design.js); things already on the
   // canvas are duplicated as they are. Several keep their arrangement.
-  function pasteToCanvas(items, { container, index, at }) {
+  function pasteToCanvas(items, { container, index, at, samePlace }) {
     const live = items.filter((it) => it.from?.isConnected);
     if (!live.length) return [];
     const u = unionRect(live.map((it) => it.from));
@@ -1271,7 +1311,12 @@ function init() {
         const el = made ? made.copy : from.cloneNode(true);
         for (const a of ['data-em-new', 'data-em-copy-of']) el.removeAttribute(a);
         const r = from.getBoundingClientRect();
-        const place = at
+        // Same spot: where it sits on the page (relative to the page's top-left), or in its own frame.
+        const same = samePlace && (page
+          ? { left: box(from).left - box(pageRoot()).left, top: box(from).top - box(pageRoot()).top }
+          : { left: num(getComputedStyle(from).left), top: num(getComputedStyle(from).top) });
+        const place = same ? { position: 'absolute', left: `${Math.round(same.left)}px`, top: `${Math.round(same.top)}px` }
+          : at
           ? { position: 'absolute', left: `${Math.round((at.x + (r.left - u.left) - cr.left) / view.z - container.clientLeft)}px`,
               top: `${Math.round((at.y + (r.top - u.top) - cr.top) / view.z - container.clientTop)}px` }
           : { position: 'static', left: 'auto', top: 'auto' };
@@ -1613,6 +1658,8 @@ function init() {
       return;
     }
     if (e.altKey && !mod && e.code === 'Digit1') { stop(); toggleLayers(); return; } // ⌥1, as in Figma
+    const ALIGN_KEYS = { KeyA: 'left', KeyH: 'hcenter', KeyD: 'right', KeyW: 'top', KeyV: 'vcenter', KeyS: 'bottom' };
+    if (e.altKey && !mod && !e.shiftKey && ALIGN_KEYS[e.code] && state.selected && onCanvas(state.selected)) { stop(); alignSelection(ALIGN_KEYS[e.code]); return; } // ⌥A/H/D/W/V/S (Figma)
     // Zoom (Figma): ⌘+ / ⌘− / ⌘0, ⇧0 100%, ⇧1 fit, ⇧2 selection.
     if (mod && !e.altKey && /^(Equal|NumpadAdd)$/.test(e.code)) { stop(); canvas.step(1); return; }
     if (mod && !e.altKey && /^(Minus|NumpadSubtract)$/.test(e.code)) { stop(); canvas.step(-1); return; }

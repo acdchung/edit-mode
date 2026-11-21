@@ -76,6 +76,46 @@ check('nothing on the canvas is in the Push list', (await R(() => window.__editM
 await p.keyboard.press('Meta+z'); await wait();
 check('⌘Z removes the copy', await R(() => !document.querySelector('[data-em-canvas] .payslip')));
 
+// ---------- Paste into a selected frame: the same spot as on the page ----------
+await R(() => window.__editMode.select(document.querySelector('[data-em-canvas] > [data-em-name="Page"]'))); await wait();
+await p.mouse.move(5, 5); // the pointer isn't what decides here
+await p.keyboard.press('Meta+v'); await wait(200);
+const same = await R(() => {
+  const c = document.querySelector('[data-em-canvas] [data-em-name="Page"] > .payslip');
+  const o = document.querySelector('#root .payslip').getBoundingClientRect(), root = document.getElementById('root').getBoundingClientRect();
+  const z = document.body.getBoundingClientRect().width / document.body.offsetWidth;
+  return c && { left: parseFloat(getComputedStyle(c).left), top: parseFloat(getComputedStyle(c).top), want: [Math.round((o.left - root.left) / z), Math.round((o.top - root.top) / z)] };
+});
+check('with a canvas frame selected, ⌘V puts the copy at the same spot it has on the page', same && same.left === same.want[0] && same.top === same.want[1], JSON.stringify(same));
+
+// ---------- Align ----------
+const alignBtn = (how) => R((how) => { const b = document.querySelector('edit-mode-root').shadowRoot.querySelector(`.align-row [data-align="${how}"]`); return b && { disabled: b.disabled, title: b.title, shown: !b.closest('.align-row').hidden }; }, how);
+const lt = (q) => R((q) => { const e = document.querySelector(q); return [parseFloat(getComputedStyle(e).left), parseFloat(getComputedStyle(e).top)]; }, q);
+await R(() => {
+  const f = document.querySelector('[data-em-canvas] > [data-em-name="Page"]');
+  f.insertAdjacentHTML('beforeend', '<div class="ra" data-em-kind="rectangle" style="position:absolute;left:100px;top:50px;width:80px;height:40px;background:#ccc"></div><div class="rb" data-em-kind="rectangle" style="position:absolute;left:300px;top:200px;width:120px;height:60px;background:#aaa"></div>');
+});
+await R(() => window.__editMode.select(document.querySelector('.ra'))); await wait();
+check('selecting something placed freely on the canvas shows the align row, enabled', (await alignBtn('left'))?.shown && !(await alignBtn('left')).disabled, JSON.stringify(await alignBtn('left')));
+await p.keyboard.press('Alt+KeyH'); await wait();
+check('⌥H centers it horizontally in its frame', (await lt('.ra'))[0] === (1440 - 80) / 2, String(await lt('.ra')));
+await p.keyboard.press('Alt+KeyS'); await wait();
+check('⌥S aligns it to the frame’s bottom', (await lt('.ra'))[1] === 900 - 40, String(await lt('.ra')));
+await p.keyboard.press('Meta+z'); await wait();
+check('⌘Z undoes one align', (await lt('.ra'))[1] === 50, String(await lt('.ra')));
+await R(() => { const s = window.__editMode.state; s.selected = document.querySelector('.ra'); s.multi = [document.querySelector('.ra'), document.querySelector('.rb')]; }); await wait();
+await p.keyboard.press('Alt+KeyD'); await wait();
+// .ra is still centered (left 680, right 760); .rb runs 300–420: the selection's right edge is 760.
+check('with two selected, ⌥D aligns their right edges to each other (not the frame)', (await lt('.ra'))[0] === 680 && (await lt('.rb'))[0] === 760 - 120, `${await lt('.ra')} / ${await lt('.rb')}`);
+await p.keyboard.press('Alt+KeyV'); await wait();
+// tops 50 (h 40) and 200 (h 60): the selection spans 50–260, centre 155.
+check('…and ⌥V centers them vertically on each other', (await lt('.ra'))[1] === 155 - 20 && (await lt('.rb'))[1] === 155 - 30, `${await lt('.ra')} / ${await lt('.rb')}`);
+await R(() => window.__editMode.select(document.querySelector('[data-em-canvas] > [data-em-name="Page"]'))); await wait();
+const top = await alignBtn('left');
+check('a single top-level frame: the align row is greyed out, with the reason', top?.shown && top.disabled && /isn’t inside a frame/.test(top.title), JSON.stringify(top));
+await R(() => window.__editMode.select(document.querySelector('#root .hero-title'))); await wait();
+check('on the live page there’s no align row', !(await alignBtn('left'))?.shown);
+
 // ---------- Duplicate page ----------
 const dup = await R(() => { const b = [...document.querySelector('edit-mode-root').shadowRoot.querySelectorAll('.lbtn.dup')][0].getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; });
 const t1 = Date.now();
