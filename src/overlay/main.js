@@ -183,7 +183,7 @@ function init() {
 
   // The design canvas beside the page (design.js), on the same board.
   const design = createDesign({
-    starter: () => { const r = pageRoot(); return r ? { width: Math.round(box(r).width), height: innerHeight } : null; },
+    starter: () => ({ width: pageWidth(), height: innerHeight }), // the whole page, as it sits on the board
   });
 
   // Canvas: zoom and pan the page (canvas.js). The free area is the space
@@ -1361,6 +1361,10 @@ function init() {
 
   // Duplicate page (Layers › Canvas): an identical copy of the whole page,
   // structure kept, in a page-wide frame to the right of what's on the canvas.
+  // The page's full width (CSS px), as it sits on the board: the frame the
+  // live page is drawn in, not its content column.
+  const pageWidth = () => Math.round(box(document.body).width);
+
   function duplicatePage() {
     const area = canvasArea();
     const root = pageRoot();
@@ -1369,12 +1373,19 @@ function init() {
     const f = document.createElement('div');
     f.dataset.emKind = 'frame';
     f.dataset.emName = 'Page copy';
-    f.style.cssText = `position: absolute; overflow: hidden; left: ${area.children.length ? right : 0}px; top: 0px; width: ${Math.round(box(root).width)}px; background-color: ${getComputedStyle(document.body).backgroundColor === 'rgba(0, 0, 0, 0)' ? '#FFFFFF' : getComputedStyle(document.body).backgroundColor};`;
+    f.style.cssText = `position: absolute; overflow: hidden; left: ${area.children.length ? right : 0}px; top: 0px; width: ${pageWidth()}px; background-color: ${getComputedStyle(document.body).backgroundColor === 'rgba(0, 0, 0, 0)' ? '#FFFFFF' : getComputedStyle(document.body).backgroundColor};`;
     const made = cloneToCanvas(root, { ATTR, sameSource });
     f.append(made.copy);
     changes.batch(`duplicate:${Date.now()}`, () => {
       changes.insert(f, area, area.children.length, { what: 'copy', styles: {}, text: '', copyOf: { element: 'page' } });
-      matchLook(made, { position: 'static', margin: '0px', width: '100%', height: 'auto' });
+      // Where the content sits across the page: centered stays centered (it follows the frame's width), otherwise the same offset.
+      const b = box(document.body);
+      const r = box(root);
+      const left = Math.round(r.left - b.left);
+      const right = Math.round(b.right - r.right);
+      const centered = Math.abs(left - right) <= 1;
+      matchLook(made, { position: 'static', height: 'auto', width: `${Math.round(r.width)}px`,
+        'margin-top': '0px', 'margin-bottom': '0px', 'margin-left': centered ? 'auto' : `${left}px`, 'margin-right': centered ? 'auto' : '0px' });
     });
     select(f);
     canvas.toSelection(f.getBoundingClientRect());
