@@ -174,3 +174,25 @@ export function matchLook({ to, looks }, rootStyles) {
   });
   for (const [p, v] of Object.entries(rootStyles)) to[0].style.setProperty(p, v);
 }
+
+// ---------- Moving things on the canvas (C4a) ----------
+// Something moved into another frame can lose styles that came from its old
+// surroundings (inherited font and color, ancestor selectors like `.card h3`).
+// Figma layers don't inherit, so the look is kept: snapshot it before the
+// move, then write back whatever came out different. The root's own place
+// (position, insets, margins, size, flex/grid slot) is left to the move.
+const ROOT_PLACE = /^(position|top|right|bottom|left|inset|margin|grid|align-self|justify-self|place-self|flex|order|z-index|width|height|min-|max-|inline-size|block-size|translate)/;
+export function lookOf(el) {
+  const to = [el, ...el.querySelectorAll('*')];
+  return { to, looks: to.map(snapshot) };
+}
+export function keepLook({ to, looks }, set) {
+  to.forEach((n, i) => {
+    const want = looks[i];
+    const now = getComputedStyle(n);
+    for (const p in want) {
+      if (i === 0 && ROOT_PLACE.test(p)) continue;
+      if (now.getPropertyValue(p) !== want[p]) set(n, p, want[p]);
+    }
+  });
+}

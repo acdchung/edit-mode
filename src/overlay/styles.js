@@ -200,6 +200,7 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .lbtn:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 1px; }
 .layers.dragging .lrow { cursor: grabbing; }
 .layers.dragging .lrow:hover:not(.into) { background: none; }
+.lrow.into { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 .lresize { position: absolute; top: 0; right: 0; bottom: 0; width: 6px; cursor: ew-resize; }
 .lresize:hover, .layers.resizing .lresize { box-shadow: inset -2px 0 0 var(--accent); }
 .layers.resizing { user-select: none; }

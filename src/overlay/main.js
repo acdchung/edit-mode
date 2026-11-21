@@ -10,7 +10,7 @@ import { collectTokens } from './tokens.js';
 import { createPanel } from './panel.js';
 import { createLayers } from './layers.js';
 import { createSpacing } from './spacing.js';
-import { cloneToCanvas, createDesign, matchLook } from './design.js';
+import { cloneToCanvas, createDesign, keepLook, lookOf, matchLook } from './design.js';
 import { ICON, KEY as GLYPH } from './icons.js';
 import { IMAGE_FIT, isImageFile, uploadImage } from './assets.js';
 
@@ -157,6 +157,8 @@ function init() {
   const layers = createLayers({
     state, changes, host,
     duplicatePage: () => duplicatePage(),
+    canvasReceives: (n, els) => receives(n, els),
+    moveOnCanvas: (els, container, opts) => moveOnCanvas(els, container, opts),
     pageRoot: () => pageRoot(),
     select: (el) => select(el),
     selectAll: (els) => selectAll(els),
@@ -844,7 +846,11 @@ function init() {
     else if (press?.keep) select(press.el);
     press = null;
   });
-  glass.addEventListener('pointercancel', () => { drag = press = draw = null; endDragUI(); });
+  glass.addEventListener('pointercancel', () => {
+    if (drag?.canvas) unlift(drag.canvas.lifted);
+    drag = press = draw = null;
+    endDragUI();
+  });
   glass.addEventListener('pointerleave', () => {
     pointer = null;
     if (!press) state.hovered = null;
@@ -975,34 +981,137 @@ function init() {
     if (!targetBox.hidden) place(targetBox, box.getBoundingClientRect());
   }
 
+  // ---------- Moving things on the canvas (C4a) ----------
+  // Figma's rules: let go over a frame and it goes inside (kept where you see
+  // it in a frame without auto layout; into the flow of one with auto
+  // layout); over the empty canvas, it's top-level. Rectangles, ellipses,
+  // images and text don't take children, and wrappers the Figma view skips
+  // pass the drop to their parent.
+  const NO_KIDS = /^(image|rectangle|ellipse|text)$/;
+  const ownText = (n) => [...n.childNodes].some((c) => c.nodeType === 3 && c.nodeValue.trim());
+  function receives(n, els) {
+    if (!n) return false;
+    if (n === canvasArea()) return true;
+    return onCanvas(n) && canContain(n) && !NO_KIDS.test(n.dataset.emKind || '') && !ownText(n) && !passThrough(n) &&
+      !els.some((e) => e === n || e.contains(n));
+  }
+  const takesFlow = (n) => n !== canvasArea() && /flex|grid/.test(getComputedStyle(n).display);
+  // Where a canvas drag lands: { container, anchor } (anchor: the child it
+  // goes before, null for the end; undefined in a free frame) plus the line.
+  function canvasDropAt(x, y, els) {
+    const into = document.elementsFromPoint(x, y).find((n) => n !== host && receives(n, els));
+    if (!into) return null;
+    if (!takesFlow(into)) return { container: into, anchor: undefined, line: null };
+    const f = flowSpot(into, x, y);
+    return { container: into, anchor: into.children[f.toIndex] ?? null, line: f.line };
+  }
+
+  // While dragging, the elements sit at the top of the canvas (nothing clips
+  // them, nothing covers them) and look as they did. All of it is undone
+  // before the real move, which is what gets recorded.
+  function lift(els) {
+    const area = canvasArea();
+    const ar = area.getBoundingClientRect();
+    const nodes = els.flatMap((k) => [k, ...k.querySelectorAll('*')]);
+    const lifted = {
+      styles: nodes.map((n) => [n, n.getAttribute('style')]),
+      spots: els.map((k) => [k, k.parentElement, k.nextSibling]),
+      looks: els.map((k) => (k.parentElement === area ? null : lookOf(k))),
+      at: [],
+    };
+    const rects = els.map((k) => k.getBoundingClientRect()); // all first: lifting one reflows the rest
+    els.forEach((k, i) => {
+      const r = rects[i];
+      const [l, t] = [(r.left - ar.left) / view.z - area.clientLeft, (r.top - ar.top) / view.z - area.clientTop];
+      area.append(k);
+      const set = (p, v) => k.style.setProperty(p, v, 'important');
+      set('position', 'absolute');
+      set('left', `${l}px`); set('top', `${t}px`); set('right', 'auto'); set('bottom', 'auto');
+      set('width', `${r.width / view.z}px`); set('height', `${r.height / view.z}px`);
+      set('margin', '0px'); set('pointer-events', 'none');
+      if (lifted.looks[i]) keepLook(lifted.looks[i], (n, p, v) => n.style.setProperty(p, v, 'important'));
+      lifted.at.push([k, l, t]);
+    });
+    return lifted;
+  }
+  function unlift({ styles, spots }) {
+    for (const [k, parent, next] of spots) parent.insertBefore(k, next?.parentNode === parent ? next : null);
+    for (const [n, st] of styles) { if (st == null) n.removeAttribute('style'); else n.setAttribute('style', st); }
+  }
+
+  // Move `els` into `container` (one undo step). In a frame without auto
+  // layout they stay where `rects` (screen) say, at their size; into auto
+  // layout they join the flow before `anchor`. `anchor` undefined: keep the
+  // order if they're already in there, else add at the end. Their look is
+  // kept wherever they go. Also used by Layers.
+  function moveOnCanvas(els, container, { anchor, rects, looks, group } = {}) {
+    const area = canvasArea();
+    if (!area || !receives(container, els)) return false;
+    const free = !takesFlow(container);
+    rects ??= els.map((k) => k.getBoundingClientRect());
+    const before = els.map((k, i) => ({
+      look: k.parentElement === container ? null : looks?.[i] ?? lookOf(k),
+      fill: free && /absolute|fixed/.test(getComputedStyle(k).position) === false
+        ? { width: panel.sizeModeOf(k, 'width') === 'fill', height: panel.sizeModeOf(k, 'height') === 'fill' } : null,
+    }));
+    changes.batch(group ?? `canvasmove:${Date.now()}`, () => {
+      // Freely placed things are placed from their frame's corner.
+      if (free && container !== area && getComputedStyle(container).position === 'static') changes.set(container, 'one', 'position', 'relative');
+      els.forEach((k, i) => {
+        if (anchor !== undefined || k.parentElement !== container) {
+          const rest = [...container.children].filter((c) => c !== k);
+          changes.move(k, 'one', anchor ? rest.indexOf(anchor) : rest.length, container);
+        }
+        if (before[i].look) keepLook(before[i].look, (n, p, v) => changes.set(n, 'one', p, v));
+        const cs = getComputedStyle(k);
+        if (free) {
+          const cr = container.getBoundingClientRect();
+          const r = rects[i];
+          if (cs.position !== 'absolute') changes.set(k, 'one', 'position', 'absolute');
+          for (const side of ['margin-top', 'margin-right', 'margin-bottom', 'margin-left']) if (num(cs.getPropertyValue(side))) changes.set(k, 'one', side, '0px');
+          for (const side of ['right', 'bottom']) if (cs.getPropertyValue(side) !== 'auto' && k.style.getPropertyValue(side)) changes.set(k, 'one', side, 'auto');
+          changes.set(k, 'one', 'left', `${Math.round((r.left - cr.left) / view.z - container.clientLeft)}px`);
+          changes.set(k, 'one', 'top', `${Math.round((r.top - cr.top) / view.z - container.clientTop)}px`);
+          // Something that filled its old container keeps its size (Figma: Fill becomes Fixed).
+          if (before[i].fill?.width) changes.set(k, 'one', 'width', `${Math.round(r.width / view.z)}px`);
+          if (before[i].fill?.height) changes.set(k, 'one', 'height', `${Math.round(r.height / view.z)}px`);
+        } else if (/absolute|fixed/.test(cs.position)) { // joins the flow
+          changes.set(k, 'one', 'position', 'relative');
+          for (const side of ['left', 'top', 'right', 'bottom']) if (cs.getPropertyValue(side) !== 'auto') changes.set(k, 'one', side, 'auto');
+        }
+      });
+    });
+    panel.show(state.selected);
+    return true;
+  }
+
   // `els`: what moves; the first one leads (it picks the drop spot).
   function startDrag(els, p) {
     const el = els[0];
     const parent = el?.parentElement;
     if (!parent || parent === document.documentElement || el === document.body) { press = null; return; }
     const r = unionRect(els);
-    // Loose on the canvas (top-level): they move freely, live, like Figma's top-level frames.
-    const free = els.every(isLoose);
-    drag = { el, els: inOrder(els), parent, frame: levelUp(el), rect: r, dx: p.x - r.left, dy: p.y - r.top, drop: null,
-      free: free && { x: p.x, y: p.y, at: els.map((k) => [k, num(getComputedStyle(k).left), num(getComputedStyle(k).top)]) } };
+    drag = { el, els: inOrder(els), parent, frame: levelUp(el), rect: r, dx: p.x - r.left, dy: p.y - r.top, drop: null };
     state.hovered = null;
     glass.classList.add('dragging');
-    if (free) return;
+    // On the canvas: lifted above everything and following the pointer, then
+    // dropped into whatever frame is under it (Figma).
+    if (els.every((k) => onCanvas(k) && k !== canvasArea())) { drag.canvas = { x: p.x, y: p.y, lifted: lift(drag.els) }; return; }
     frame.classList.add('moving');
     multiLayer.classList.add('moving');
   }
 
   function updateDrag(x, y) {
-    if (drag.free) {
-      const dx = Math.round((x - drag.free.x) / view.z);
-      const dy = Math.round((y - drag.free.y) / view.z);
-      drag.group ||= `free:${Date.now()}`;
-      changes.batch(drag.group, () => {
-        for (const [k, l, t] of drag.free.at) {
-          changes.set(k, 'one', 'left', `${l + dx}px`);
-          changes.set(k, 'one', 'top', `${t + dy}px`);
-        }
-      });
+    if (drag.canvas) {
+      const { lifted } = drag.canvas;
+      const dx = (x - drag.canvas.x) / view.z;
+      const dy = (y - drag.canvas.y) / view.z;
+      for (const [k, l, t] of lifted.at) {
+        k.style.setProperty('left', `${l + dx}px`, 'important');
+        k.style.setProperty('top', `${t + dy}px`, 'important');
+      }
+      drag.drop = canvasDropAt(x, y, drag.els);
+      showDrop(drag.drop && { ...drag.drop, free: drag.drop.container === canvasArea() }, true);
       return;
     }
     drag.drop = reorderAt(x, y, drag.el, drag.els);
@@ -1021,10 +1130,16 @@ function init() {
   // Drop: everything dragged lands together, in page order, before `anchor`
   // (the container's child that was at toIndex). One undo step.
   function finishDrag() {
-    const { els, drop, group, free } = drag;
+    const { els, drop, group, canvas: onBoard } = drag;
     drag = null;
     endDragUI();
-    if (free) { panel.show(state.selected); return; } // already where it was dropped
+    if (onBoard) {
+      const rects = els.map((k) => k.getBoundingClientRect()); // where they were let go
+      unlift(onBoard.lifted);
+      if (drop) moveOnCanvas(els, drop.container, { anchor: drop.anchor, rects, looks: onBoard.lifted.looks, group });
+      selectAll(els);
+      return;
+    }
     if (!drop) return;
     const { container } = drop;
     const anchor = [...container.children].filter((k) => !els.includes(k))[drop.toIndex] ?? null;

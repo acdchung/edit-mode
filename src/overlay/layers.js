@@ -5,7 +5,7 @@
 // Order is DOM order, top to bottom, which matches how a page reads
 // (Figma lists the topmost layer first; on a web page that's usually last).
 
-import { NOT_LAYER, canvasArea, describe, friendlyName, layerView, visualKids, visualParent } from './util.js';
+import { NOT_LAYER, canvasArea, describe, friendlyName, layerView, onCanvas, visualKids, visualParent } from './util.js';
 import { textNodeOf } from './changes.js';
 import { ICON } from './icons.js';
 
@@ -18,7 +18,7 @@ const h = (tag, cls, html) => {
   return el;
 };
 
-export function createLayers({ state, changes, host, pageRoot, select, selectAll, onToggle, duplicatePage }) {
+export function createLayers({ state, changes, host, pageRoot, select, selectAll, onToggle, duplicatePage, canvasReceives, moveOnCanvas }) {
   const el = h('div', 'layers glassy');
   el.hidden = true;
   el.innerHTML = `<div class="lh"><span>Layers</span><button class="lbtn lraw" aria-pressed="false" title="Show all layers (the code's own tree)" aria-label="Show all layers">${ICON.listTree}</button></div><div class="lb" role="tree"></div><div class="ldrop" hidden></div><div class="lresize" title="Drag to resize · double-click to reset"></div>`;
@@ -319,9 +319,17 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     drag = null;
     el.classList.remove('dragging');
     dropLine.hidden = true;
+    showDrop(null);
     state.hovered = null;
     if (!d.started) { if (d.keep && e.type === 'pointerup') select(d.el); return; }
     if (e.type !== 'pointerup' || !d.drop) { dirty = true; return; }
+    if (d.drop.canvas) { // on the canvas: into or out of any frame (main.js does the move)
+      const els = d.keep ? state.multi.filter((k) => onCanvas(k)) : [d.el];
+      if (moveOnCanvas(els, d.drop.container, { anchor: d.drop.anchor })) expanded.add(d.drop.container);
+      if (els.length > 1) selectAll(els); else select(d.el);
+      dirty = true;
+      return;
+    }
     const { container, toIndex } = d.drop;
     const others = [...container.children].filter((k) => k !== d.el);
     if (container !== d.el.parentElement || others[toIndex] !== d.el.nextElementSibling) {
@@ -341,6 +349,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   // Moving into another frame changes structure: that's the canvas's job.
   function dropAt(x, y) {
     const moving = drag.el;
+    if (onCanvas(moving)) return canvasDropAt(y, moving);
     const root = pageRoot();
     const frame = visualParent(moving, root);
     const hitRow = rows.find((r) => { const b = r.row.getBoundingClientRect(); return y >= b.top && y < b.bottom; })
@@ -367,7 +376,30 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   }
 
 
+  // On the canvas, rows move anywhere (Figma): the middle of a frame's row
+  // drops into it; its top or bottom edge, before or after it.
+  function canvasDropAt(y, moving) {
+    const hitRow = rows.find((r) => { const b = r.row.getBoundingClientRect(); return y >= b.top && y < b.bottom; });
+    if (!hitRow || hitRow.el === moving || moving.contains(hitRow.el) || !onCanvas(hitRow.el) && hitRow.el !== canvasArea()) return null;
+    const b = hitRow.row.getBoundingClientRect();
+    const f = (y - b.top) / b.height;
+    const els = [moving];
+    if (canvasReceives(hitRow.el, els) && (hitRow.el === canvasArea() || (f > 0.25 && f < 0.75))) {
+      return { canvas: true, container: hitRow.el, anchor: undefined, row: hitRow, where: 'into' };
+    }
+    const parent = hitRow.el.parentElement;
+    if (!canvasReceives(parent, els)) return null;
+    const after = f >= 0.5;
+    let lineRow = hitRow;
+    if (after) for (let i = rows.indexOf(hitRow) + 1; i < rows.length && rows[i].depth > hitRow.depth; i++) lineRow = rows[i];
+    let next = hitRow.el.nextElementSibling;
+    while (next === moving) next = next.nextElementSibling;
+    return { canvas: true, container: parent, anchor: after ? next : hitRow.el, row: hitRow, lineRow, where: after ? 'after' : 'before' };
+  }
+
   function showDrop(drop) {
+    for (const r of el.querySelectorAll('.lrow.into')) r.classList.remove('into');
+    if (drop?.where === 'into') { dropLine.hidden = true; drop.row.row.classList.add('into'); return; }
     dropLine.hidden = !drop;
     if (dropLine.hidden) return;
     const box = el.getBoundingClientRect();
