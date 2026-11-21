@@ -3,7 +3,7 @@ import './Activity.css';
 
 export default function Activity() {
   return (
-    <section className="card activity">
+    <section className="activity card">
       <div className="card-head">
         <h2 className="card-title">Activity</h2>
       </div>

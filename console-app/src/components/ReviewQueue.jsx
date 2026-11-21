@@ -4,7 +4,7 @@ import './ReviewQueue.css';
 
 export default function ReviewQueue() {
   return (
-    <section className="card queue">
+    <section className="queue card">
       <div className="card-head">
         <h2 className="card-title">Needs review</h2>
         <span className="queue-count">{RUN.review}</span>

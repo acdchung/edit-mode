@@ -7,7 +7,7 @@ const fmt = (n) => (n >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : `$${Math.round(n / 
 export default function PayByCountry() {
   const max = Math.max(...BY_COUNTRY.map((c) => c.usd));
   return (
-    <section className="card country">
+    <section className="country card">
       <div className="card-head">
         <h2 className="card-title">Gross pay by country</h2>
         <span className="card-meta">USD, at locked rates</span>

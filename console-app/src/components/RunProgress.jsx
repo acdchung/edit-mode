@@ -9,7 +9,7 @@ const pct = (n) => Math.round((n / RUN.people) * 100);
 export default function RunProgress() {
   const approved = PROGRESS.find((p) => p.key === 'approved');
   return (
-    <section className="card progress">
+    <section className="progress card">
       <div className="card-head">
         <h2 className="card-title">Run progress</h2>
         <span className="card-meta">{RUN.people} people</span>

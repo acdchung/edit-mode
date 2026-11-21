@@ -301,6 +301,18 @@ export function compareCopy({ top, roots }, copy = { id: 0, name: copyName(top) 
       insideNew: linked.has(pe) ? undefined : idOf(pe), fromCanvas: copy.id, copyName: copy.name });
   }
 
+  // The same change on every instance rendered from one line (all four figures
+  // made semibold): one change for all of them, as "All like this" would send.
+  const groups = new Map();
+  for (const c of out) if (c.kind === 'style' && c.source && c.count > 1) {
+    const k = `${c.source}|${c.property}|${c.value}|${JSON.stringify(c.also ?? null)}`;
+    (groups.get(k) || groups.set(k, []).get(k)).push(c);
+  }
+  for (const list of groups.values()) {
+    if (new Set(list.map((c) => c.index)).size !== list[0].count) continue;
+    Object.assign(list[0], { scope: 'all', family: list[0].source, index: undefined });
+    for (const c of list.slice(1)) out.splice(out.indexOf(c), 1);
+  }
   return { top, copy, changes: out, missing };
 }
 
@@ -477,8 +489,20 @@ export function relinkCopy({ roots }, anchors = null) {
 // A new design that was just built on the page (B3d): link it to what now
 // renders at its spot, so from now on it's compared like a copy. The element
 // is the one right after the spot's `after` neighbour (or before `before`).
+// A page element from a ref ({ element, source, index }). After a push the
+// lines move, so if the source no longer points at that element, it's found
+// by what it is (tag and classes) in the same file.
+export function findRef(r) {
+  if (!r?.source) return null;
+  const el = document.querySelectorAll(`[${ATTR}="${CSS.escape(r.source)}"]`)[r.index ?? 0];
+  if (el && describe(el) === r.element) return el;
+  const file = r.source.split(':')[0];
+  const same = [...document.querySelectorAll(`[${ATTR}^="${CSS.escape(file)}:"]`)].filter((n) => describe(n) === r.element);
+  return same[r.index ?? 0] ?? same[0] ?? null;
+}
+
 export function linkDesign(design, placement) {
-  const find = (r) => (r?.source ? document.querySelectorAll(`[${ATTR}="${CSS.escape(r.source)}"]`)[r.index ?? 0] ?? null : null);
+  const find = findRef;
   const after = find(placement.after), before = find(placement.before);
   const tagged = (n) => { for (let x = n; x; x = x.firstElementChild) if (x.hasAttribute(ATTR)) return x; return null; };
   let el = after ? after.nextElementSibling : before ? before.previousElementSibling : null;

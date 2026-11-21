@@ -9,7 +9,7 @@ const initials = (name) => name.split(' ').map((w) => w[0]).join('').slice(0, 2)
 
 export default function PeopleTable() {
   return (
-    <section className="card people">
+    <section className="people card">
       <div className="people-toolbar">
         <div className="people-filters">
           {FILTERS.map((f) => (

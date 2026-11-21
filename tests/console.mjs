@@ -35,6 +35,30 @@ const d = await R(async ([a, c]) => {
   return bad / (A.data.length / 4);
 }, [a, c]);
 check('the copy looks like the page, pixel for pixel', d < 0.005, (d * 100).toFixed(2) + '% of pixels differ');
+
+// Placing a new design in a nested app layout: near a card's top edge the
+// picker offers "before the card" (not "inside it, before its toolbar").
+await R(() => {
+  const area = document.querySelector('[data-em-canvas]');
+  const t = document.createElement('div'); t.dataset.emKind = 'text'; t.textContent = 'A note';
+  t.style.cssText = 'position: absolute; left: 0px; top: 4000px; font-size: 14px;';
+  area.append(t);
+});
+await p.keyboard.press('Meta+Enter'); await p.waitForTimeout(300);
+const place = await R(() => { const b = [...document.querySelector('edit-mode-root').shadowRoot.querySelectorAll('li.design .seg button')].find((x) => x.dataset.mode === 'place').getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; });
+await p.mouse.click(...place); await p.waitForTimeout(200);
+await p.keyboard.press('Shift+Digit0'); await p.waitForTimeout(200); // 100%
+await bringTo('#root .people', 300, 400);
+await p.mouse.move(600, 412); await p.mouse.move(620, 405); await p.waitForTimeout(120);
+await p.mouse.click(620, 405); await p.waitForTimeout(300);
+const spot = await R(() => document.querySelector('edit-mode-root').shadowRoot.querySelector('li.design .spot')?.textContent);
+check('near the people card’s top edge, the spot is between the charts and the card (not inside the card)', spot === 'After “Charts” in “Content”', spot);
+await p.keyboard.press('Escape'); await p.waitForTimeout(100);
+
+// The same change to every instance (all four figures semibold) is one change for all of them.
+await R(() => { const { changes } = window.__editMode; for (const v of document.querySelectorAll('[data-em-canvas] .stat-value')) changes.set(v, 'one', 'font-weight', '600'); });
+const folded = await R(() => window.__editMode.compareCanvas().flatMap((r) => r.changes).filter((c) => c.property === 'font-weight').map((c) => `${c.element} ${c.scope}`));
+check('making all four figures semibold is one change, for all of them', JSON.stringify(folded) === JSON.stringify(['div.stat-value all']), JSON.stringify(folded));
 await R(() => fetch('/@edit-mode/canvas', { method: 'PUT', body: JSON.stringify({ html: '' }) }));
 await p.keyboard.press('Alt+KeyE'); await p.waitForTimeout(500);
 check('no page errors', errors.length === 0, errors.join(' | '));

@@ -788,11 +788,41 @@ function init() {
   };
   // The spot under the pointer: before or after the layer there (by which half
   // the pointer is in, along its parent's direction). ⌘ goes deeper, as when selecting.
+  // Without ⌘: the nearest block under the pointer that a design could sit
+  // next to: card-sized, among siblings, and not one item of a repeated list
+  // (table rows, list items). With ⌘: the deepest element.
+  function blockAt(x, y) {
+    const root = pageRoot();
+    for (let n = deepHit(x, y); n && n !== root && root.contains(n); n = n.parentElement) {
+      if (!n.hasAttribute(ATTR) || passThrough(n)) continue;
+      const sibs = [...(n.parentElement?.children ?? [])].filter((k) => k.getClientRects().length && !NOT_LAYER.test(k.tagName));
+      if (sibs.length < 2) continue;
+      const src = n.getAttribute(ATTR);
+      if (sibs.every((k) => k.getAttribute(ATTR) === src)) continue; // a row of a list
+      const b = box(n);
+      if (b.width >= 240 && b.height >= 56) return outermost(n, y);
+    }
+    return hit(x, y, false);
+  }
+  // A block that starts (or ends) where its parent does: near that edge you mean the parent
+  // (the toolbar at the top of a card: "before the card", not "inside it, before the toolbar").
+  function outermost(n, y) {
+    const root = pageRoot();
+    for (let p = n.parentElement; p && p !== root && root.contains(p); p = p.parentElement) {
+      const r = n.getBoundingClientRect(), pr = p.getBoundingClientRect();
+      const top = y < r.top + r.height / 2;
+      if (Math.abs(top ? r.top - pr.top : pr.bottom - r.bottom) > 4 * view.z + 2) break;
+      if (passThrough(p)) continue;
+      const sibs = [...(p.parentElement?.children ?? [])].filter((k) => k.getClientRects().length && !NOT_LAYER.test(k.tagName));
+      if (p.hasAttribute(ATTR) && sibs.length >= 2) n = p;
+    }
+    return n;
+  }
   function pickSpot(x, y, deep) {
-    const el = hit(x, y, deep);
+    const el = deep ? hit(x, y, true) : blockAt(x, y);
     if (!el || onCanvas(el) || el === pageRoot() || !pageRoot().contains(el)) return null;
-    const parent = levelUp(el) || pageRoot();
-    const sibs = siblingsOf(el);
+    const parent = deep ? levelUp(el) || pageRoot() : el.parentElement;
+    const sibs = deep ? siblingsOf(el) : [...parent.children].filter((k) => k.getClientRects().length && !NOT_LAYER.test(k.tagName) && k !== host);
     const i = sibs.indexOf(el);
     const pcs = getComputedStyle(parent);
     const row = /flex/.test(pcs.display) && /^row/.test(pcs.flexDirection);
@@ -803,7 +833,10 @@ function init() {
       : { left: r.left, top: (first ? r.top : r.bottom) - 1, width: r.width, height: 3 };
     const after = first ? sibs[i - 1] ?? null : el;
     const before = first ? el : sibs[i + 1] ?? null;
-    return { el, line, spot: { parent: pageRef(parent), after: pageRef(after), before: pageRef(before) } };
+    // Named as Layers shows it (invisible wrappers like <main> skipped); the code location stays the real parent.
+    const seen = levelUp(el) || pageRoot();
+    const where = { ...pageRef(parent), name: seen === pageRoot() ? 'Page' : friendlyName(seen), ...(seen === pageRoot() ? { page: true } : {}) };
+    return { el, line, spot: { parent: where, after: pageRef(after), before: pageRef(before) } };
   }
   function startPick(n) {
     closeDialog();
