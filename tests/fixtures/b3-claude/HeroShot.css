@@ -1,0 +1,293 @@
+/* Product shot: sizes are a real app's (13px UI text), not scaled down. */
+.shot {
+  position: absolute;
+  inset: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* Pinned with room on the left for the payslip; runs off the right and bottom. */
+.shot-window {
+  position: absolute;
+  top: 16px;
+  left: 72px;
+  width: 760px;
+  height: 520px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-window);
+}
+
+.shot-chrome {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--color-line-faint);
+  background: var(--color-subtle);
+}
+
+.shot-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-bar-strong);
+}
+
+.shot-url {
+  position: absolute;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line-faint);
+  color: var(--color-muted);
+  font-size: 11px;
+  transform: translateX(-50%);
+}
+
+.shot-body {
+  display: flex;
+  height: calc(100% - 38px);
+}
+
+.shot-sidebar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+  width: 148px;
+  padding: 16px 10px;
+  border-right: 1px solid var(--color-line-faint);
+  background: var(--color-subtle);
+}
+
+.shot-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+}
+.shot-nav.is-active {
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px rgba(11, 34, 64, 0.08);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.shot-nav.is-active svg { color: var(--color-accent); }
+
+.shot-main {
+  flex: 1;
+  min-width: 0;
+  padding: 22px 24px;
+}
+
+.shot-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shot-title {
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--color-ink);
+}
+
+.shot-status {
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: #fff4dc;
+  color: #96600a;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.shot-total {
+  margin-top: 22px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-line-faint);
+}
+
+.shot-total-label {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.shot-total-value {
+  margin-top: 4px;
+  font-size: 32px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.shot-total-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.shot-list {
+  display: flex;
+  flex-direction: column;
+  margin: 8px -10px 0;
+}
+
+/* One grid for every row so the columns line up, bars included */
+.shot-row {
+  display: grid;
+  /* name, country and amount sit in fixed tracks near the left so they stay
+     in view when the window runs off the page edge */
+  grid-template-columns: 26px 124px 68px 92px;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+}
+.shot-row.is-selected { background: var(--color-accent-soft); }
+
+.shot-avatar {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 650;
+}
+.shot-avatar--blue  { background: #3b82f6; }
+.shot-avatar--coral { background: #f06a4f; }
+.shot-avatar--green { background: #12a26a; }
+.shot-avatar--empty { background: var(--color-bar); }
+
+.shot-name {
+  font-weight: 550;
+  color: var(--color-ink);
+}
+
+.shot-country { color: var(--color-muted); }
+
+.shot-amount {
+  justify-self: end;
+  font-weight: 550;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.shot-bar {
+  display: block;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--color-bar-strong);
+}
+.shot-bar--faint { background: var(--color-bar); }
+.shot-bar--right { justify-self: end; }
+
+/* The satellite: over the window's sidebar, a level above it. */
+.payslip {
+  position: absolute;
+  left: 0;
+  bottom: 40px;
+  width: 220px;
+  padding: 18px;
+  border-radius: 14px;
+  background: linear-gradient(var(--color-surface), transparent);
+  box-shadow: var(--shadow-float);
+}
+
+.payslip-lines {
+  display: flex;
+  flex-direction: column;
+}
+
+.payslip-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.payslip-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-line-faint);
+}
+
+.payslip-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 12px;
+}
+
+.payslip-name {
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.payslip-place {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.payslip-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 30px;
+}
+
+.payslip-net {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-line-faint);
+  font-size: 12px;
+  color: var(--color-text);
+}
+
+.payslip-net-value {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1199px) {
+  .shot-window { left: 120px; }
+}
+
+/* Phone: a second design, not a squeeze. No sidebar or country column; the
+   payslip straddles the window's bottom edge over filler rows. */
+@media (max-width: 600px) {
+  .shot-window { left: 8px; width: 560px; height: 500px; } /* the payslip starts below the last real row */
+  .shot-sidebar, .shot-country { display: none; }
+  .shot-url { position: static; margin-left: 12px; transform: none; }
+  .shot-main { padding: 20px; }
+  .shot-row { grid-template-columns: 26px 124px 92px; }
+  .payslip { left: auto; right: 0; bottom: 0; width: 208px; padding: 16px; }
+}

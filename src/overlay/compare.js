@@ -74,6 +74,21 @@ const inlineStyles = (n) => {
   for (let i = 0; i < n.style.length; i++) out[n.style[i]] = n.style.getPropertyValue(n.style[i]);
   return out;
 };
+// Two computed values that render the same, written differently: what Claude
+// writes (`transparent`, `bottom: 0`, a default `normal`) vs what the canvas
+// measured (`rgba(255, 255, 255, 0)`, `-0.2px`, `stretch`).
+const NORMAL_IS = { 'align-items': 'stretch', 'justify-items': 'stretch', 'align-self': 'stretch', 'justify-self': 'stretch', 'row-gap': '0px', 'column-gap': '0px' };
+// A gradient's first stop at 0% and last at 100% are the defaults: written or not, the same.
+const stops = (v) => v.replace(/(gradient\((?:[^(),]+, )?(?:rgba?\([^)]*\)|#[0-9a-f]+|[a-z]+)) 0%,/g, '$1,').replace(/((?:rgba?\([^)]*\)|#[0-9a-f]+|[a-z]+)) 100%\)/g, '$1)');
+const clear = (v) => stops(v).replace(/rgba\(\s*\d+,\s*\d+,\s*\d+,\s*0\s*\)/g, 'rgba(0, 0, 0, 0)').replace(/\btransparent\b/g, 'rgba(0, 0, 0, 0)');
+export function sameValue(prop, a, b) {
+  if (a === b) return true;
+  if (NORMAL_IS[prop] && (a === 'normal' ? NORMAL_IS[prop] : a) === (b === 'normal' ? NORMAL_IS[prop] : b)) return true;
+  const px = /^(-?[\d.]+)px$/;
+  const ma = px.exec(a), mb = px.exec(b);
+  if (ma && mb && Math.abs(ma[1] - mb[1]) < 0.5) return true;
+  return clear(a) === clear(b);
+}
 const newName = (n) => n.dataset.emName || KIND_NAME[n.dataset.emKind] || n.tagName.toLowerCase();
 const cleanHtml = (n) => {
   const c = n.cloneNode(true);
@@ -130,7 +145,7 @@ export function compareCopy({ top, roots }, copy = { id: 0, name: copyName(top) 
       if (isRoot.has(c) && ROOT_SLOT.test(p)) continue;
       if (placed.has(c) && PLACE.test(p)) continue;
       const to = cs.getPropertyValue(p), from = os.getPropertyValue(p);
-      if (to === from) continue;
+      if (sameValue(p, to, from)) continue;
       // A frame made `relative` only so things can be placed freely in it: part of placing them.
       if (p === 'position' && to === 'relative' && from === 'static' && [...c.children].some((k) => placed.has(k))) continue;
       out.push({ kind: 'style', ...ref(o), property: p, from, to, value: c.style.getPropertyValue(p) });
