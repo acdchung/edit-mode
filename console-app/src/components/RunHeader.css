@@ -1,0 +1,70 @@
+.run-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-6) var(--space-4);
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+
+.run-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.run-crumbs a:hover { color: var(--color-ink); }
+
+.run-title-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.run-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.run-title-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.run-title {
+  font-size: var(--text-xl);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+}
+
+.run-status {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.run-sub {
+  color: var(--color-muted);
+}
+
+.run-cutoff {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-warning-text);
+  font-weight: 500;
+}
+
+.run-actions {
+  display: flex;
+  gap: var(--space-2);
+}

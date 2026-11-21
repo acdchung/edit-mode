@@ -1,0 +1,196 @@
+.people {
+  overflow: hidden;
+}
+
+.people-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.people-filters {
+  display: flex;
+  gap: 4px;
+}
+
+.people-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-muted);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.people-filter:hover { color: var(--color-ink); }
+
+.people-filter.is-active {
+  background: var(--color-neutral-soft);
+  color: var(--color-ink);
+}
+
+.people-filter-count {
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-faint);
+}
+
+.people-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 200px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  color: var(--color-faint);
+}
+
+.people-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  font: inherit;
+  color: var(--color-ink);
+}
+
+.people-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.people-table th {
+  height: 34px;
+  padding: 0 var(--space-4);
+  background: var(--color-subtle);
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.people-table td {
+  height: 48px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--color-line-faint);
+  color: var(--color-ink);
+}
+
+.people-table tbody tr:hover { background: var(--color-subtle); }
+
+.people-table tr.is-flagged { box-shadow: inset 3px 0 0 var(--color-critical); }
+
+.people-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.person-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.person-name {
+  font-weight: 500;
+}
+
+.person-role {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.country-code {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--color-neutral-soft);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
+}
+
+.change-flat { color: var(--color-faint); }
+
+.change-note {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.change-up {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.change-up.is-big { color: var(--color-warning-text); }
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 6px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.status--approved { background: var(--color-good-soft); color: var(--color-good-text); }
+.status--pending { background: var(--color-neutral-soft); color: var(--color-text); }
+.status--review { background: var(--color-warning-soft); color: var(--color-warning-text); }
+.status--flagged { background: var(--color-critical-soft); color: var(--color-critical-text); }
+
+.row-actions {
+  width: 44px;
+  text-align: right;
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.icon-btn:hover { background: var(--color-neutral-soft); color: var(--color-ink); }
+
+.people-foot {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}

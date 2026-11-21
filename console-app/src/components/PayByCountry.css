@@ -1,0 +1,50 @@
+.country {
+  display: flex;
+  flex-direction: column;
+}
+
+.country-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-4);
+}
+
+.country-row {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  height: 22px;
+}
+
+.country-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.country-track {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-right: 52px; /* room for the value at the tip */
+}
+
+.country-bar {
+  height: 12px;
+  border-radius: 0 4px 4px 0; /* square at the baseline, rounded at the data end */
+  background: var(--color-accent);
+}
+
+.is-other .country-bar { background: var(--color-neutral); }
+
+.country-value {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}

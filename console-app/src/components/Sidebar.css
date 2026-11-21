@@ -1,0 +1,112 @@
+.sidebar {
+  position: sticky;
+  top: 0;
+  flex: none;
+  width: var(--sidebar-width);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-3);
+  background: var(--color-sidebar);
+  color: #c6d0de;
+}
+
+.sidebar-logo {
+  padding: 0 var(--space-2);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.sidebar-org {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  color: #c6d0de;
+  cursor: pointer;
+}
+
+.sidebar-org-mark {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.sidebar-org-name {
+  flex: 1;
+  text-align: left;
+  font-weight: 500;
+  color: #fff;
+}
+
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+}
+
+.sidebar-link:hover { background: rgba(255, 255, 255, 0.05); }
+
+.sidebar-link.is-active {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.sidebar-foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-3) var(--space-2) 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #f0a37a;
+  color: #3a1d0c;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.sidebar-user-name {
+  font-weight: 500;
+  color: #fff;
+}
+
+.sidebar-user-role {
+  font-size: var(--text-xs);
+  color: #8d9bb0;
+}
