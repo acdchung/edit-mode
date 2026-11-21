@@ -11,6 +11,7 @@ import {
 import { textNodeOf } from './changes.js';
 import { ICON, KEY } from './icons.js';
 import { IMAGE_FIT, fitOf, pickImage, uploadImage } from './assets.js';
+import { CONSTRAINT_OPTIONS, constraintOf, frameBox, isPlaced, placeBox } from './constraints.js';
 
 const ROOT = (window.__EDIT_MODE__ && window.__EDIT_MODE__.root) || '';
 
@@ -884,8 +885,7 @@ export function createPanel(ctx) {
   const autoX = h('button', 'icon', ICON.x);
   autoX.title = 'Remove auto layout';
   autoX.setAttribute('aria-label', 'Remove auto layout');
-  autoX.addEventListener('click', () => act(null, () =>
-    clear(['display', 'flex-direction', 'justify-content', 'align-items', 'gap'], (cs) => /flex/.test(cs.display), () => apply('display', 'block'))));
+  autoX.addEventListener('click', () => ctx.removeAutoLayout()); // ⌥⇧A: on the canvas, everything inside stays put
   autoHead.append(h('span', 'cap', 'Auto layout'), autoX);
   autoBlock.append(autoHead, row('one', dirSeg), row('two', segRowMain, segColMain, segRowCross, segColCross));
   const autoAdd = h('button', 'icon add', ICON.autoLayout);
@@ -915,6 +915,12 @@ export function createPanel(ctx) {
   };
   fields.push(syncRatio);
   const writeSize = (axis, t) => {
+    if (isPlaced(sel()) && isNumber(String(t))) { // placed freely: through its constraints (Left and right → the right inset moves)
+      const ratio = state.ratio.get(sel());
+      const v = Math.max(0, +t);
+      const to = axis === 'width' ? { w: v, ...(ratio && { h: v / ratio }) } : { h: v, ...(ratio && { w: v * ratio }) };
+      return placeBox(sel(), apply, to);
+    }
     const ok = setSize(axis, t);
     const ratio = state.ratio.get(sel());
     if (ok === false || !ratio || !isNumber(String(t))) return ok;
@@ -928,6 +934,43 @@ export function createPanel(ctx) {
       write: (t) => writeSize(axis, t),
       modes: { options: (el) => sizeOptions(el, axis), read: (el) => sizeMode(el, axis), write: (m) => setSizing(axis, m) },
     })));
+
+  // X / Y (C4b): where something placed freely sits in its frame (top-level: on the canvas).
+  const posRow = row('two',
+    ...[['x', 'X'], ['y', 'Y']].map(([k, label]) => numField({
+      prefix: label, title: label === 'X' ? 'X position' : 'Y position', min: -99999,
+      read: (el) => fmt(frameBox(el)[k]),
+      write: (t) => (isNumber(t) ? placeBox(sel(), apply, { [k]: +t }) : false),
+    })));
+
+  // Ignore auto layout (C4c; Figma's absolute position): out of the flow, staying where it is.
+  const pinBtn = h('button', 'icon', ICON.pin);
+  pinBtn.addEventListener('click', () => ctx.ignoreAutoLayout(!pinBtn.classList.contains('on')));
+  fields.push(() => {
+    if (!sel()) return;
+    const on = picked().every(isPlaced);
+    pinBtn.classList.toggle('on', on);
+    pinBtn.setAttribute('aria-pressed', String(on));
+    pinBtn.title = on ? 'Back into auto layout' : 'Ignore auto layout (absolute position)';
+  });
+
+  // Constraints (C4d): how it follows its frame when the frame is resized.
+  const consBtns = ['h', 'v'].map((axis) => {
+    const b = h('button', 'dd', '<span class="dd-label"></span>');
+    b.append(h('span', 'chev', ICON.chevron));
+    b.title = axis === 'h' ? 'Horizontal constraint' : 'Vertical constraint';
+    b.addEventListener('click', () => {
+      const now = common((el) => constraintOf(el, axis));
+      listPop(b, CONSTRAINT_OPTIONS[axis], now, (v) => act(null, () => placeBox(sel(), apply, {}, { [axis]: v })));
+    });
+    fields.push(() => {
+      if (!sel()) return;
+      const now = common((el) => constraintOf(el, axis));
+      b.querySelector('.dd-label').textContent = now === MIXED ? MIXED : Object.fromEntries(CONSTRAINT_OPTIONS[axis])[now];
+    });
+    return b;
+  });
+  const constraints = section('Constraints', row('two', ...consBtns));
 
   // Clip content (Figma): hide whatever sticks out past the frame's edges.
   const clipRow = h('label', 'checkrow');
@@ -945,13 +988,14 @@ export function createPanel(ctx) {
   const layout = section('Layout',
     autoBlock,
     sizeRow,
+    posRow,
     gapRow,
     spacing('padding', 'padding', 0),
     spacing('margin', 'margin', -9999),
     clipRow);
 
   layout.head.append(h('span', 'sh-acts')); // W/H keep their full width; the link lives in the title row
-  layout.head.lastChild.append(ratioBtn, autoAdd);
+  layout.head.lastChild.append(pinBtn, ratioBtn, autoAdd);
 
   // Turn an element into a flex container that keeps its current look.
   // Freely placed things on the canvas becoming auto layout (⇧A), like Figma:
@@ -1690,7 +1734,7 @@ export function createPanel(ctx) {
   });
 
   const body = h('div', 'pb');
-  body.append(alignRow, multi, layout, appearance, typography, fill, strokeSec, effects);
+  body.append(alignRow, multi, layout, constraints, appearance, typography, fill, strokeSec, effects);
   column.append(header, body, footer);
   column.hidden = true;
 
@@ -1729,7 +1773,7 @@ export function createPanel(ctx) {
     metaEl.title = src ? `${src.file}:${src.line}:${src.col}` : 'Not rendered from a JSX file in this project';
 
     if (onCanvas(el)) { // on the design canvas: its kind (or the copy's tag) and where it lives
-      const kind = { frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', text: 'Text', image: 'Image' }[el.dataset.emKind];
+      const kind = { frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', text: 'Text', image: 'Image', group: 'Group' }[el.dataset.emKind];
       nameEl.textContent = nameEl.title = el.dataset.emName || kind || describe(el);
       const from = parseSrc((el.dataset.emFrom || '').replace(/#\d+$/, ''));
       metaEl.textContent = from ? `copy of ${from.file.split('/').pop()}:${from.line} · on the canvas` : 'on the canvas · not pushed';
@@ -1762,6 +1806,10 @@ export function createPanel(ctx) {
       [...x.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim()));
     gapRow.hidden = !all((x, s) => /flex|grid/.test(s.display));
     clipRow.hidden = !all((x) => x.children.length > 0 || x.dataset.emKind === 'frame'); // things that can hold content
+    const placed = all((x) => isPlaced(x));
+    posRow.hidden = !placed;
+    pinBtn.hidden = !all((x) => ctx.inAutoLayout(x));
+    constraints.hidden = !placed || !all((x) => !x.parentElement?.hasAttribute('data-em-canvas')); // top-level things have no frame to follow
     const flex = all((x, s) => /flex/.test(s.display));
     autoBlock.hidden = !flex;
     autoAdd.hidden = many() || flex || !el.children.length || /grid/.test(cs.display); // several: the ⇧A button above

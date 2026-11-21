@@ -13,6 +13,7 @@ import { createSpacing } from './spacing.js';
 import { cloneToCanvas, createDesign, keepLook, lookOf, matchLook } from './design.js';
 import { ICON, KEY as GLYPH } from './icons.js';
 import { IMAGE_FIT, isImageFile, uploadImage } from './assets.js';
+import { frameBox, placeBox } from './constraints.js';
 
 if (!window.__editModeOverlay) {
   window.__editModeOverlay = true;
@@ -139,6 +140,9 @@ function init() {
     autoLayoutSelection: () => autoLayoutSelection(),
     deleteSelection: () => deleteSelection(),
     toast: (...a) => toast(...a),
+    ignoreAutoLayout: (on) => ignoreAutoLayout(on),
+    removeAutoLayout: () => removeAutoLayout(),
+    inAutoLayout: (k) => inAutoLayout(k),
   });
   const toolsBar = $('.tools');
   // Clicking toolbar, pill and panel buttons shouldn't leave them keyboard-focused
@@ -868,7 +872,7 @@ function init() {
   const isFrame = (n) => n.dataset?.emKind === 'frame'; // a canvas frame (kept across reloads)
   // Placed freely on the canvas (top level, or in a frame without auto layout): moves by x/y.
   const isLoose = (k) => onCanvas(k) && getComputedStyle(k).position === 'absolute';
-  const canContain = (n) => (n.hasAttribute(ATTR) || !!n.dataset.emNew || !!n.dataset.emCopyOf || !!n.dataset.emFrom || isFrame(n)) && !LEAF.test(n.tagName) && !n.closest('svg');
+  const canContain = (n) => (n.hasAttribute(ATTR) || !!n.dataset.emNew || !!n.dataset.emCopyOf || !!n.dataset.emFrom || isFrame(n) || n.dataset.emKind === 'group') && !LEAF.test(n.tagName) && !n.closest('svg');
 
   // The insertion line beside sibling `s` (rect `r`), centred in the gap to
   // its neighbour when there is one.
@@ -981,6 +985,13 @@ function init() {
     if (!targetBox.hidden) place(targetBox, box.getBoundingClientRect());
   }
 
+  // Move something placed freely by (dx, dy) CSS px, keeping its constraints.
+  const setter = (k) => (p, v) => changes.set(k, 'one', p, v);
+  function shiftBy(k, dx, dy) {
+    const b = frameBox(k);
+    placeBox(k, setter(k), { x: b.x + dx, y: b.y + dy });
+  }
+
   // ---------- Moving things on the canvas (C4a) ----------
   // Figma's rules: let go over a frame and it goes inside (kept where you see
   // it in a frame without auto layout; into the flow of one with auto
@@ -1028,7 +1039,7 @@ function init() {
       set('position', 'absolute');
       set('left', `${l}px`); set('top', `${t}px`); set('right', 'auto'); set('bottom', 'auto');
       set('width', `${r.width / view.z}px`); set('height', `${r.height / view.z}px`);
-      set('margin', '0px'); set('pointer-events', 'none');
+      set('margin', '0px'); set('pointer-events', 'none'); set('translate', 'none');
       if (lifted.looks[i]) keepLook(lifted.looks[i], (n, p, v) => n.style.setProperty(p, v, 'important'));
       lifted.at.push([k, l, t]);
     });
@@ -1069,15 +1080,15 @@ function init() {
           const r = rects[i];
           if (cs.position !== 'absolute') changes.set(k, 'one', 'position', 'absolute');
           for (const side of ['margin-top', 'margin-right', 'margin-bottom', 'margin-left']) if (num(cs.getPropertyValue(side))) changes.set(k, 'one', side, '0px');
-          for (const side of ['right', 'bottom']) if (cs.getPropertyValue(side) !== 'auto' && k.style.getPropertyValue(side)) changes.set(k, 'one', side, 'auto');
-          changes.set(k, 'one', 'left', `${Math.round((r.left - cr.left) / view.z - container.clientLeft)}px`);
-          changes.set(k, 'one', 'top', `${Math.round((r.top - cr.top) / view.z - container.clientTop)}px`);
           // Something that filled its old container keeps its size (Figma: Fill becomes Fixed).
           if (before[i].fill?.width) changes.set(k, 'one', 'width', `${Math.round(r.width / view.z)}px`);
           if (before[i].fill?.height) changes.set(k, 'one', 'height', `${Math.round(r.height / view.z)}px`);
+          // Where it was let go, under its constraints (Left/Top unless it has others).
+          placeBox(k, setter(k), { x: (r.left - cr.left) / view.z - container.clientLeft, y: (r.top - cr.top) / view.z - container.clientTop });
         } else if (/absolute|fixed/.test(cs.position)) { // joins the flow
           changes.set(k, 'one', 'position', 'relative');
           for (const side of ['left', 'top', 'right', 'bottom']) if (cs.getPropertyValue(side) !== 'auto') changes.set(k, 'one', side, 'auto');
+          if (k.style.getPropertyValue('translate')) changes.set(k, 'one', 'translate', 'none');
         }
       });
     });
@@ -1379,9 +1390,8 @@ function init() {
       changes.batch(`distribute:${Date.now()}`, () => {
         for (const { el, r } of items.slice(1, -1)) {
           at += gap;
-          const side = h ? 'left' : 'top';
           const d = at - (h ? r.left : r.top);
-          if (Math.abs(d) > 0.01) changes.set(el, 'one', side, `${Math.round(num(getComputedStyle(el)[side]) + d / view.z)}px`);
+          if (Math.abs(d) > 0.01) shiftBy(el, h ? d / view.z : 0, h ? 0 : d / view.z);
           at += h ? r.width : r.height;
         }
       });
@@ -1402,9 +1412,7 @@ function init() {
           : how === 'hcenter' ? (ref.left + ref.right) / 2 - (r.left + r.right) / 2 : 0;
         const dy = how === 'top' ? ref.top - r.top : how === 'bottom' ? ref.bottom - r.bottom
           : how === 'vcenter' ? (ref.top + ref.bottom) / 2 - (r.top + r.bottom) / 2 : 0;
-        const cs = getComputedStyle(el);
-        if (Math.abs(dx) > 0.01) changes.set(el, 'one', 'left', `${Math.round(num(cs.left) + dx / view.z)}px`);
-        if (Math.abs(dy) > 0.01) changes.set(el, 'one', 'top', `${Math.round(num(cs.top) + dy / view.z)}px`);
+        if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) shiftBy(el, dx / view.z, dy / view.z);
       }
     });
     panel.refresh();
@@ -1680,9 +1688,146 @@ function init() {
 
   function groupSelection() {
     if (state.multi.length < 2) return null;
+    if (state.multi.every((k) => onCanvas(k))) return canvasGroup(state.multi);
     const wrap = changes.group(state.multi);
     select(wrap);
     return wrap;
+  }
+
+  // ---------- Structure on the canvas (C4c, C4f) ----------
+  // Take `els` out of the flow (or out of where they were), placed by
+  // position at `rects` (screen) inside their parent: Figma's absolute
+  // position. The parent becomes their reference corner.
+  function placeFreely(els, rects) {
+    const fills = els.map((k) => ({ w: panel.sizeModeOf(k, 'width') === 'fill', h: panel.sizeModeOf(k, 'height') === 'fill' }));
+    els.forEach((k, i) => {
+      const p = k.parentElement;
+      if (getComputedStyle(p).position === 'static') changes.set(p, 'one', 'position', 'relative');
+      const cs = getComputedStyle(k);
+      const r = rects[i];
+      if (cs.position !== 'absolute') changes.set(k, 'one', 'position', 'absolute');
+      for (const side of ['margin-top', 'margin-right', 'margin-bottom', 'margin-left']) if (num(cs.getPropertyValue(side))) changes.set(k, 'one', side, '0px');
+      if (fills[i].w) changes.set(k, 'one', 'width', `${Math.round(r.width / view.z)}px`);
+      if (fills[i].h) changes.set(k, 'one', 'height', `${Math.round(r.height / view.z)}px`);
+      const pr = p.getBoundingClientRect();
+      placeBox(k, setter(k), { x: (r.left - pr.left) / view.z - p.clientLeft, y: (r.top - pr.top) / view.z - p.clientTop });
+    });
+  }
+  // Back into the flow of its auto-layout frame, at its place in the layer order.
+  function joinFlow(k) {
+    changes.set(k, 'one', 'position', 'relative');
+    for (const side of ['left', 'top', 'right', 'bottom']) if (k.style.getPropertyValue(side) && k.style.getPropertyValue(side) !== 'auto') changes.set(k, 'one', side, 'auto');
+    if (k.style.getPropertyValue('translate')) changes.set(k, 'one', 'translate', 'none');
+  }
+  const inAutoLayout = (k) => onCanvas(k) && k.parentElement && k.parentElement !== canvasArea() && /flex|grid/.test(getComputedStyle(k.parentElement).display);
+
+  // Ignore auto layout (Figma's absolute position), on or off. Stays where it is.
+  function ignoreAutoLayout(on) {
+    const els = selection().filter(inAutoLayout);
+    if (!els.length) return;
+    const rects = els.map((k) => k.getBoundingClientRect());
+    changes.batch(`ignoreal:${Date.now()}`, () => {
+      if (on) placeFreely(els.filter((k) => !isLoose(k)), rects.filter((_, i) => !isLoose(els[i])));
+      else els.filter(isLoose).forEach(joinFlow);
+    });
+    panel.show(state.selected);
+  }
+
+  // ⌥⇧A: remove auto layout. On the canvas everything inside stays where it
+  // is, now placed freely, and the frame keeps its size (Figma). On the live
+  // page the frame just stops being auto layout.
+  function removeAutoLayout() {
+    const frames = selection().filter((k) => /flex/.test(getComputedStyle(k).display));
+    if (!frames.length) return;
+    changes.batch(`removeal:${Date.now()}`, () => {
+      for (const f of frames) {
+        const kids = onCanvas(f) ? [...f.children].filter((k) => !isLoose(k) && k.getClientRects().length) : [];
+        const rects = kids.map((k) => k.getBoundingClientRect());
+        const b = box(f);
+        if (onCanvas(f)) {
+          changes.set(f, 'one', 'width', `${Math.round(b.width)}px`);
+          changes.set(f, 'one', 'height', `${Math.round(b.height)}px`);
+        }
+        for (const p of ['display', 'flex-direction', 'justify-content', 'align-items', 'gap', 'flex-wrap']) if (changes.has(f, 'one', p)) changes.revert(f, 'one', p);
+        if (/flex/.test(getComputedStyle(f).display)) changes.set(f, 'one', 'display', 'block');
+        if (kids.length) placeFreely(kids, rects);
+      }
+    });
+    panel.show(state.selected);
+  }
+
+  // ⌘G on the canvas: a group around them, the size of what's inside, with
+  // everything staying where it is (in a free frame the group is placed
+  // there; in auto layout it takes their place in the flow).
+  function canvasGroup(els) {
+    els = inOrder(els);
+    const rects = els.map((k) => k.getBoundingClientRect());
+    const u = unionRect(els);
+    const g = `group:${Date.now()}`;
+    let wrap;
+    changes.batch(g, () => {
+      wrap = changes.group(els);
+      wrap.dataset.emKind = 'group';
+      const p = wrap.parentElement;
+      changes.set(wrap, 'one', 'width', `${Math.round(u.width / view.z)}px`);
+      changes.set(wrap, 'one', 'height', `${Math.round(u.height / view.z)}px`);
+      changes.set(wrap, 'one', 'flex-shrink', '0');
+      if (p === canvasArea() || !/flex|grid/.test(getComputedStyle(p).display)) {
+        if (getComputedStyle(p).position === 'static') changes.set(p, 'one', 'position', 'relative');
+        changes.set(wrap, 'one', 'position', 'absolute');
+        const pr = p.getBoundingClientRect();
+        placeBox(wrap, setter(wrap), { x: (u.left - pr.left) / view.z - p.clientLeft, y: (u.top - pr.top) / view.z - p.clientTop });
+      } else changes.set(wrap, 'one', 'position', 'relative');
+      placeFreely(els, rects);
+    });
+    selectAll([wrap]);
+    return wrap;
+  }
+
+  // ⇧⌘G: ungroup. What was inside takes its place, staying where it is.
+  function ungroupSelection() {
+    const els = selection().filter((k) => onCanvas(k) && k.children.length && k.parentElement);
+    if (!els.length) {
+      if (state.selected && !onCanvas(state.selected)) toast('Ungroup works on the canvas', 'On the live page, structure stays as the code has it.', { ms: 2500 });
+      return;
+    }
+    const g = `ungroup:${Date.now()}`;
+    const freed = [];
+    changes.batch(g, () => {
+      for (const w of els) {
+        const kids = [...w.children];
+        const rects = kids.map((k) => k.getBoundingClientRect());
+        const p = w.parentElement;
+        // Everything moves out before it, keeping its look and spot (or its place in the flow).
+        if (!moveOnCanvas(kids, p, { anchor: w, rects, group: g })) continue;
+        changes.remove(w, 'one');
+        freed.push(...kids);
+      }
+    });
+    if (freed.length) selectAll(freed);
+  }
+
+  // ⌘] / ⌘[: forward / backward one step among its siblings; ⌥⌘] / ⌥⌘[:
+  // to the front / back. Later in the code is in front; in auto layout it's
+  // later in the flow (Figma). Layers keeps page order: forward moves a row down.
+  function reorderSelection(how) {
+    const els = inOrder(selection()).filter((k) => k.parentElement && k.parentElement !== document.body && k !== canvasArea());
+    if (!els.length) return;
+    const scope = els.length > 1 ? 'one' : state.scope;
+    const later = how === 'forward' || how === 'front';
+    const sibs = (k) => [...k.parentElement.children].filter((c) => c !== host && c !== canvasArea());
+    changes.batch(`order:${Date.now()}`, () => {
+      for (const k of later ? [...els].reverse() : els) {
+        const list = sibs(k);
+        const i = list.indexOf(k);
+        const target = how === 'front' ? list.at(-1) : how === 'back' ? list[0] : list[i + (later ? 1 : -1)];
+        if (!target || target === k || (how !== 'front' && how !== 'back' && els.includes(target))) continue;
+        const rest = [...k.parentElement.children].filter((c) => c !== k);
+        const at = rest.indexOf(target) + (later ? 1 : 0);
+        changes.move(k, scope, at, k.parentElement);
+      }
+    });
+    panel.show(state.selected);
   }
 
   // ⇧A, like Figma: several siblings → wrap them in an auto layout frame.
@@ -1785,7 +1930,7 @@ function init() {
       const dir = handle.dataset.dir;
       const els = state.multi.length > 1 ? state.multi.filter((k) => k.isConnected && visible(k)) : [el];
       const scope = els.length > 1 ? 'one' : state.scope;
-      const start = els.map((k) => [k, box(k)]); // CSS px
+      const start = els.map((k) => [k, box(k), isLoose(k) && frameBox(k)]); // CSS px
       const r0 = unionRect(els);
       const x0 = e.clientX;
       const y0 = e.clientY;
@@ -1807,9 +1952,18 @@ function init() {
         // New size of each element: scaled with the frame (or, from nothing, the frame's own size).
         const size = (b0, frame0, now) => Math.max(0, Math.round(frame0 ? b0 * (now / frame0) : now / view.z)); // screen → CSS px
         changes.batch(group, () => {
-          for (const [k, b] of start) {
-            if (lock || /[ew]/.test(dir)) panel.sizeOf(k, scope, 'width', size(b.width, r0.width, w));
-            if (lock || /[ns]/.test(dir)) panel.sizeOf(k, scope, 'height', size(b.height, r0.height, h));
+          for (const [k, b, fb] of start) {
+            const nw = size(b.width, r0.width, w);
+            const nh = size(b.height, r0.height, h);
+            if (fb) { // placed freely: the opposite edge stays put (Figma), constraints kept
+              const to = {};
+              if (lock || /[ew]/.test(dir)) Object.assign(to, { w: nw, x: dir.includes('w') ? fb.x + fb.w - nw : fb.x });
+              if (lock || /[ns]/.test(dir)) Object.assign(to, { h: nh, y: dir.includes('n') ? fb.y + fb.h - nh : fb.y });
+              placeBox(k, setter(k), to);
+              continue;
+            }
+            if (lock || /[ew]/.test(dir)) panel.sizeOf(k, scope, 'width', nw);
+            if (lock || /[ns]/.test(dir)) panel.sizeOf(k, scope, 'height', nh);
           }
         });
       };
@@ -1904,6 +2058,13 @@ function init() {
     }
     if (mod && e.code === 'KeyY') { stop(); changes.redo(); return; }
     if (mod && e.code === 'KeyG' && !e.shiftKey) { stop(); groupSelection(); return; }
+    if (mod && e.code === 'KeyG' && e.shiftKey) { stop(); ungroupSelection(); return; } // ⇧⌘G (Figma)
+    if (mod && /^Bracket(Left|Right)$/.test(e.code) && state.selected) { // ⌘] ⌘[ ⌥⌘] ⌥⌘[ (Figma), also blocks the browser's Back
+      stop();
+      reorderSelection(e.code === 'BracketRight' ? (e.altKey ? 'front' : 'forward') : (e.altKey ? 'back' : 'backward'));
+      return;
+    }
+    if (e.altKey && e.shiftKey && !mod && e.code === 'KeyA' && state.selected) { stop(); removeAutoLayout(); return; } // ⌥⇧A
     if (e.key === 'Tab' && state.selected && !mod) {
       // Tab / Shift-Tab: next / previous sibling (Figma).
       stop();
@@ -1975,8 +2136,8 @@ function init() {
         changes.batch(`nudge:${Date.now()}`, () => {
           for (const k of back ? els : els.reverse()) {
             if (isLoose(k)) { // placed freely on the canvas: nudge its position
-              const side = prop === 'margin-left' ? 'left' : 'top';
-              changes.set(k, scope, side, `${num(getComputedStyle(k)[side]) + dir * (e.shiftKey ? 10 : 1)}px`);
+              const d = dir * (e.shiftKey ? 10 : 1);
+              shiftBy(k, prop === 'margin-left' ? d : 0, prop === 'margin-left' ? 0 : d);
               continue;
             }
             const pcs = k.parentElement && getComputedStyle(k.parentElement);

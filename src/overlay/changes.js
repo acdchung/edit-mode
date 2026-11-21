@@ -15,6 +15,7 @@ import { ATTR, describe, family, familyKey, friendlyName, sameSource, visualKids
 export const TEXT = '#text';
 export const POS = '#pos'; // position in the DOM: [parent, nextSibling]
 const SIZE = /^(width|height|flex-basis|(min|max)-(width|height))$/;
+const PLACE = /^(left|right|top|bottom|translate)$/; // canvas positions under constraints (constraints.js)
 
 export const textNodeOf = (el) => {
   const nodes = [...el.childNodes].filter((n) => !(n.nodeType === 3 && !n.nodeValue.trim() && el.childNodes.length > 1));
@@ -121,7 +122,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
     // change (Hug → Fixed at 40px). It's a no-op only once it's back to the
     // original inline value.
     const orig = original.get(el).get(prop)[0];
-    const intent = SIZE.test(prop) && value !== orig;
+    const intent = (SIZE.test(prop) || PLACE.test(prop)) && value !== orig; // also positions: 5% or calc(50% …) can measure the same as before
     // Back where it started (e.g. typing the value it already had): put the
     // original inline style back instead of leaving an !important copy.
     if (to === from && !intent) for (const x of t.els) write(x, prop, original.get(x).get(prop));
