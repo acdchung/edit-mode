@@ -1,4 +1,4 @@
-import { MagnifyingGlass, CheckCircle, Clock, WarningCircle, Eye, DotsThree, ArrowUp } from '@phosphor-icons/react';
+import { MagnifyingGlass, CheckCircle, Clock, WarningCircle, Warning, DotsThree, ArrowUp } from '@phosphor-icons/react';
 import { PEOPLE, FILTERS } from '../data.js';
 import './PeopleTable.css';
 
@@ -6,7 +6,7 @@ import './PeopleTable.css';
 const STATUS = {
   approved: [CheckCircle, 'Approved'],
   pending: [Clock, 'Pending'],
-  review: [Eye, 'Review'],
+  review: [Warning, 'Review'],
   flagged: [WarningCircle, 'Flagged'],
 };
 

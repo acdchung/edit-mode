@@ -46,11 +46,17 @@
 }
 
 .issue-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 500;
   color: var(--color-ink);
 }
 
 .issue-who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--text-sm);
   color: var(--color-muted);
 }

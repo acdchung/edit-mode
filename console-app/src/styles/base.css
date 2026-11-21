@@ -18,6 +18,12 @@ a { color: inherit; text-decoration: none; }
 
 button { font: inherit; color: inherit; }
 
+/* Where the keyboard is: a ring in the accent colour (mouse clicks don't show it) */
+:where(a, button, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 /* A white panel that holds a section of the screen */
 .card {
   background: var(--color-surface);
@@ -58,12 +64,30 @@ button { font: inherit; color: inherit; }
   color: var(--color-ink);
   font-weight: 500;
   cursor: pointer;
+  transition: transform 160ms var(--ease-out), background-color 160ms ease, border-color 160ms ease;
 }
+
+/* Pressing a button gives way a little: it heard you */
+.btn:active { transform: scale(0.97); }
 
 .btn--primary {
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: #fff;
+}
+
+/* Blocked, but still focusable (so it can say why) */
+.btn[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn[aria-disabled='true']:active { transform: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover { background: var(--color-subtle); }
+  .btn--primary:hover { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
+  .btn[aria-disabled='true']:hover { background: var(--color-accent); border-color: var(--color-accent); }
 }
 
 .btn--small {

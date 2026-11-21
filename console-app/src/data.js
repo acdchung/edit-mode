@@ -15,6 +15,7 @@ export const RUN = {
   countriesNote: '9 currencies',
   review: 7,
   reviewNote: '2 block approval',
+  blocking: 2,
 };
 
 // Gross pay by country, USD. The top six, then the other eight together.
@@ -71,11 +72,11 @@ export const FILTERS = [
 
 // severity: critical (blocks approval) | warning
 export const ISSUES = [
-  { severity: 'critical', title: 'Bank details changed 2 hours ago', who: 'Amara Okafor', where: 'Nigeria', action: 'Verify' },
-  { severity: 'critical', title: 'Missing tax ID (CPF)', who: 'Rafael Costa', where: 'Brazil', action: 'Request' },
-  { severity: 'warning', title: 'Pay up 38% vs October', who: 'Yusuf Demir', where: 'Turkey', action: 'Review' },
-  { severity: 'warning', title: 'Commission above plan', who: 'Sofia Lindqvist', where: 'Sweden', action: 'Review' },
-  { severity: 'warning', title: 'Final pay includes 6 days of leave', who: 'Hannah Schmidt', where: 'Germany', action: 'Review' },
+  { severity: 'critical', title: 'Bank details changed', who: 'Amara Okafor', where: 'NG', when: '2h ago', action: 'Verify' },
+  { severity: 'critical', title: 'Missing tax ID (CPF)', who: 'Rafael Costa', where: 'BR', when: 'Yesterday', action: 'Request' },
+  { severity: 'warning', title: 'Pay up 38% vs October', who: 'Yusuf Demir', where: 'TR', when: 'Nov 19', action: 'Review' },
+  { severity: 'warning', title: 'Commission above plan', who: 'Sofia Lindqvist', where: 'SE', when: 'Nov 19', action: 'Review' },
+  { severity: 'warning', title: 'Final pay with unused leave', who: 'Hannah Schmidt', where: 'DE', when: 'Nov 18', action: 'Review' },
 ];
 
 export const ACTIVITY = [

@@ -1,15 +1,19 @@
+/* The column runs the page's full height; what's in it stays in view as you scroll. */
 .sidebar {
-  position: sticky;
-  top: 0;
   flex: none;
   width: var(--sidebar-width);
+  background: var(--color-sidebar);
+  color: #c6d0de;
+}
+
+.sidebar-inner {
+  position: sticky;
+  top: 0;
   height: 100vh;
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
   padding: var(--space-5) var(--space-3);
-  background: var(--color-sidebar);
-  color: #c6d0de;
 }
 
 .sidebar-logo {
@@ -68,7 +72,9 @@
   font-weight: 500;
 }
 
-.sidebar-link:hover { background: rgba(255, 255, 255, 0.05); }
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-link:hover { background: rgba(255, 255, 255, 0.05); }
+}
 
 .sidebar-link.is-active {
   background: rgba(255, 255, 255, 0.09);

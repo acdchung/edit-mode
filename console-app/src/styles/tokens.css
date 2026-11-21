@@ -57,6 +57,9 @@
   --radius-lg: 12px;
   --radius-pill: 999px;
 
+  /* Motion: crisp and fast, a professional tool */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
   /* Depth */
   --shadow-card: 0 1px 2px rgba(11, 34, 64, 0.05);
 

@@ -13,6 +13,7 @@ const NAV = [
 export default function Sidebar() {
   return (
     <nav className="sidebar">
+      <div className="sidebar-inner">
       <div className="sidebar-logo">payloom</div>
       <button className="sidebar-org">
         <span className="sidebar-org-mark">AR</span>
@@ -39,6 +40,7 @@ export default function Sidebar() {
             <div className="sidebar-user-role">Payroll lead</div>
           </div>
         </div>
+      </div>
       </div>
     </nav>
   );

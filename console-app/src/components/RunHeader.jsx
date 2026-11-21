@@ -1,4 +1,4 @@
-import { CaretRight, DownloadSimple, FileText, Clock } from '@phosphor-icons/react';
+import { CaretRight, DownloadSimple, FileText, Clock, WarningCircle } from '@phosphor-icons/react';
 import { RUN } from '../data.js';
 import './RunHeader.css';
 
@@ -26,7 +26,8 @@ export default function RunHeader() {
         <div className="run-actions">
           <button className="btn"><DownloadSimple size={15} />Export</button>
           <button className="btn"><FileText size={15} />Preview payslips</button>
-          <button className="btn btn--primary">Approve run</button>
+          <span className="run-blocked"><WarningCircle size={15} weight="fill" />{RUN.blocking} issues block approval</span>
+          <button className="btn btn--primary" aria-disabled="true" title={`Resolve the ${RUN.blocking} blocking issues first`}>Approve run</button>
         </div>
       </div>
     </header>

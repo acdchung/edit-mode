@@ -15,7 +15,7 @@ export default function ReviewQueue() {
             {i.severity === 'critical' ? <WarningCircle size={18} weight="fill" className="issue-icon" /> : <Warning size={18} weight="fill" className="issue-icon" />}
             <div className="issue-body">
               <div className="issue-title">{i.title}</div>
-              <div className="issue-who">{i.who} · {i.where}</div>
+              <div className="issue-who">{i.who} · {i.where} · {i.when}</div>
             </div>
             <button className="btn btn--small">{i.action}</button>
           </li>

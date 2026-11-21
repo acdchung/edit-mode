@@ -1,8 +1,11 @@
 // The Payloom Console (console-app/, a data-heavy enterprise screen) works
 // with Edit Mode: Duplicate page copies all of it, the untouched copy lists
 // nothing to push, and it matches the page pixel for pixel. Runs on a
-// console-app server on 5393 (`npx vite --port 5393` in console-app/).
+// scratch copy of console-app/ served on 5393 (never the user's console-app:
+// the test saves a canvas). COPY=<console copy dir>; leaves it without a canvas.
 import { chromium } from 'playwright-core';
+import { rmSync } from 'node:fs';
+if (!process.env.COPY) throw new Error('Set COPY to the console copy folder');
 let fails = 0;
 const check = (name, ok, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`); };
 const b = await chromium.launch({ channel: 'chrome' });
@@ -37,4 +40,5 @@ await p.keyboard.press('Alt+KeyE'); await p.waitForTimeout(500);
 check('no page errors', errors.length === 0, errors.join(' | '));
 await b.close();
 console.log(fails ? `\n${fails} failed` : '\nall passed');
+rmSync(`${process.env.COPY}/.editmode/canvas.json`, { force: true }); // a fresh canvas next time (starter frame)
 process.exit(fails ? 1 : 0);

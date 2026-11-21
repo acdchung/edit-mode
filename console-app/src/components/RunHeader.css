@@ -15,7 +15,9 @@
   color: var(--color-muted);
 }
 
-.run-crumbs a:hover { color: var(--color-ink); }
+@media (hover: hover) and (pointer: fine) {
+  .run-crumbs a:hover { color: var(--color-ink); }
+}
 
 .run-title-row {
   display: flex;
@@ -46,8 +48,8 @@
 .run-status {
   padding: 2px var(--space-2);
   border-radius: var(--radius-pill);
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
   font-size: var(--text-sm);
   font-weight: 600;
 }
@@ -66,5 +68,16 @@
 
 .run-actions {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
+}
+
+.run-blocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 var(--space-1) 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-critical-text);
 }
