@@ -25,7 +25,8 @@ try {
   await ctx.addInitScript(() => { try { localStorage.setItem('edit-mode:layers', '1'); } catch {} });
   const p = await ctx.newPage();
   const errors = []; p.on('pageerror', (e) => errors.push(e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' ')));
-  await p.route('**/@edit-mode/push', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"test: not sent"}' }));
+  // Push "starts" (the run then never shows up, so the overlay reports it couldn't finish): Claude never runs.
+  await p.route('**/@edit-mode/push', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"id":"test-not-a-run"}' }));
   const R = (f, a) => p.evaluate(f, a);
   const wait = (ms = 80) => p.waitForTimeout(ms);
   await p.goto('http://localhost:5391'); await p.waitForSelector('.hero');

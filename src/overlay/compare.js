@@ -34,6 +34,59 @@ export function originalOf(n) {
   return { el: els[+m[2]] || null, source: m[1], index: +m[2], count: els.length };
 }
 
+// A top-level canvas item that's a copy of the page (vs a new design): a
+// Duplicate page frame, a pasted piece, or a frame that's mostly copied
+// pieces. A new design may hold a pasted piece (your real button): it's
+// reused, not compared.
+export function isCopyTop(n) {
+  if (n.dataset.emDesign) return n.hasAttribute(FROM); // a new design, once built and linked to its code
+  if (n.dataset.emCopy === 'page' || n.hasAttribute(FROM)) return true;
+  const kids = [...n.children].filter((k) => !NOT_LAYER.test(k.tagName));
+  const copied = kids.filter((k) => k.hasAttribute(FROM) || k.hasAttribute(WAS)).length;
+  return copied > 0 && copied * 2 >= kids.length;
+}
+
+// New designs (B3d): every top-level canvas item that isn't a copy, except
+// an empty frame (a fresh canvas's starter frame).
+export function newDesigns() {
+  const area = canvasArea();
+  if (!area) return [];
+  return [...area.children].filter((n) => !NOT_LAYER.test(n.tagName) && !isCopyTop(n) && (n.children.length || n.dataset.emKind !== 'frame' || n.textContent.trim()));
+}
+// Its name in the Push list and as a component: its layer name, else what it is.
+export function designName(n) {
+  return n.dataset.emName || { frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', text: (n.textContent.trim().slice(0, 24) || 'Text'), image: 'Image', group: 'Group' }[n.dataset.emKind] || friendly(n);
+}
+export const componentName = (name) => (name.normalize('NFKD').replace(/[^\w\s-]/g, '').split(/[\s_-]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join('') || 'Design').replace(/^(\d)/, 'Design$1');
+
+// A new design as Claude gets it: its markup with every style inline (the
+// look, measured), `data-name`/`data-kind` for its layers, and pieces pasted
+// from the page marked `data-reuse="file:line:col#index"` (render the real
+// component there, don't rebuild it). Its spot on the canvas is dropped.
+export function buildHtml(n) {
+  const c = n.cloneNode(true);
+  const reuse = [];
+  const all = [c, ...c.querySelectorAll('*')];
+  // The pasted pieces: copied nodes with no copied node above them (marked before anything is cleaned up).
+  const tops = all.filter((x) => x !== c && x.hasAttribute(FROM) && !x.parentElement.closest(`[${FROM}]`));
+  for (const x of tops) {
+    const from = x.getAttribute(FROM);
+    x.setAttribute('data-reuse', from);
+    const o = originalOf(x);
+    reuse.push({ element: o?.el ? describe(o.el) : describe(x), source: o?.source ?? from.replace(/#\d+$/, ''), index: o?.index ?? 0 });
+  }
+  for (const x of all) {
+    for (const a of [...x.attributes]) {
+      if (a.name === 'data-em-name') x.setAttribute('data-name', a.value);
+      if (a.name === 'data-em-kind') x.setAttribute('data-kind', a.value);
+      if (a.name.startsWith('data-em-')) x.removeAttribute(a.name);
+    }
+  }
+  for (const p of ['position', 'left', 'top', 'right', 'bottom', 'inset', 'translate', 'z-index']) c.style.removeProperty(p);
+  const html = c.outerHTML;
+  return { html: html.length > 60000 ? html.slice(0, 60000) + '<!-- cut: too long -->' : html, reuse };
+}
+
 // The copies on the canvas, one per top-level canvas item that holds copied
 // things (Duplicate page's frame, a pasted piece): its roots are the copied
 // nodes with no copied node above them (a page copy has several: nav, main…).
@@ -45,6 +98,7 @@ export function copiesOnCanvas() {
     if (n.parentElement.closest(`[${FROM}]`)) continue;
     let top = n;
     while (top.parentElement !== area) top = top.parentElement;
+    if (!isCopyTop(top)) continue; // part of a new design: reused, not compared
     if (!units.has(top)) units.set(top, []);
     units.get(top).push(n);
   }
@@ -195,7 +249,7 @@ export function compareCopy({ top, roots }, copy = { id: 0, name: copyName(top) 
   // Deleted: an original child with no copy left (only the top one of what's gone).
   for (const [, o] of linked) {
     for (const k of o.el.children) {
-      if (NOT_LAYER.test(k.tagName) || copyOf.has(k)) continue;
+      if (NOT_LAYER.test(k.tagName) || copyOf.has(k) || copy.builtEls?.has(k)) continue; // built from a design on the canvas: not this copy's to delete
       if (!k.getClientRects().length && getComputedStyle(k).display === 'none') continue; // hidden on the page as well
       const same = k.hasAttribute(ATTR) ? [...document.querySelectorAll(`[${ATTR}="${CSS.escape(k.getAttribute(ATTR))}"]`)] : [k];
       out.push({ kind: 'delete', element: describe(k), source: k.getAttribute(ATTR), index: same.indexOf(k), count: same.length, scope: 'one', fromCanvas: copy.id, copyName: copy.name });
@@ -331,12 +385,12 @@ function setAside(n) {
 // the insides of a group or frame made on the canvas are matched against
 // the page container it sits in; something moved into another container is
 // looked for anywhere in the copied piece.
-export function relinkCopy({ roots }) {
+export function relinkCopy({ roots }, anchors = null) {
   const { sim } = matcher();
   const pageEls = [...document.querySelectorAll(`[${ATTR}]`)];
   const used = new Set();
   const plan = [];
-  for (const r of roots) {
+  for (const r of anchors ? [] : roots) {
     const file = (r.getAttribute(FROM) || r.getAttribute(WAS) || '').split(':')[0];
     let cands = pageEls.filter((p) => p.tagName === r.tagName && (!r.classList.length || shares(r, p) > 0));
     if (file && cands.some((p) => p.getAttribute(ATTR).startsWith(file + ':'))) cands = cands.filter((p) => p.getAttribute(ATTR).startsWith(file + ':'));
@@ -361,6 +415,7 @@ export function relinkCopy({ roots }) {
     for (const [, , c, p] of all) if (!got.has(c) && !used.has(p)) { got.set(c, p); used.add(p); }
     return got;
   };
+  if (anchors) for (const [r, p] of anchors) { used.add(p); plan.push([r, p]); }
   const pending = [];
   const walk = (c, p) => {
     setLink(c, p);
@@ -391,17 +446,58 @@ export function relinkCopy({ roots }) {
   return true;
 }
 
+// A new design that was just built on the page (B3d): link it to what now
+// renders at its spot, so from now on it's compared like a copy. The element
+// is the one right after the spot's `after` neighbour (or before `before`).
+export function linkDesign(design, placement) {
+  const find = (r) => (r?.source ? document.querySelectorAll(`[${ATTR}="${CSS.escape(r.source)}"]`)[r.index ?? 0] ?? null : null);
+  const after = find(placement.after), before = find(placement.before);
+  const tagged = (n) => { for (let x = n; x; x = x.firstElementChild) if (x.hasAttribute(ATTR)) return x; return null; };
+  let el = after ? after.nextElementSibling : before ? before.previousElementSibling : null;
+  if (el && before && el === before) el = null;
+  el = el && tagged(el);
+  if (!el) return false;
+  relinkCopy({ roots: [design] }, [[design, el]]);
+  return design.hasAttribute(FROM);
+}
+
 // Re-link copies whose links broke (or all of them, after a Push). True when any changed.
 export function relinkCanvas({ force = false } = {}) {
   let any = false;
-  for (const u of copiesOnCanvas()) if (force || !linksOk(u)) any = relinkCopy(u) || any;
+  for (const u of copiesOnCanvas()) {
+    if (!force && linksOk(u)) continue;
+    if (u.top.dataset.emDesign) { // a built design: only at its own spot; if it's gone (Undo), a new design again
+      let at = null;
+      try { at = JSON.parse(u.top.dataset.emPlace || 'null'); } catch {}
+      if (!(at && linkDesign(u.top, at))) unlinkDesign(u.top);
+      any = true;
+      continue;
+    }
+    any = relinkCopy(u) || any;
+  }
   return any;
+}
+
+// Before linking a design, remember the links its pasted pieces had (to the
+// real button…); unlinking puts exactly those back.
+export function rememberLinks(design) {
+  for (const x of [design, ...design.querySelectorAll(`[${FROM}]`)]) if (x.hasAttribute(FROM)) x.dataset.emFromPre = x.getAttribute(FROM);
+}
+export function unlinkDesign(design) {
+  for (const x of [design, ...design.querySelectorAll('*')]) {
+    x.removeAttribute(WAS);
+    if (x.dataset.emFromPre) x.setAttribute(FROM, x.dataset.emFromPre);
+    else x.removeAttribute(FROM);
+  }
+  delete design.dataset.emBuilt;
 }
 
 // Every copy on the canvas, compared. Two copies changing the same thing differently are flagged.
 export function compareCanvas() {
   relinkCanvas();
-  const results = copiesOnCanvas().map((u, i) => compareCopy(u, { id: i + 1, name: copyName(u.top) }));
+  const units = copiesOnCanvas();
+  const builtEls = new Set(units.filter((u) => u.top.dataset.emDesign).map((u) => originalOf(u.top)?.el).filter(Boolean));
+  const results = units.map((u, i) => compareCopy(u, { id: i + 1, name: copyName(u.top), builtEls }));
   const seen = new Map();
   for (const r of results) {
     for (const c of r.changes) {

@@ -3,7 +3,7 @@
 // and its CSS can't touch the app.
 
 import { STYLES } from './styles.js';
-import { ATTR, CANVAS_ATTR, NOT_LAYER, box, canvasArea, describe, family, num, onCanvas, parseColor, passThrough, sameSource, view, visualKids, visualParent } from './util.js';
+import { ATTR, CANVAS_ATTR, NOT_LAYER, box, canvasArea, describe, family, friendlyName, num, onCanvas, parseColor, passThrough, sameSource, view, visualKids, visualParent } from './util.js';
 import { createCanvas } from './canvas.js';
 import { createChanges, textNodeOf } from './changes.js';
 import { collectTokens } from './tokens.js';
@@ -14,7 +14,7 @@ import { cloneToCanvas, createDesign, keepLook, lookOf, matchLook } from './desi
 import { ICON, KEY as GLYPH } from './icons.js';
 import { IMAGE_FIT, isImageFile, uploadImage } from './assets.js';
 import { frameBox, placeBox } from './constraints.js';
-import { compareCanvas, relinkCanvas } from './compare.js';
+import { buildHtml, compareCanvas, componentName, designName, linkDesign, newDesigns, relinkCanvas, rememberLinks } from './compare.js';
 
 if (!window.__editModeOverlay) {
   window.__editModeOverlay = true;
@@ -22,7 +22,7 @@ if (!window.__editModeOverlay) {
 }
 
 function init() {
-  const KEY = { on: 'edit-mode:on', toast: 'edit-mode:toast', reapply: 'edit-mode:reapply', relink: 'edit-mode:relink' };
+  const KEY = { on: 'edit-mode:on', toast: 'edit-mode:toast', reapply: 'edit-mode:reapply', relink: 'edit-mode:relink', built: 'edit-mode:built' };
   const store = {
     get: (k) => { try { return sessionStorage.getItem(k); } catch { return null; } },
     set: (k, v) => { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch {} },
@@ -302,6 +302,7 @@ function init() {
       canvas.enter();
       design.mount().then(() => setTimeout(() => {
         // After a Push or an Undo the code moved under the copies: match them to the page again.
+        afterBuild(); // first: link what was just built, so re-linking sees it as built
         if (store.get(KEY.relink)) { try { if (relinkCanvas({ force: true })) store.set(KEY.relink, null); } catch (err) { console.error(err); } }
         scheduleCanvasDiff(0);
       }, 300));
@@ -476,10 +477,10 @@ function init() {
     clearTimeout(diffTimer);
     try { state.canvasDiff = compareNow(); } catch (err) { console.error(err); state.canvasDiff = []; }
     const list = changes.list();
-    if (!list.length && !state.canvasDiff.length) return;
+    if (!list.length && !state.canvasDiff.length && !newDesigns().length) return;
     const d = h('div', 'dialog glassy');
     const title = h('h3');
-    const setTitle = () => { const n = list.length + canvasCount(); title.textContent = `Push ${n} change${n === 1 ? '' : 's'} to code`; };
+    const setTitle = () => { const n = list.length + canvasCount() + buildsToSend().length; title.textContent = `Push ${n} change${n === 1 ? '' : 's'} to code`; };
     setTitle();
     d.append(title);
     d.append(Object.assign(h('p'), { textContent: 'Claude will update your source to match. You can undo afterwards.' }));
@@ -538,6 +539,46 @@ function init() {
         blocks.push(row, block);
       }
     }
+    // New designs (B3d): skip, place on the page, or make a component.
+    const designs = newDesigns();
+    if (designs.length) {
+      blocks.push(h('h4', 'sec', 'New designs'));
+      const ul = h('ul', 'list designs');
+      for (const n of designs) {
+        const li = h('li', 'design');
+        const name = h('span', 'text');
+        name.textContent = designName(n);
+        const spot = h('button', 'spot');
+        spot.title = 'Change where it goes';
+        spot.addEventListener('click', (e) => { e.preventDefault(); startPick(n); });
+        const seg = h('span', 'seg');
+        const paint = () => {
+          const mode = buildMode(n);
+          for (const b of seg.children) b.classList.toggle('on', b.dataset.mode === mode);
+          const at = mode === 'place' ? placeOf(n) : null;
+          spot.hidden = !at;
+          spot.textContent = at ? spotLabel(at) : '';
+          li.title = `${designName(n)} → ${mode === 'component' ? `its own component, ${componentName(designName(n))}` : mode === 'place' && at ? spotLabel(at) : 'not sent'}`;
+        };
+        for (const [mode, label] of [['skip', 'Skip'], ['place', 'Place'], ['component', 'Component']]) {
+          const b = h('button', '', label);
+          b.dataset.mode = mode;
+          b.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (mode === 'place') return startPick(n);
+            n.dataset.emBuild = mode;
+            paint(); setTitle(); gate(); renderPill();
+          });
+          seg.append(b);
+        }
+        li.append(name, spot, seg);
+        paint();
+        ul.append(li);
+      }
+      const wrapD = h('div', 'list-wrap');
+      wrapD.append(ul);
+      blocks.push(wrapD);
+    }
     const a = actions('Proceed', push);
     a.ok.insertAdjacentHTML('beforeend', `<kbd>${GLYPH.command}${GLYPH.enter}</kbd>`);
     const hint = h('span', 'hint');
@@ -546,7 +587,7 @@ function init() {
     function gate() {
       const clash = conflicting();
       hint.textContent = clash ? `Untick ${clash[0]} or ${clash[1]}: they change the same thing differently` : '';
-      a.ok.disabled = !!clash || !(list.length + canvasCount());
+      a.ok.disabled = !!clash || !(list.length + canvasCount() + buildsToSend().length);
     }
     gate();
     const conv = h('div', 'conv');
@@ -669,7 +710,9 @@ function init() {
   // ---------- Push → Claude ----------
   function contextFor(list) {
     const seen = new Map();
-    for (const c of list) {
+    // A new design's spot and reused pieces are what Claude needs to look at.
+    const refs = list.flatMap((c) => (c.kind === 'build' ? [c.placement?.parent, c.placement?.after, c.placement?.before, ...(c.reuse || [])].filter((r) => r?.source).map((r) => ({ ...r, scope: 'one' })) : [c]));
+    for (const c of refs) {
       const key = `${c.source}#${c.scope === 'all' ? 'all' : c.index}`;
       if (seen.has(key) || !c.source) continue;
       const els = [...document.querySelectorAll(`[${ATTR}="${CSS.escape(c.source)}"]`)];
@@ -693,6 +736,81 @@ function init() {
     return [...seen.values()];
   }
 
+  // ---------- New designs (B3d) ----------
+  // Each top-level canvas item that isn't a copy: skipped (default), placed on
+  // the page at a spot picked on the live page, or made a component. The
+  // choice and the spot live on the item (saved with the canvas).
+  const buildMode = (n) => (n.dataset.emBuild === 'component' ? 'component' : n.dataset.emBuild === 'place' && placeOf(n) ? 'place' : 'skip');
+  const placeOf = (n) => { try { return JSON.parse(n.dataset.emPlace || 'null'); } catch { return null; } };
+  const q = (r) => `“${r.name}”`;
+  const spotLabel = (at) => (at.after ? `After ${q(at.after)}` : at.before ? `Before ${q(at.before)}` : `Inside ${q(at.parent)}`) + (at.after || at.before ? (at.parent.page ? '' : ` in ${q(at.parent)}`) : '');
+  function buildsToSend() {
+    return newDesigns().filter((n) => buildMode(n) !== 'skip').map((n) => {
+      const name = designName(n);
+      const r = box(n);
+      n.dataset.emDesign ||= Math.random().toString(36).slice(2, 10); // who it is, across the reload after Push
+      return { kind: 'build', id: n.dataset.emDesign, fromCanvas: 'new', mode: buildMode(n), name, component: componentName(name), element: `new design “${name}”`,
+        placement: buildMode(n) === 'place' ? placeOf(n) : null, size: { width: Math.round(r.width), height: Math.round(r.height) }, ...buildHtml(n) };
+    });
+  }
+  // After a Push that built new designs (once the page shows the new code).
+  function afterBuild() {
+    const raw = store.get(KEY.built);
+    if (!raw) return;
+    store.set(KEY.built, null);
+    try {
+      for (const b of JSON.parse(raw)) {
+        const n = canvasArea()?.querySelector(`:scope > [data-em-design="${CSS.escape(b.id)}"]`);
+        if (!n) continue;
+        if (b.mode === 'component') { n.dataset.emBuild = 'skip'; n.dataset.emBuilt = b.component; continue; }
+        rememberLinks(n);
+        if (linkDesign(n, b.placement)) n.dataset.emBuilt = b.component;
+      }
+    } catch (err) { console.error(err); }
+  }
+
+  // Where on the live page, as Push refers to page elements.
+  const pageRef = (el) => {
+    if (!el) return null;
+    const src = el.getAttribute(ATTR) ?? el.closest(`[${ATTR}]`)?.getAttribute(ATTR) ?? null;
+    const same = el.hasAttribute(ATTR) ? sameSource(el) : [el];
+    return { element: describe(el), name: el === pageRoot() ? 'Page' : friendlyName(el), source: src, index: same.indexOf(el), ...(el === pageRoot() ? { page: true } : {}) };
+  };
+  // The spot under the pointer: before or after the layer there (by which half
+  // the pointer is in, along its parent's direction). ⌘ goes deeper, as when selecting.
+  function pickSpot(x, y, deep) {
+    const el = hit(x, y, deep);
+    if (!el || onCanvas(el) || el === pageRoot() || !pageRoot().contains(el)) return null;
+    const parent = levelUp(el) || pageRoot();
+    const sibs = siblingsOf(el);
+    const i = sibs.indexOf(el);
+    const pcs = getComputedStyle(parent);
+    const row = /flex/.test(pcs.display) && /^row/.test(pcs.flexDirection);
+    const r = el.getBoundingClientRect();
+    const first = row ? x < r.left + r.width / 2 : y < r.top + r.height / 2;
+    const line = row
+      ? { left: (first ? r.left : r.right) - 1, top: r.top, width: 3, height: r.height }
+      : { left: r.left, top: (first ? r.top : r.bottom) - 1, width: r.width, height: 3 };
+    const after = first ? sibs[i - 1] ?? null : el;
+    const before = first ? el : sibs[i + 1] ?? null;
+    return { el, line, spot: { parent: pageRef(parent), after: pageRef(after), before: pageRef(before) } };
+  }
+  function startPick(n) {
+    closeDialog();
+    select(null);
+    state.picking = { design: n };
+    toast('Place', `Click where “${designName(n)}” goes on the page. ⌘ to go inside a section, Esc to cancel.`, { ms: 0 });
+  }
+  function endPick(spot) {
+    const n = state.picking?.design;
+    state.picking = null;
+    insertLine.hidden = true;
+    state.hovered = null;
+    if (n && spot) { n.dataset.emBuild = 'place'; n.dataset.emPlace = JSON.stringify(spot); }
+    closeDialog();
+    openPushDialog();
+  }
+
   // Ticked copies' changes, and the first pair of ticked copies that conflict.
   const canvasToSend = () => state.canvasDiff.filter((r) => !skipCopies.has(r.top)).flatMap((r) => r.changes);
   function conflicting() {
@@ -703,9 +821,12 @@ function init() {
 
   async function push() {
     if (conflicting()) return;
-    const list = [...changes.list(), ...canvasToSend()];
+    const list = [...changes.list(), ...canvasToSend(), ...buildsToSend()];
     if (!list.length) return;
     if (list.some((c) => c.fromCanvas != null)) store.set(KEY.relink, '1'); // the code moves under the copies: link them again on the next load
+    // New designs being built: after the push, a placed one is linked to its new code, a component goes back to Skip.
+    const built = list.filter((c) => c.kind === 'build').map((c) => ({ id: c.id, mode: c.mode, placement: c.placement, component: c.component }));
+    store.set(KEY.built, built.length ? JSON.stringify(built) : null);
     closeDialog();
     select(null);
     state.phase = 'running';
@@ -726,6 +847,8 @@ function init() {
       waitForRun(data.id);
     } catch (err) {
       state.phase = 'idle';
+      store.set(KEY.built, null);
+      store.set(KEY.relink, null);
       renderPill();
       toast('Push failed', err.message, { error: true, ms: 0 });
     }
@@ -752,6 +875,7 @@ function init() {
         setTimeout(() => location.reload(), 2000); // in case nothing triggered a reload
       } else {
         state.phase = 'idle';
+        store.set(KEY.built, null);
         renderPill();
         toast('Claude couldn’t finish', s.last?.error || 'Unknown error. Your edits are still here.', { error: true, ms: 0 });
       }
@@ -862,6 +986,30 @@ function init() {
   let pointer = null; // last pointer position, to refresh hover when ⌘ is pressed
   let drag = null;
   let draw = null; // a shape being placed with a tool
+
+  // Picking a spot on the page for a new design (B3d): the line shows where it goes.
+  glass.addEventListener('pointerdown', (e) => {
+    if (!state.picking || e.button !== 0 || spaceDown) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const s = pickSpot(e.clientX, e.clientY, e.metaKey || e.ctrlKey);
+    if (s) endPick(s.spot);
+  });
+  glass.addEventListener('pointermove', (e) => {
+    if (!state.picking || pan) return;
+    e.stopImmediatePropagation();
+    pointer = { x: e.clientX, y: e.clientY, shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey };
+    const s = pickSpot(e.clientX, e.clientY, e.metaKey || e.ctrlKey);
+    state.hovered = s?.el ?? null;
+    insertLine.hidden = !s;
+    if (s) place(insertLine, s.line);
+  });
+  window.addEventListener('keydown', (e) => {
+    if (!state.picking || e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    endPick(null);
+  }, true);
 
   // Space-drag or middle-drag pans the canvas (Figma).
   let pan = null;
@@ -1610,6 +1758,7 @@ function init() {
     const f = document.createElement('div');
     f.dataset.emKind = 'frame';
     f.dataset.emName = 'Page copy';
+    f.dataset.emCopy = 'page'; // a copy of the page, not a new design (compare.js)
     f.style.cssText = `position: absolute; overflow: hidden; left: ${area.children.length ? right : 0}px; top: 0px; width: ${pageWidth()}px; background-color: ${getComputedStyle(document.body).backgroundColor === 'rgba(0, 0, 0, 0)' ? '#FFFFFF' : getComputedStyle(document.body).backgroundColor};`;
     const made = cloneToCanvas(root, { ATTR, sameSource });
     f.append(made.copy);

@@ -138,6 +138,15 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .list li .scope { all: unset; flex: none; padding: 0 6px; border-radius: 4px; background: var(--field); color: var(--muted); font-size: 11px; line-height: 18px; cursor: pointer; }
 .list li .scope:hover { background: var(--field-hover); color: var(--text); }
 .list li.conflict::before { background: var(--danger); }
+.list.designs { max-height: none; }
+.list li.design { display: flex; align-items: center; gap: 8px; height: 26px; }
+.list li.design .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.list li.design .spot { all: unset; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent-text); font-size: 11px; cursor: pointer; }
+.list li.design .spot:hover { text-decoration: underline; }
+.seg { flex: none; display: flex; padding: 1px; border-radius: 5px; background: var(--field); }
+.seg button { all: unset; padding: 0 6px; border-radius: 4px; color: var(--muted); font-size: 11px; line-height: 18px; cursor: pointer; }
+.seg button:hover { color: var(--text); }
+.seg button.on { background: var(--field-hover); color: var(--text); box-shadow: 0 0 0 1px var(--hair-strong); }
 .list li.conflict .text, .list li.conflict:not(:has(.text)) { color: var(--danger); }
 .conv { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--hair);
         color: var(--muted); font-size: 12px; line-height: 17px; }

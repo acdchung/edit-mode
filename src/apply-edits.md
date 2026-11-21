@@ -4,7 +4,7 @@ The edits only exist as a browser preview. Your job is to make the real source c
 Batch folder: {{BATCH}}
 
 - `{{BATCH}}/changes.json`: every edit, in order. Fields:
-  - `kind`: `style`, `text`, `delete`, `move`, `insert` or `group` (and `place` from the canvas, rule 10)
+  - `kind`: `style`, `text`, `delete`, `move`, `insert` or `group` (`place` from the canvas, rule 10; `build` for a new design, rule 11)
   - `element`: tag and classes, e.g. `button.btn.cta-primary`
   - `source`: `file:line:col` of the JSX tag that renders the element
   - `scope`: `all` = the element's whole `family`; `one` = only this element (for code elements, the instance at `index` (0-based) among the `count` rendered from that line)
@@ -39,6 +39,12 @@ Rules:
    - `kind: "group"`: a new wrapper around `children` (each a `source`/`index`, or `newId` for something new), between `after` and `before` in `parent`. `autoLayout: true` means it's an auto-layout frame. Its `styles` are its look and layout (`display: flex`, direction, gap, alignment, padding, fill…): put them in a CSS rule with a descriptive class name, not inline. Leave out what only placed it on the canvas, such as `flex-shrink: 0` when its parent isn't flex.
    - `kind: "insert"`: something new (`what`: text, rectangle, ellipse, image, frame…), between `after` and `before` in `parent` (or inside the new wrapper `insideNew`). `html` is its markup with inline styles: rebuild it as JSX with descriptive class names and the styles in CSS. Use `text` as its content.
    - Values were measured in the browser (`rgb(…)`, pixels): map them to the project's tokens and existing values (rule 4).
-11. Only edit the files the changes point to and the files that style those elements (including token files, if `EDITMODE.md` says new values belong there). Never edit `EDITMODE.md` itself. If something wider seems needed, don't do it; mention it in your summary.
-12. Don't run shell commands and don't install anything.
-13. When finished, reply with one or two short sentences for a designer: what you changed, and anything you couldn't do. No code, no file paths unless something needs their attention.
+11. `kind: "build"`: a new design the designer made from scratch on the canvas. Build it as real code that looks exactly like it.
+   - `html` is the design as drawn: its layers with every style inline (measured in the browser), `data-name` (the layer names) and `data-kind` (frame, text, rectangle, ellipse, image, group). Rebuild it as JSX the way this codebase writes UI: descriptive class names (from the layer names), styles in CSS (or whatever `EDITMODE.md` says), never inline. `display: flex` frames are auto layout (keep them flex); absolutely placed layers keep their insets (constraints, rule 10). Leave out inline values that are only browser defaults or that the CSS already gives (inherited font, `box-sizing`…).
+   - Elements with `data-reuse="file:line:col#index"` are pieces of the existing page the designer pasted in (also listed in `reuse`): render the real component or markup from that source there (with props/text matching the design), don't rebuild it.
+   - Map colours, sizes, radii, shadows and fonts to the project's tokens and existing values (rule 4). `size` is the design's size on the canvas: its width is the width it was designed at. Unless it's clearly a fixed-size thing (a badge, an icon), let it fill its container up to that width (`max-width`) rather than fixing it, so it works on other screens.
+   - `mode: "component"`: create a new component named `component` (its own file next to similar components, with its CSS), with the parts that obviously vary (texts, images, amounts) as props defaulting to the design's content. Don't render it anywhere.
+   - `mode: "place"`: put it on the page at `placement`: inside `placement.parent`, between `placement.after` and `placement.before` (refs like other changes; `page: true` = the page's top level, where the sections are). If it's a self-contained piece (a card, a section, anything that could repeat), make it a component named `component` and render it there; if it's a few simple elements, write them inline. Say which in your summary.
+12. Only edit the files the changes point to, the files that style those elements, and (for `build`) the new component's files (including token files, if `EDITMODE.md` says new values belong there). Never edit `EDITMODE.md` itself. If something wider seems needed, don't do it; mention it in your summary.
+13. Don't run shell commands and don't install anything.
+14. When finished, reply with one or two short sentences for a designer: what you changed, and anything you couldn't do. No code, no file paths unless something needs their attention.
