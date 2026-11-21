@@ -10,7 +10,7 @@ export default function PayByCountry() {
     <section className="card country">
       <div className="card-head">
         <h2 className="card-title">Gross pay by country</h2>
-        <span className="card-meta">USD at locked rates</span>
+        <span className="card-meta">USD, at locked rates</span>
       </div>
       <div className="country-list" role="table" aria-label="Gross pay by country, USD">
         {BY_COUNTRY.map((c) => (

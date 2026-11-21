@@ -1,46 +1,46 @@
-/* Payloom design tokens (shared with the marketing site), plus the console's
-   status colours and density. Every component reads these. */
+/* Payloom console tokens: neutral first, colour only where it means something
+   (the accent for what's active or clickable, status dots for state). */
 :root {
   /* Ink */
-  --color-ink: #0b2240;
-  --color-text: #3f5168;
-  --color-muted: #6a7b91;
-  --color-faint: #9aa7b8;
+  --color-ink: #16181d;        /* headings, values */
+  --color-text: #3b3f48;       /* body */
+  --color-muted: #6b7180;      /* secondary */
+  --color-faint: #9aa0ac;      /* tertiary */
 
   /* Brand */
   --color-accent: #5b4cf5;
   --color-accent-hover: #4b3ce0;
-  --color-accent-soft: #eeecff;
+  --color-accent-soft: #f1effe;
 
   /* Surfaces */
-  --color-bg: #f4f6f9;
+  --color-bg: #f7f7f8;
   --color-surface: #ffffff;
-  --color-subtle: #f8f9fb;
-  --color-line: #e3e8ef;
-  --color-line-faint: #eef1f5;
-  --color-sidebar: #0f1c2e;
+  --color-subtle: #f9fafb;
+  --color-hover: #f3f4f6;
+  --color-line: #e7e8ec;
+  --color-line-faint: #f0f1f3;
 
-  /* Status: always with an icon and a label, never colour alone */
-  --color-good: #12a26a;
-  --color-good-soft: #e3f6ee;
-  --color-good-text: #0b7a4f;
-  --color-warning: #e09a00;
-  --color-warning-soft: #fff4dc;
-  --color-warning-text: #8a5a00;
-  --color-critical: #d03b3b;
-  --color-critical-soft: #fdeaea;
-  --color-critical-text: #a52a2a;
-  --color-neutral: #8794a6;
-  --color-neutral-soft: #eef1f5;
+  /* Data: one calm series colour, a lighter step for "the rest" */
+  --color-data: #6e7891;
+  --color-data-soft: #c9ced9;
+
+  /* Status: small dots and icons, always with a label */
+  --color-good: #1f9d63;
+  --color-warning: #d6890f;
+  --color-warning-text: #9a6106;
+  --color-critical: #d64545;
+  --color-critical-text: #b33232;
+  --color-critical-soft: #fdf1f1;
+  --color-neutral: #a3a9b5;
 
   /* Type */
   --font-sans: 'Inter Variable', system-ui, -apple-system, sans-serif;
-  --text-xs: 11px;
-  --text-sm: 12px;
-  --text-md: 13px;
-  --text-lg: 15px;
-  --text-xl: 20px;
-  --text-hero: 28px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 24px;
+  --text-hero: 26px;
 
   /* Spacing (4px grid) */
   --space-1: 4px;
@@ -50,6 +50,7 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-7: 32px;
+  --space-8: 40px;
 
   /* Shape */
   --radius-sm: 6px;
@@ -60,10 +61,7 @@
   /* Motion: crisp and fast, a professional tool */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 
-  /* Depth */
-  --shadow-card: 0 1px 2px rgba(11, 34, 64, 0.05);
-
   /* Layout */
-  --sidebar-width: 224px;
+  --sidebar-width: 232px;
   --rail-width: 320px;
 }

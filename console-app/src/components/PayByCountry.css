@@ -6,8 +6,8 @@
 .country-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: var(--space-4);
+  gap: 8px;
+  padding: var(--space-5);
 }
 
 .country-row {
@@ -22,6 +22,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--text-sm);
   color: var(--color-text);
 }
 
@@ -34,12 +35,12 @@
 }
 
 .country-bar {
-  height: 12px;
+  height: 10px;
   border-radius: 0 4px 4px 0; /* square at the baseline, rounded at the data end */
-  background: var(--color-accent);
+  background: var(--color-data);
 }
 
-.is-other .country-bar { background: var(--color-neutral); }
+.is-other .country-bar { background: var(--color-data-soft); }
 
 .country-value {
   flex: none;

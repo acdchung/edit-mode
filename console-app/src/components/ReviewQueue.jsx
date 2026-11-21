@@ -12,10 +12,10 @@ export default function ReviewQueue() {
       <ul className="queue-list">
         {ISSUES.map((i) => (
           <li key={i.title} className={`issue issue--${i.severity}`}>
-            {i.severity === 'critical' ? <WarningCircle size={18} weight="fill" className="issue-icon" /> : <Warning size={18} weight="fill" className="issue-icon" />}
+            {i.severity === 'critical' ? <WarningCircle size={16} weight="fill" className="issue-icon" /> : <Warning size={16} weight="fill" className="issue-icon" />}
             <div className="issue-body">
               <div className="issue-title">{i.title}</div>
-              <div className="issue-who">{i.who} · {i.where} · {i.when}</div>
+              <div className="issue-who">{i.who} · {i.when}</div>
             </div>
             <button className="btn btn--small">{i.action}</button>
           </li>

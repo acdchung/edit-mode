@@ -7,28 +7,36 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-5);
 }
 
+.progress-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.progress-big {
+  font-size: var(--text-hero);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+}
+
+.progress-caption {
+  color: var(--color-muted);
+}
+
+/* Thin: 8px, fully rounded, a 2px gap between parts, no text */
 .progress-bar {
   display: flex;
-  gap: 2px; /* the surface gap between parts */
-  height: 28px;
+  gap: 2px;
+  height: 8px;
 }
 
 .progress-part {
-  display: flex;
-  align-items: center;
-  padding-left: var(--space-2);
-  border-radius: 4px;
-  color: #fff;
-  font-size: var(--text-sm);
-  font-weight: 600;
+  border-radius: var(--radius-pill);
 }
-
-.progress-part--approved { background: var(--color-good); }
-.progress-part--pending { background: var(--color-neutral); }
-.progress-part--flagged { background: var(--color-critical); }
 
 .progress-legend {
   display: flex;
@@ -37,28 +45,15 @@
   color: var(--color-text);
 }
 
-.progress-key {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.progress-dot {
-  width: 8px;
-  height: 8px;
-  padding: 0;
-  border-radius: 50%;
-}
-
 .progress-count {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--color-ink);
 }
 
 .checks {
   display: flex;
   flex-direction: column;
-  margin: 0;
+  margin: var(--space-1) 0 0;
   padding: var(--space-3) 0 0;
   border-top: 1px solid var(--color-line-faint);
   list-style: none;
@@ -67,17 +62,16 @@
 .check {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  height: 28px;
-  color: var(--color-faint);
+  gap: 10px;
+  height: 30px;
 }
 
-.check.is-done { color: var(--color-good); }
+.check-icon { flex: none; color: var(--color-faint); }
+.check.is-done .check-icon { color: var(--color-good); }
 .check-warn { color: var(--color-warning); }
 
 .check-label {
   flex: 1;
-  font-weight: 500;
   color: var(--color-ink);
 }
 

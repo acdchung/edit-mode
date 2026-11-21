@@ -76,7 +76,7 @@ export const ISSUES = [
   { severity: 'critical', title: 'Missing tax ID (CPF)', who: 'Rafael Costa', where: 'BR', when: 'Yesterday', action: 'Request' },
   { severity: 'warning', title: 'Pay up 38% vs October', who: 'Yusuf Demir', where: 'TR', when: 'Nov 19', action: 'Review' },
   { severity: 'warning', title: 'Commission above plan', who: 'Sofia Lindqvist', where: 'SE', when: 'Nov 19', action: 'Review' },
-  { severity: 'warning', title: 'Final pay with unused leave', who: 'Hannah Schmidt', where: 'DE', when: 'Nov 18', action: 'Review' },
+  { severity: 'warning', title: 'Unused leave in final pay', who: 'Hannah Schmidt', where: 'DE', when: 'Nov 18', action: 'Review' },
 ];
 
 export const ACTIVITY = [
