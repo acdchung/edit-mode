@@ -181,7 +181,7 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .lbtn { all: unset; flex: none; display: none; place-items: center; width: 22px; height: 22px; border-radius: 5px; color: var(--dim); cursor: pointer; }
 .lbtn .i { width: 12px; height: 12px; }
 .lrow .lbtn.dup { display: grid; margin-left: auto; }
-.align-row { display: flex; gap: 8px; }
+.align-row { display: flex; gap: 8px; padding: 12px; } /* even top and bottom: no rows below it adding space */
 .align-row .align-seg { flex: 1; min-width: 0; }
 .align-row .align-seg button { padding: 0; min-width: 0; color: var(--muted); }
 .align-row .align-seg button:disabled { opacity: .35; cursor: default; }
