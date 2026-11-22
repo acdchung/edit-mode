@@ -4,7 +4,7 @@ The plan agreed with the user on 2026-11-18: build items 1–9 in order, with QA
 
 1. Run the item's own checks.
 2. Rerun the regression suites in `tests/` (`brutal1.mjs`, `brutal2.mjs`, and every earlier `itemN.mjs`).
-3. Update README.md (shortcuts and features), `src/apply-edits.md` (if Push sees a new kind of change) and this file.
+3. Update docs/GUIDE.md (shortcuts and features; README.md only if the front page changes), `src/apply-edits.md` (if Push sees a new kind of change) and this file.
 4. Commit a git checkpoint.
 5. Report to the user in plain language.
 

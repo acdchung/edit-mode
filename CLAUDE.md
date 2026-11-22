@@ -1,6 +1,6 @@
 # Edit Mode: notes for Claude
 
-Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what's next) and README.md (user-facing features and shortcuts).
+Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what's next) and README.md (the front page) and docs/GUIDE.md (user-facing features and shortcuts).
 
 ## Where things stand (2026-11-21)
 
@@ -26,7 +26,7 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
 - **Paused (the user, 2026-11-21): no new building until the user has recorded their demo video.** Help with the script, the recording and tidying the repo only; ask before any code change. The video script lives outside this repo (see the user's memory notes). The snapping follow-ups (commit efc1312) landed after the dress rehearsal; the user chose to keep them (the practice push is the check).
 - **Going public:** the repo will be linked publicly. Keep anything personal out of it (no company names, briefs or scripts in tracked files).
 - **Next:** the user records the demo video (on the console, port 5291). Keep refining Edit Mode after: ideas noted in ROADMAP (B3e Preview in page, Figma-style components much later), then roadmap items 5–9 (what's left of them). Propose, don't wait.
-- **Memory note:** the user clears the conversation often; everything needed to continue is in this file, ROADMAP.md and README.md.
+- **Memory note:** the user clears the conversation often; everything needed to continue is in this file, ROADMAP.md, README.md and docs/GUIDE.md.
 - **Check in with the user after each step** with a detailed plain-language update (memory: edit-mode-updates).
 - **`console-app/`** (2026-11-21, the user's request: designers mostly work on product screens, so the demo should be a data-heavy product tool): the **Payloom Console**, a "November payroll" run review screen (sidebar, run header with actions, stat tiles, gross pay by country bars, run progress segmented bar + checklist, a 16-row people table with currencies and status pills, a review queue, activity). Restyled the same day to the user's references (refined, mostly neutral: a light sidebar with sections, the title on the page with underline tabs and a filter row, figures as calm text in one panel with neutral delta chips, slate chart bars, a thin progress bar, status as a dot + label; colour only for the accent and status). Plain React + CSS; charts are plain elements (editable), built to the dataviz skill (single-series bars, value at the tip; the segmented bar's colours validated, the neutral darkened to clear 3:1). The user runs it on **5291** (`npm run dev` in `console-app/`); test it on a **scratchpad copy** on **5393** (like the demo copy: copy `index.html package.json vite.config.js src`, symlink `node_modules` to `console-app/node_modules`, add `fs.allow` for that `node_modules` in the copy's `vite.config.js`). Never run tests in `console-app/` itself: a test once saved an empty canvas there, so the user got no starter frame. `tests/console.mjs`: Duplicate page copies all ~610 nodes, the untouched copy lists nothing, pixel-identical.
 - **Paused: `demo-app/`**, the Payloom landing page (plan and status in `demo-app/OUTLINE.md`). Step 1 is done and the user approved the look (colors, three-line headline, Inter). Step 2 (sections 4–11) comes when the user asks.
