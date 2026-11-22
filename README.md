@@ -50,7 +50,7 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 | ⌘\ | Hide / show the Edit Mode UI |
 | ⌘C / ⌘V / ⌘X | Copy, paste (after the selection, or into an empty box you added), cut |
 | ⌘D | Duplicate |
-| ⌃ (hold while dragging) | Place or resize freely: no snapping. Otherwise moves on the canvas and resizes snap their edges and centre to what's around (siblings, frames, other canvas items, the live page) and a size snaps to another's (a page frame as tall as the page), with red guides (Figma's smart guides) |
+| ⌃ (hold while dragging) | Place or resize freely: no snapping. Otherwise moves on the canvas and resizes snap their edges and centre to what's around (siblings, frames, other canvas items, the live page) and a size snaps to another's (a page frame as tall as the page), with red guides (Figma's smart guides). Moves also snap to **equal spacing** (centred between two neighbours, or the same gap the row or column already has), shown as gap markers with the value. Drawing a shape or frame on the canvas snaps where you start and the corner you drag |
 | ⌘G | Group the selection. On the canvas: a group the size of what's inside, and nothing moves (things stacked in a copied component stay stacked: the group joins their flow) |
 | ⇧⌘G | Ungroup (canvas): what was inside takes the group's place, staying where it is |
 | ⌘] / ⌘[ | Bring forward / send backward one step (inside auto layout: later / earlier in the flow) |

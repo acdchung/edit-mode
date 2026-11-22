@@ -156,7 +156,7 @@ function init() {
     if (e.composedPath()[0].closest?.('button, a')) e.preventDefault();
   });
   const multiLayer = $('.multis');
-  const snapper = createSnapper($('.guides'));
+  const snapper = createSnapper($('.guides'), () => view.z);
   // What a canvas move or resize snaps to: canvas items, the live page, and the frames it's in.
   const ancestorsOf = (els) => { const out = []; for (let n = els[0]?.parentElement; n && n !== document.body; n = n.parentElement) out.push(n); return out.filter((n) => !n.hasAttribute(CANVAS_ATTR)); };
   function snapTargetsFor(els) {
@@ -1109,7 +1109,16 @@ function init() {
     }
     if (state.tool !== 'select') {
       const drop = toolDrop(e.clientX, e.clientY);
-      if (drop) draw = { x: e.clientX, y: e.clientY, drop };
+      if (drop) {
+        draw = { x: e.clientX, y: e.clientY, drop };
+        // Drawing freely on the canvas snaps (⌃ draws freely): the press point now, the corner as it moves.
+        if (drop.free && onCanvas(drop.container)) {
+          const c = drop.container;
+          draw.ts = snapper.targets([], { canvas: canvasArea(), page: document.body,
+            near: [...(c === canvasArea() ? [] : [c]), ...ancestorsOf([c])] });
+          if (!e.ctrlKey) [draw.x, draw.y] = snapper.point(e.clientX, e.clientY, draw.ts);
+        }
+      }
       return;
     }
     if (e.shiftKey && state.selected) {
@@ -1133,7 +1142,7 @@ function init() {
     const x = e.clientX;
     const y = e.clientY;
     pointer = { x, y, shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey };
-    if (draw) return showDraw(x, y, e.shiftKey);
+    if (draw) return showDraw(x, y, e.shiftKey, e.ctrlKey);
     if (state.tool !== 'select') { state.hovered = null; return showDrop(toolDrop(x, y), true); }
     if (press && !drag && press.target && Math.hypot(x - press.x, y - press.y) > 4) {
       // Several selected: they all move (pressed one leads), in page order.
@@ -1150,7 +1159,7 @@ function init() {
   });
 
   glass.addEventListener('pointerup', (e) => {
-    if (draw) { finishDraw(e.clientX, e.clientY, e.shiftKey); draw = null; return; }
+    if (draw) { finishDraw(...drawPoint(e.clientX, e.clientY, e.ctrlKey), e.shiftKey); draw = null; return; }
     if (drag) finishDrag();
     else if (press?.keep) select(press.el);
     press = null;
@@ -1558,12 +1567,20 @@ function init() {
     return { left: Math.min(draw.x, draw.x + w), top: Math.min(draw.y, draw.y + h), width: Math.abs(w), height: Math.abs(h) };
   }
 
-  function showDraw(x, y, square) {
+  // The dragged corner, snapped to what's around (canvas only; ⌃ draws freely).
+  function drawPoint(x, y, free) {
+    return draw.ts && !free && state.tool !== 'text' ? snapper.point(x, y, draw.ts) : [x, y];
+  }
+
+  function showDraw(x, y, square, free) {
     const { drop } = draw;
     draw.last = [x, y];
     showDrop(drop, true);
     if (state.tool === 'text') return;
-    place(ghostBox, drawBox(x, y, square));
+    const b = drawBox(...drawPoint(x, y, free), square);
+    if (draw.ts && !free) snapper.show({ ...b, right: b.left + b.width, bottom: b.top + b.height }, draw.ts);
+    else snapper.clear();
+    place(ghostBox, b);
     ghostBox.classList.toggle('round', state.tool === 'ellipse');
     ghostBox.hidden = false;
   }
@@ -2336,7 +2353,7 @@ function init() {
   window.addEventListener('blur', () => (state.alt = false));
 
   const redrawOnShift = (e) => {
-    if (draw?.last && e.key === 'Shift') showDraw(draw.last[0], draw.last[1], e.type === 'keydown');
+    if (draw?.last && (e.key === 'Shift' || e.key === 'Control')) showDraw(draw.last[0], draw.last[1], e.shiftKey, e.ctrlKey);
   };
   window.addEventListener('keyup', redrawOnShift, true);
 

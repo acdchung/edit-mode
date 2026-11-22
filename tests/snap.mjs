@@ -84,6 +84,42 @@ await p.mouse.move(hx, hy); await p.mouse.down(); await p.mouse.move(hx + 10, hy
 await p.mouse.up(); await wait(150);
 const width = (n) => R(([s, n]) => document.querySelector(`${s} [data-em-name="${n}"]`).offsetWidth, [FRAME, n]);
 check('resizing near another’s width matches it exactly', (await width('B')) === (await width('A')), `${await width('B')} vs ${await width('A')}`);
+
+// ---------- Move: equal spacing between two neighbours ----------
+await R((s) => {
+  const d = document.createElement('div'); d.dataset.emKind = 'rectangle'; d.dataset.emName = 'C';
+  d.style.cssText = 'position: absolute; left: 700px; top: 120px; width: 100px; height: 100px; background-color: #f2a516;';
+  document.querySelector(s).append(d);
+}, FRAME); await wait(150);
+await R((s) => window.__editMode.select(document.querySelector(`${s} [data-em-name="B"]`)), FRAME); await wait(150);
+zz = await z();
+A = await rect('A'); B = await rect('B');
+const bw = await width('B'); // 160 after the width snap
+const spot = 360 + (700 - 360 - bw) / 2; // centred between A (ends at 360) and C (starts at 700)
+const fromB = [B.x + B.w / 2, B.y + B.h / 2];
+const frameX = A.x - 200 * zz; // the frame's inner left on screen
+const toB = [frameX + (spot + bw / 2) * zz + 3, A.y + A.h / 2 + 30 * zz];
+await p.mouse.move(...fromB); await p.mouse.down(); await p.mouse.move(fromB[0] + 10, fromB[1] - 5, { steps: 3 }); await p.mouse.move(...toB, { steps: 8 }); await wait(60);
+const spacing = await S(`(root) => [...root.querySelectorAll('.guides .mlabel')].map((l) => l.textContent)`);
+await p.mouse.up(); await wait(200);
+check('moving between two neighbours snaps to equal gaps', (await left('B')) === `${spot}px`, `${await left('B')} vs ${spot}px`);
+check('…with both gaps marked and labelled in CSS px', spacing.length === 2 && spacing.every((t) => Number(t) === (700 - 360 - bw) / 2), JSON.stringify(spacing));
+check('…and the markers are gone after letting go', (await S(`(root) => root.querySelectorAll('.guides .mlabel').length`)) === 0);
+
+// ---------- Draw: the corners snap ----------
+A = await rect('A');
+await p.keyboard.press('r'); await wait(80);
+const start = [A.x + 2, A.y + A.h + 2]; // just off A's bottom-left corner
+const C = await rect('C');
+const end = [C.x + C.w - 2, A.y + A.h + 120 * zz]; // near C's right edge
+await p.mouse.move(...start); await p.mouse.down(); await p.mouse.move(start[0] + 20, start[1] + 20, { steps: 3 }); await p.mouse.move(...end, { steps: 6 }); await wait(60);
+const drawing = await guides();
+await p.mouse.up(); await wait(200);
+const drawn = await R((s) => { const k = [...document.querySelector(s).children].at(-1); return { left: k.style.left, top: k.style.top, w: k.offsetWidth }; }, FRAME);
+check('drawing a rectangle snaps its start to A’s corner', drawn.left === '200px' && drawn.top === '220px', JSON.stringify(drawn));
+check('…and its dragged corner to C’s right edge', drawn.w === 600, JSON.stringify(drawn));
+check('…with guides while drawing', drawing.lines > 0, JSON.stringify(drawing));
+
 check('no page errors', errors.length === 0, errors.join(' | '));
 
 await R(() => fetch('/@edit-mode/canvas', { method: 'PUT', body: JSON.stringify({ html: '' }) }));
