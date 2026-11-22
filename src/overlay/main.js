@@ -95,6 +95,7 @@ function init() {
 
   // ---------- State ----------
   const state = {
+    designCount: 0, // new designs on the canvas waiting to go to code (countDesigns)
     canvasDiff: [], // B3: each copy on the canvas compared with the page (compare.js), refreshed shortly after changes
     multi: [], // all selected elements (siblings) when shift-clicking
     tool: 'select', // select | rect | ellipse | text
@@ -396,13 +397,19 @@ function init() {
     clearTimeout(diffTimer);
     diffTimer = setTimeout(() => {
       try { state.canvasDiff = state.on ? compareNow() : []; } catch (err) { console.error(err); state.canvasDiff = []; }
+      countDesigns();
       renderPill();
     }, ms);
   }
   const canvasCount = () => state.canvasDiff.reduce((n, r) => n + (skipCopies.has(r.top) ? 0 : r.changes.length), 0);
+  // New designs waiting to go to code (B3d), for the pill: so a new design on
+  // its own can be pushed. One already built as a component counts again only
+  // when it's set to be built again.
+  const countDesigns = () => { state.designCount = state.on ? newDesigns().filter((n) => !n.dataset.emBuilt || buildMode(n) !== 'skip').length : 0; };
+  const pendingCount = () => changes.count + canvasCount() + state.designCount;
 
   function renderPill() {
-    const n = changes.count + canvasCount();
+    const n = pendingCount();
     const sig = [state.phase, state.on, n > 0, !!state.server?.last?.undoable].join('|');
     if (sig === pillSig) {
       const badge = pillEnd.querySelector('.n');
@@ -440,7 +447,7 @@ function init() {
       return;
     }
     if (state.on) {
-      const n = changes.count + canvasCount();
+      const n = pendingCount();
       const push = h('button', 'act', 'Push');
       push.title = 'Send changes to Claude (⌘↵)';
       push.disabled = !n;
@@ -490,7 +497,7 @@ function init() {
     if (!list.length && !state.canvasDiff.length && !newDesigns().length) return;
     const d = h('div', 'dialog glassy');
     const title = h('h3');
-    const setTitle = () => { const n = list.length + canvasCount() + buildsToSend().length; title.textContent = `Push ${n} change${n === 1 ? '' : 's'} to code`; };
+    const setTitle = () => { const n = list.length + canvasCount() + buildsToSend().length; title.textContent = n ? `Push ${n} change${n === 1 ? '' : 's'} to code` : 'Push to code'; }; // 0: only new designs, none picked yet
     setTitle();
     d.append(title);
     d.append(Object.assign(h('p'), { textContent: 'Claude will update your source to match. You can undo afterwards.' }));
@@ -577,7 +584,7 @@ function init() {
             e.preventDefault();
             if (mode === 'place') return startPick(n);
             n.dataset.emBuild = mode;
-            paint(); setTitle(); gate(); renderPill();
+            paint(); setTitle(); gate(); countDesigns(); renderPill();
           });
           seg.append(b);
         }
