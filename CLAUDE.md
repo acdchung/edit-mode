@@ -23,7 +23,7 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
   - Snapping (smart guides) for canvas moves and all resizes; ⌃ turns it off (`snap.js`, `tests/snap.mjs`). Then equal-spacing guides and snapping while drawing on the canvas.
   - `console-app/` (the Payloom Console), restyled to the user's references; the place picker now picks the nearest card-sized block under the pointer (⌘: the deepest element), so nested app layouts work.
   - A full dress rehearsal of the video demo on a console copy with one real Push (ROADMAP › "Dress rehearsal").
-- **Paused (the user, 2026-11-21): no new building until the video is recorded.** Help with the script and recording only; ask before any code change. The snapping follow-ups (commit efc1312) landed after the dress rehearsal; offered to revert them for the recording.
+- **Paused (the user, 2026-11-21): no new building until the video is recorded.** Help with the script and recording only; ask before any code change. The snapping follow-ups (commit efc1312) landed after the dress rehearsal; the user chose to keep them (the practice push is the check).
 - **Next:** the user records the demo video ( record on the console, port 5291). Keep refining Edit Mode after: ideas noted in ROADMAP (B3e Preview in page, Figma-style components much later), then roadmap items 5–9 (what's left of them). Propose, don't wait.
 - **Memory note:** the user clears the conversation often; everything needed to continue is in this file, ROADMAP.md, README.md and VIDEO-SCRIPT.md.
 - **Check in with the user after each step** with a detailed plain-language update (memory: edit-mode-updates).
