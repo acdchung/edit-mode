@@ -1,11 +1,47 @@
 # Edit Mode
 
-Figma-style visual editing layer for React + Vite projects (plain CSS). Edit the running page, click **Push**, and Claude Code rewrites your source to match. Dev server only — nothing ships in `vite build`.
+**Design on your real, running product the way you would in Figma, and let Claude Code turn what you changed into code.**
 
-## Add to a project
+![Edit Mode on the Payloom Console](docs/hero.png)
+
+<!-- Demo video: [link] -->
+
+Designers work in Figma, but people use the product, which is code. Every handoff loses something: a spacing value, a font weight, a layout that comes back almost right. Edit Mode removes the handoff. Turn it on in the browser and your running React app becomes a Figma-style canvas: Layers, auto layout, constraints and the same shortcuts. What you select is the real screen, with real data.
+
+- **Tweak the live page.** Change padding, size, colour or text right where they are.
+- **Rework on the canvas.** Duplicate the page onto a canvas beside it. Every piece of the copy remembers the line of code it came from, so you can restructure freely and still get exact edits back.
+- **Design something new.** Frames, auto layout and text, with real components pasted in from the page.
+- **Push.** Edit Mode compares your design with the code, lists exactly what changed, and has Claude Code rewrite your source with your project's own components and tokens. **Undo** puts the files back.
+
+It runs only on the dev server; nothing ships in `vite build`.
+
+## Try it
+
+You need [Node.js](https://nodejs.org) 18 or newer. Push also needs [Claude Code](https://claude.com/claude-code) installed and logged in; everything else works without it.
 
 ```sh
-npm install --save-dev ~/edit-mode
+git clone https://github.com/acdchung/edit-mode.git
+cd edit-mode
+npm install               # Edit Mode itself
+cd console-app
+npm install               # the demo app
+npm run dev
+```
+
+Open http://localhost:5291 and press **⌥E** (Option-E). Then try this:
+
+1. Click a name in the people table, choose **All like this** in the panel and change **H**.
+2. In Layers, find the **Canvas** row and click its copy button (**Duplicate page**). Move or restyle something on the copy.
+3. Press **Push** to see the list of changes. **Proceed** runs Claude Code on the demo app's files, and **Undo** in the pill restores them.
+
+The repo has three example apps, all fictional: `console-app/` (a payroll review screen, the main demo), `demo-app/` (a landing page) and `sample-app/` (a small test bed).
+
+## Add it to your own project
+
+For a React + Vite project that uses plain CSS:
+
+```sh
+npm install --save-dev /path/to/edit-mode
 ```
 
 ```js
@@ -17,7 +53,16 @@ export default defineConfig({
 });
 ```
 
-Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be installed and logged in.
+Run `npm run dev` as usual. Add an `EDITMODE.md` with your team's conventions (see below), or let the Push dialog draft one.
+
+## How it was built
+
+I designed and built Edit Mode on my own, with Claude Code as my engineering partner. I made the product calls; Claude wrote the code and the browser tests. The working files are here too:
+
+- `DESIGN.md`: my design rules for the tool, with my original words kept as comments
+- `ROADMAP.md`: the plan, what was decided and why, and what each real Push taught us
+- `CLAUDE.md`: the notes each Claude Code session starts from (architecture, testing rules, gotchas)
+- `tests/`: the browser tests (Playwright), including pixel comparisons and replays of real Pushes
 
 ## Use
 
@@ -32,7 +77,7 @@ Run `npm run dev` as usual. Push needs the Claude Code CLI (`claude`) to be inst
 | Arrows / Shift + arrows | Nudge 1px / 10px (margin); inside auto layout, move earlier/later. With several selected, all of them (as a block in auto layout) |
 | ⌘Z / ⌘⇧Z | Undo / redo |
 | ⌘↵ | Push |
-| Drag an element | Reorder it inside the frame it's in, as Layers shows it (the drop line shows where). Letting go outside the frame moves nothing: moving into another frame changes structure, which will be the canvas's job (see ROADMAP). With several selected from the same frame, drag any of them to move them all, in page order. Push applies the move as you saw it ("Put Nav after Hero and before Logos") |
+| Drag an element | Reorder it inside the frame it's in, as Layers shows it (the drop line shows where). Letting go outside the frame moves nothing: moving into another frame changes structure, so it happens on the canvas. With several selected from the same frame, drag any of them to move them all, in page order. Push applies the move as you saw it ("Put Nav after Hero and before Logos") |
 | V / F / R / O / T | Select, Frame (canvas only), Rectangle, Ellipse, Text tools (toolbar above the pill). Hold Shift while drawing for a square or circle |
 | Shift-click | Add to / remove from the selection, at the same depth as what's selected (title selected → Shift-click another card's title adds that title). Holding Shift previews it. ⇧⌘-click adds exactly the deepest element |
 | Tab / Shift-Tab | Next / previous sibling |
@@ -83,7 +128,7 @@ Push styles a family through one shared CSS rule, so the copies match the origin
 
 **Push:** shows the list of changes; **Proceed** snapshots your source, runs Claude in the background to apply them, then reloads the page. Changes you made on canvas copies are listed too, under **From the canvas**: each copy is compared with the page (styles, text, reordering, moves into other containers, deletions, new groups and auto-layout frames, new things, things placed freely with their constraints), one checkbox per copy. A change to one of several repeated items (one card of three) has a **Just this one / All N** switch, and two copies changing the same thing differently are shown in red. Proceed sends them along with the page's changes (two ticked copies that conflict have to be sorted out first: untick one). **New designs** (anything on the canvas that isn't a copy of the page: an auto-layout frame, a frame, a group, even a lone text) are listed too: **Skip** (the default), **Place** (click where it goes on the live page: the blue line shows the spot before or after the card or section under the pointer; ⌘ goes down to the smallest element), or **Component** (its own component file, named after the layer). Claude builds it from its exact layers and styles, reusing anything you pasted from the page (your real button stays your real Button). Once placed and pushed, the design is linked to its new code: tweak it on the canvas and the next Push sends exact edits. After a Push, the copies are matched to the new code again, so anything Claude didn't apply is still listed next time, and nothing else is. **Undo** (in the pill afterwards) restores the files Claude changed and brings your edits back so you can adjust and push again.
 
-**Canvas (being built, roadmap B2):** while Edit Mode is on, a design canvas sits on the board 160px to the right of your page (pan over, or ⇧1 to fit both). It has its own **Canvas** section in Layers. What's on it can be selected and edited like the page and undone with ⌘Z. Push lists what you changed on copies of the page (see Push); things designed from scratch, outside any copy, aren't part of Push yet (roadmap B3d). It's saved in `.editmode/canvas.json`, so it survives reloads. The canvas is **freeform**: things stay exactly where you put them, and you build structure when you're ready. The **Frame tool (F)** draws white frames at the size you drag (a click makes 100 × 100), with no auto layout. Rectangle, Ellipse and Text draw into a frame or onto the canvas, right where you click. **Drag anything anywhere** (like Figma): let go over a frame and it goes inside it, staying where you see it (or, in an auto-layout frame, joining its flow where the blue line shows); let go over the empty canvas and it's top-level. Out of auto layout, it becomes freely placed and the frame closes up behind it. While you drag, it floats above everything, so a clipping frame can't hide it. Rectangles, ellipses, images and text don't take things inside them (the drop goes to their frame). Moved pieces keep their look (a copied heading dragged out of its card keeps its font and color). Several selected move together, keeping their arrangement. In Layers, drop a row on the middle of a frame's row to put it inside (the row lights up), or above/below a row to place it there. Each move is one ⌘Z. Arrows nudge anything placed freely (Shift: 10px). **X / Y** in Layout show and set where something placed freely sits in its frame (top-level: on the canvas). Inside an auto-layout frame, the **pin** in the Layout title row is Figma's *Ignore auto layout*: the item leaves the flow but stays where it is, and the others close up (click it again to put it back). **Constraints** (for anything placed freely inside a frame) say how it follows the frame when the frame is resized: Left, Right, Left and right (stretches), Center or Scale, and the same for Top/Bottom. Changing one never moves anything; resizing the frame shows it live. Moves, nudges, align, X/Y, W/H and the resize handles all keep the constraint (dragging a resize handle keeps the opposite edge put, like Figma). Layers lists things in page order, so something brought forward moves *down* the list. **⇧A** turns a frame (or a selection) into auto layout without anything moving: the current arrangement becomes the direction (row or column), the gap and the padding. Inside an auto-layout frame, things stack and reorder. Delete on the canvas really removes the item (⌘Z brings it back). The Frame tool doesn't work on the live page: structure lives on the canvas. A fresh canvas starts with one empty frame the size of your page. **Duplicate page** (the copy button on the Canvas row in Layers) puts an identical copy of the whole page beside it, structure kept. ⌘C something on the page, select a canvas frame and ⌘V: the copy lands in the same spot it has on the page (in an auto-layout frame, it joins the layout). With nothing on the canvas selected, ⌘V pastes where the pointer is. Copies look identical and remember which code they came from (the panel shows "copy of …"), so Push can compare them with the originals. They're visual only: buttons and links don't respond. **Images:** drag image files from Finder onto the canvas (into a frame, or loose on the canvas, centered where you drop them; several land side by side), or copy an image anywhere (a browser, Preview, a screenshot, a file in Finder) and ⌘V: it lands in the selected canvas frame, centered, or where the pointer is, otherwise to the right of everything on the canvas. Each becomes an **image layer** named after its file, at its own size (at most 1000px on its longest side), with an image fill you can change like any other. PNG, JPG, GIF, WebP, AVIF and SVG, up to 25 MB. Dropping on the live page adds nothing (use Fill › Image for something on the page). Images are kept in `.editmode/assets/`; when an image fill reaches Push, Edit Mode copies the file into the project's `public/images/` first (Undo removes it again). More structural editing comes next.
+**Canvas:** while Edit Mode is on, a design canvas sits on the board 160px to the right of your page (pan over, or ⇧1 to fit both). It has its own **Canvas** section in Layers. What's on it can be selected and edited like the page and undone with ⌘Z. Push lists what you changed on copies of the page, and things designed from scratch as **New designs** (see Push). It's saved in `.editmode/canvas.json`, so it survives reloads. The canvas is **freeform**: things stay exactly where you put them, and you build structure when you're ready. The **Frame tool (F)** draws white frames at the size you drag (a click makes 100 × 100), with no auto layout. Rectangle, Ellipse and Text draw into a frame or onto the canvas, right where you click. **Drag anything anywhere** (like Figma): let go over a frame and it goes inside it, staying where you see it (or, in an auto-layout frame, joining its flow where the blue line shows); let go over the empty canvas and it's top-level. Out of auto layout, it becomes freely placed and the frame closes up behind it. While you drag, it floats above everything, so a clipping frame can't hide it. Rectangles, ellipses, images and text don't take things inside them (the drop goes to their frame). Moved pieces keep their look (a copied heading dragged out of its card keeps its font and color). Several selected move together, keeping their arrangement. In Layers, drop a row on the middle of a frame's row to put it inside (the row lights up), or above/below a row to place it there. Each move is one ⌘Z. Arrows nudge anything placed freely (Shift: 10px). **X / Y** in Layout show and set where something placed freely sits in its frame (top-level: on the canvas). Inside an auto-layout frame, the **pin** in the Layout title row is Figma's *Ignore auto layout*: the item leaves the flow but stays where it is, and the others close up (click it again to put it back). **Constraints** (for anything placed freely inside a frame) say how it follows the frame when the frame is resized: Left, Right, Left and right (stretches), Center or Scale, and the same for Top/Bottom. Changing one never moves anything; resizing the frame shows it live. Moves, nudges, align, X/Y, W/H and the resize handles all keep the constraint (dragging a resize handle keeps the opposite edge put, like Figma). Layers lists things in page order, so something brought forward moves *down* the list. **⇧A** turns a frame (or a selection) into auto layout without anything moving: the current arrangement becomes the direction (row or column), the gap and the padding. Inside an auto-layout frame, things stack and reorder. Delete on the canvas really removes the item (⌘Z brings it back). The Frame tool doesn't work on the live page: structure lives on the canvas. A fresh canvas starts with one empty frame the size of your page. **Duplicate page** (the copy button on the Canvas row in Layers) puts an identical copy of the whole page beside it, structure kept. ⌘C something on the page, select a canvas frame and ⌘V: the copy lands in the same spot it has on the page (in an auto-layout frame, it joins the layout). With nothing on the canvas selected, ⌘V pastes where the pointer is. Copies look identical and remember which code they came from (the panel shows "copy of …"), so Push can compare them with the originals. They're visual only: buttons and links don't respond. **Images:** drag image files from Finder onto the canvas (into a frame, or loose on the canvas, centered where you drop them; several land side by side), or copy an image anywhere (a browser, Preview, a screenshot, a file in Finder) and ⌘V: it lands in the selected canvas frame, centered, or where the pointer is, otherwise to the right of everything on the canvas. Each becomes an **image layer** named after its file, at its own size (at most 1000px on its longest side), with an image fill you can change like any other. PNG, JPG, GIF, WebP, AVIF and SVG, up to 25 MB. Dropping on the live page adds nothing (use Fill › Image for something on the page). Images are kept in `.editmode/assets/`; when an image fill reaches Push, Edit Mode copies the file into the project's `public/images/` first (Undo removes it again).
 
 **EDITMODE.md (your project's conventions):** a short file at the project root that tells Push how your team writes UI code: how styles are written (plain CSS, CSS modules, Tailwind…), where design tokens live, which layout and shared components to reuse, and what to avoid. Push reads it first, and it wins over Edit Mode's defaults. If a project doesn't have one, the Push dialog offers **Draft one**: Claude reads your codebase and writes only that file (anything else it touches is put back), for you to review and edit. Point `EDIT_MODE_CLAUDE` (or the plugin's `claudePath` option) at a different `claude` binary if needed.
 
