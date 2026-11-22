@@ -1,0 +1,42 @@
+.page {
+  position: relative;
+  width: 100%;
+  max-width: 1461px;
+  height: 1751px;
+  overflow: hidden;
+  background-color: var(--color-surface);
+}
+
+.page-panel {
+  position: absolute;
+  left: 300px;
+  top: 669px;
+  width: 401px;
+  height: 280px;
+  overflow: hidden;
+  background-color: var(--color-accent);
+}
+
+.page-dots {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 306px;
+  height: 91px;
+  translate: -50% -50%;
+}
+
+.page-dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 91px;
+  height: 91px;
+  border-radius: 50%;
+  background-color: #d9d9d9;
+}
+
+.page-dot--end {
+  left: auto;
+  right: 0;
+}

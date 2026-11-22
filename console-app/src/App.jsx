@@ -6,6 +6,7 @@ import RunProgress from './components/RunProgress.jsx';
 import PeopleTable from './components/PeopleTable.jsx';
 import ReviewQueue from './components/ReviewQueue.jsx';
 import Activity from './components/Activity.jsx';
+import Page from './components/Page.jsx';
 import './App.css';
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
           </div>
           <aside className="rail">
             <ReviewQueue />
+            <Page />
             <Activity />
           </aside>
         </div>

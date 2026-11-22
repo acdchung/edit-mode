@@ -1,5 +1,5 @@
-// Canvas step C3: starting points and copies. A fresh canvas starts with a
-// page-sized frame; ⌘V puts copies of page pieces onto the canvas, looking
+// Canvas step C3: starting points and copies. A fresh canvas starts empty,
+// offering Duplicate page (the test then adds a page-sized frame to work in); ⌘V puts copies of page pieces onto the canvas, looking
 // identical and remembering their source; Duplicate page copies the whole
 // page. Runs on the demo copy (5391). COPY=<demo copy dir> (to start fresh).
 import { chromium } from 'playwright-core';
@@ -43,9 +43,17 @@ const compare = (copySel, origSel) => R(([copySel, origSel]) => {
   return out;
 }, [copySel, origSel]);
 
-// ---------- A fresh canvas: one page-sized frame ----------
-const starter = await R(() => { const f = document.querySelector('[data-em-canvas] > [data-em-kind="frame"]'); return f && { name: f.dataset.emName, w: f.offsetWidth, h: f.offsetHeight, page: Math.round(document.getElementById('root').getBoundingClientRect().width / (document.body.getBoundingClientRect().width / document.body.offsetWidth)) }; });
-check('a fresh canvas starts with one empty frame the size of the page', starter && starter.name === 'Page' && starter.w === starter.page && starter.h === 900, JSON.stringify(starter));
+// ---------- A fresh canvas: empty, offering Duplicate page ----------
+const dupBtn = () => R(() => { const b = document.querySelector('edit-mode-root').shadowRoot.querySelector('.dup-page'); const a = document.querySelector('[data-em-canvas]').getBoundingClientRect(); const r = b.getBoundingClientRect(); return { shown: !b.hidden, text: b.textContent, atCanvas: Math.abs(r.left - a.left) < 1 && Math.abs(r.top - a.top) < 1 }; });
+check('a fresh canvas starts empty', await R(() => document.querySelector('[data-em-canvas]').children.length === 0));
+let db = await dupBtn();
+check('…with a "Duplicate page" button where the canvas begins', db.shown && /Duplicate page/.test(db.text) && db.atCanvas, JSON.stringify(db));
+await p.evaluate(() => { // a page-sized frame to design in (what a fresh canvas used to start with)
+  const f = document.createElement('div'); f.dataset.emKind = 'frame'; f.dataset.emName = 'Page';
+  f.style.cssText = `position: absolute; left: 0px; top: 0px; width: ${document.body.offsetWidth}px; height: ${innerHeight}px; background-color: #FFFFFF; overflow: hidden;`;
+  document.querySelector('[data-em-canvas]').append(f);
+}); await p.waitForTimeout(150);
+check('…which goes away once something is on the canvas', !(await dupBtn()).shown);
 const names = await R(() => [...document.querySelector('edit-mode-root').shadowRoot.querySelectorAll('.lrow .lname')].map((n) => n.textContent));
 check('Layers names it "Page" under Canvas', names.slice(names.indexOf('Canvas')).includes('Page'), names.join(' | '));
 

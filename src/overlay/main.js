@@ -38,7 +38,7 @@ function init() {
     <style>${STYLES}</style>
     <div class="ui">
       <div class="glass" hidden></div>
-      <div class="board-label" hidden>Canvas</div>
+      <button class="dup-page glassy" hidden>${ICON.copy}<span>Duplicate page</span></button>
       <div class="layer sibs"></div>
       <div class="layer hints"></div>
       <div class="layer guides"></div>
@@ -91,7 +91,8 @@ function init() {
   const measureLayer = $('.measure');
   const targetBox = $('.target');
   const insertLine = $('.insert');
-  const boardLabel = $('.board-label');
+  const dupPageBtn = $('.dup-page');
+  dupPageBtn.addEventListener('click', () => duplicatePage());
 
   // ---------- State ----------
   const state = {
@@ -202,9 +203,7 @@ function init() {
   window.addEventListener('pointermove', (e) => { cursor = { x: e.clientX, y: e.clientY }; }, true);
 
   // The design canvas beside the page (design.js), on the same board.
-  const design = createDesign({
-    starter: () => ({ width: pageWidth(), height: innerHeight }), // the whole page, as it sits on the board
-  });
+  const design = createDesign();
 
   // Canvas: zoom and pan the page (canvas.js). The free area is the space
   // between the panels and above the toolbar.
@@ -569,7 +568,7 @@ function init() {
         spot.title = 'Change where it goes';
         spot.addEventListener('click', (e) => { e.preventDefault(); startPick(n); });
         const seg = h('span', 'seg');
-        const paint = () => {
+        let paint = () => {
           const mode = buildMode(n);
           for (const b of seg.children) b.classList.toggle('on', b.dataset.mode === mode);
           const at = mode === 'place' ? placeOf(n) : null;
@@ -589,8 +588,24 @@ function init() {
           seg.append(b);
         }
         li.append(name, spot, seg);
+        // Placed: its width as designed, or filling the spot it goes into.
+        const wli = h('li', 'design-width');
+        const wseg = h('span', 'seg');
+        for (const [mode, label] of [['fixed', `As designed ${Math.round(box(n).width)}`], ['fill', 'Fill the spot']]) {
+          const b = h('button', '', label);
+          b.dataset.mode = mode;
+          b.addEventListener('click', (e) => { e.preventDefault(); n.dataset.emWidth = mode; paint(); });
+          wseg.append(b);
+        }
+        wli.append(h('span', 'text', 'Width'), wseg);
+        const paintWidth = () => {
+          wli.hidden = buildMode(n) !== 'place';
+          for (const b of wseg.children) b.classList.toggle('on', b.dataset.mode === widthMode(n));
+        };
+        const paint0 = paint;
+        paint = () => { paint0(); paintWidth(); };
         paint();
-        ul.append(li);
+        ul.append(li, wli);
       }
       const wrapD = h('div', 'list-wrap');
       wrapD.append(ul);
@@ -758,6 +773,7 @@ function init() {
   // the page at a spot picked on the live page, or made a component. The
   // choice and the spot live on the item (saved with the canvas).
   const buildMode = (n) => (n.dataset.emBuild === 'component' ? 'component' : n.dataset.emBuild === 'place' && placeOf(n) ? 'place' : 'skip');
+  const widthMode = (n) => (n.dataset.emWidth === 'fill' ? 'fill' : 'fixed'); // a placed design: as designed, or filling its spot
   const placeOf = (n) => { try { return JSON.parse(n.dataset.emPlace || 'null'); } catch { return null; } };
   const q = (r) => `“${r.name}”`;
   const spotLabel = (at) => (at.after ? `After ${q(at.after)}` : at.before ? `Before ${q(at.before)}` : `Inside ${q(at.parent)}`) + (at.after || at.before ? (at.parent.page ? '' : ` in ${q(at.parent)}`) : '');
@@ -767,7 +783,7 @@ function init() {
       const r = box(n);
       n.dataset.emDesign ||= Math.random().toString(36).slice(2, 10); // who it is, across the reload after Push
       return { kind: 'build', id: n.dataset.emDesign, fromCanvas: 'new', mode: buildMode(n), name, component: componentName(name), element: `new design “${name}”`,
-        placement: buildMode(n) === 'place' ? placeOf(n) : null, size: { width: Math.round(r.width), height: Math.round(r.height) }, ...buildHtml(n) };
+        placement: buildMode(n) === 'place' ? placeOf(n) : null, ...(buildMode(n) === 'place' ? { width: widthMode(n) } : {}), size: { width: Math.round(r.width), height: Math.round(r.height) }, ...buildHtml(n) };
     });
   }
   // After a Push that built new designs (once the page shows the new code).
@@ -2592,12 +2608,12 @@ function init() {
     if (state.editing && !state.editing.isConnected) stopText(); // don't stay stuck in text editing
     const sel = state.selected;
 
-    // "Canvas" above the design canvas, like a Figma frame's name.
+    // An empty canvas offers to start from a copy of the page, where the canvas begins.
     const ca = state.on && design.el;
-    boardLabel.hidden = !ca;
-    if (ca) {
+    dupPageBtn.hidden = !ca || ca.children.length > 0 || !!state.editing;
+    if (!dupPageBtn.hidden) {
       const r = ca.getBoundingClientRect();
-      boardLabel.style.transform = `translate(${r.left}px, ${r.top - 22}px)`;
+      dupPageBtn.style.transform = `translate(${Math.round(r.left)}px, ${Math.round(r.top)}px)`;
     }
 
     hoverBox.hidden = !state.on || !state.hovered || state.multi.includes(state.hovered) || !!state.editing || spacing.dragging || spacing.hovering;

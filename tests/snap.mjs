@@ -9,7 +9,7 @@ if (!process.env.COPY) throw new Error('Set COPY to the demo copy folder');
 const COPY = process.env.COPY;
 let fails = 0;
 const check = (name, ok, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`); };
-rmSync(`${COPY}/.editmode/canvas.json`, { force: true }); // a fresh canvas: one page-wide "Page" frame
+rmSync(`${COPY}/.editmode/canvas.json`, { force: true }); // a fresh canvas (the test adds a page-wide "Page" frame)
 const b = await chromium.launch({ channel: 'chrome' });
 const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
 await ctx.addInitScript(() => { try { localStorage.setItem('edit-mode:layers', '0'); } catch {} });
@@ -19,6 +19,11 @@ const R = (f, a) => p.evaluate(f, a);
 const wait = (ms = 80) => p.waitForTimeout(ms);
 await p.goto('http://localhost:5391'); await p.waitForSelector('.hero');
 await p.keyboard.press('Alt+KeyE'); await wait(700);
+await p.evaluate(() => { // a page-sized frame to design in (what a fresh canvas used to start with)
+  const f = document.createElement('div'); f.dataset.emKind = 'frame'; f.dataset.emName = 'Page';
+  f.style.cssText = `position: absolute; left: 0px; top: 0px; width: ${document.body.offsetWidth}px; height: ${innerHeight}px; background-color: #FFFFFF; overflow: hidden;`;
+  document.querySelector('[data-em-canvas]').append(f);
+}); await p.waitForTimeout(150);
 const S = (fn) => R(([src]) => new Function('root', `return (${src})(root)`)(document.querySelector('edit-mode-root').shadowRoot), [fn.toString()]);
 const FRAME = '[data-em-canvas] > [data-em-name="Page"]';
 const handle = (dir) => S(`(root) => { const r = root.querySelector('.handle[data-dir="${dir}"]').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }`);

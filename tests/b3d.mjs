@@ -112,6 +112,14 @@ await clickIn(`(root) => ${row('Pricing card')}.querySelector('.spot')`);
 await bringTo('#root .logos', 300, 500);
 await p.mouse.move(at[0] - 20, at[1] + 2); await p.mouse.move(...at); await wait(80); await p.mouse.click(...at); await wait(300);
 
+// Width of a placed design: as designed (default) or filling its spot.
+const widthRow = (name) => S(`(root) => { const w = ${row('NAME')}.nextElementSibling; return w?.classList.contains('design-width') ? { shown: !w.hidden, on: w.querySelector('.seg .on')?.textContent } : null; }`.replace('NAME', name));
+const wCard = await widthRow('Pricing card');
+check('a placed design has a Width choice, “As designed <its width>” by default', wCard?.shown && /^As designed \d+$/.test(wCard.on || ''), JSON.stringify(wCard));
+check('…a component has none', (await widthRow('Trusted by 4,000 teams'))?.shown === false);
+await clickIn(`(root) => ${row('Pricing card')}.nextElementSibling.querySelector('.seg button[data-mode="fill"]')`);
+check('…clicking “Fill the spot” picks it', (await widthRow('Pricing card'))?.on === 'Fill the spot');
+
 // ---------- What Push sends ----------
 await p.keyboard.press('Meta+Enter'); await wait(500);
 const sent = pushed[0]?.changes ?? [];
@@ -121,6 +129,7 @@ check('Push sends two builds', sent.length === 2 && place && comp, JSON.stringif
 check('…the card: named PricingCard, placed after the hero, before the logos', place?.component === 'PricingCard' && place.placement.after.name === 'Hero' && place.placement.before.name === 'Logos' && /Hero\.jsx/.test(place.placement.after.source), JSON.stringify(place?.placement));
 check('…its markup: layer names and kinds, auto layout inline, no Edit Mode markers, no canvas position', place && /data-name="Plan"/.test(place.html) && /data-kind="text"/.test(place.html) && /display: flex/.test(place.html) && !/data-em-/.test(place.html) && !/left: \d/.test(place.html.slice(0, 300)), place?.html.slice(0, 300));
 check('…the pasted button is marked to reuse the real Button', place && /data-reuse="src\/components\/Button\.jsx:\d+:\d+#\d+"/.test(place.html) && place.reuse.length === 1 && /Button\.jsx/.test(place.reuse[0].source), JSON.stringify(place?.reuse));
+check('…the card is sent with width “fill”, the component with no width', place?.width === 'fill' && !('width' in (sent.find((c) => c.kind === 'build' && c.mode === 'component') || {})), JSON.stringify(place?.width));
 check('…the lone text: a component named after its text, not placed', comp?.component === 'TrustedBy4000Teams' && comp.placement === null, comp?.component);
 check('…and the context shows Claude the spot’s neighbours', pushed[0].context.some((x) => /Hero\.jsx/.test(x.source)) && pushed[0].context.some((x) => /LogoStrip\.jsx/.test(x.source)), JSON.stringify(pushed[0].context.map((x) => x.element)));
 await wait(300);

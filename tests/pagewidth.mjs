@@ -1,5 +1,5 @@
 // Canvas frames that stand for the page match the whole page, not its
-// content column: the starter frame, and Duplicate page (with the content
+// content column: Duplicate page (with the content
 // where it sits on the page). The sample app has a centered 960px column,
 // which the Payloom suites can't catch. Runs on the sample copy (5390).
 // COPY=<sample copy dir>; leaves its canvas empty for the other suites.
@@ -18,8 +18,6 @@ const R = (f) => p.evaluate(f);
 await p.goto('http://localhost:5390'); await p.waitForSelector('.page');
 await p.keyboard.press('Alt+KeyE'); await p.waitForTimeout(800);
 
-const s = await R(() => { const f = document.querySelector('[data-em-canvas] > [data-em-name="Page"]'); return f && { w: f.offsetWidth, h: f.offsetHeight, body: document.body.offsetWidth, col: document.querySelector('.page').offsetWidth }; });
-check('the starter frame is as wide as the whole page (not its content column)', s && s.w === s.body && s.w > s.col && s.h === 900, JSON.stringify(s));
 
 const btn = await R(() => { const root = document.querySelector('edit-mode-root').shadowRoot; const x = [...root.querySelectorAll('button')].find((n) => /Duplicate/i.test(n.title || n.getAttribute('aria-label') || '')); const r = x.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
 await p.mouse.move(...btn); await p.waitForTimeout(100); await p.mouse.click(...btn); await p.waitForTimeout(800);

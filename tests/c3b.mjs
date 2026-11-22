@@ -36,7 +36,7 @@ const check = (name, ok, detail = '') => { if (!ok) fails++; console.log(`${ok ?
 }
 
 // ---------- In the browser ----------
-rmSync(`${COPY}/.editmode/canvas.json`, { force: true }); // a fresh canvas: one "Page" frame
+rmSync(`${COPY}/.editmode/canvas.json`, { force: true }); // a fresh canvas (the test adds a "Page" frame)
 const b = await chromium.launch({ channel: 'chrome' });
 const bctx = await b.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
 await bctx.addInitScript(() => { try { localStorage.setItem('edit-mode:layers', '0'); } catch {} });
@@ -46,6 +46,11 @@ const R = (f, a) => p.evaluate(f, a);
 const wait = (ms = 80) => p.waitForTimeout(ms);
 await p.goto('http://localhost:5391'); await p.waitForSelector('.hero');
 await p.keyboard.press('Alt+KeyE'); await wait(500);
+await p.evaluate(() => { // a page-sized frame to design in (what a fresh canvas used to start with)
+  const f = document.createElement('div'); f.dataset.emKind = 'frame'; f.dataset.emName = 'Page';
+  f.style.cssText = `position: absolute; left: 0px; top: 0px; width: ${document.body.offsetWidth}px; height: ${innerHeight}px; background-color: #FFFFFF; overflow: hidden;`;
+  document.querySelector('[data-em-canvas]').append(f);
+}); await p.waitForTimeout(150);
 
 // A 40 × 20 PNG, made in the page.
 const pngB64 = await R(() => { const c = document.createElement('canvas'); c.width = 40; c.height = 20; const g = c.getContext('2d'); g.fillStyle = '#e2572b'; g.fillRect(0, 0, 40, 20); g.fillStyle = '#0d99ff'; g.fillRect(20, 0, 20, 20); return c.toDataURL('image/png').split(',')[1]; });

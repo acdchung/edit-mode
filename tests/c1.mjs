@@ -24,7 +24,7 @@ check('Edit Mode on: the canvas is on the board, to the right of the page', !!a 
 const rows = () => R(() => [...document.querySelector('edit-mode-root').shadowRoot.querySelectorAll('.lrow')].map((r) => ({ name: r.querySelector('.lname').textContent, depth: Math.round((parseFloat(r.style.paddingLeft) - 4) / 14) })));
 let rs = await rows();
 check('Layers: Page keeps Nav, Hero, Logos; Canvas is its own section', rs.filter((r) => r.depth === 1).slice(0, 3).map((r) => r.name).join() === 'Nav,Hero,Logos' && rs.some((r) => r.name === 'Canvas' && r.depth === 0), rs.filter((r) => r.depth <= 1).map((r) => r.name).join());
-check('a "Canvas" label sits above it on the board', await R(() => !document.querySelector('edit-mode-root').shadowRoot.querySelector('.board-label').hidden));
+check('no floating "Canvas" label; the empty canvas offers Duplicate page instead', await R(() => { const root = document.querySelector('edit-mode-root').shadowRoot; return !root.querySelector('.board-label') && !root.querySelector('.dup-page').hidden; }));
 
 // Two frames, straight into the DOM (C2 brings the Frame tool).
 await R(() => {

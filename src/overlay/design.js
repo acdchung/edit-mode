@@ -15,8 +15,9 @@ const MIN_H = 1000;
 const ROOM = 400; // free space kept to the right of and below the content
 const SAVE_MS = 400;
 
-// `starter()`: the frame a fresh canvas starts with ({ width, height } in CSS px).
-export function createDesign({ starter = () => null } = {}) {
+// A fresh canvas starts empty: the whole space is yours (Figma's new page);
+// main.js offers Duplicate page while it's empty.
+export function createDesign() {
   let area = null;
   let observer = null;
   let timer = 0;
@@ -56,18 +57,7 @@ export function createDesign({ starter = () => null } = {}) {
     loading = true;
     try {
       const data = await (await fetch('/@edit-mode/canvas')).json();
-      if (area && data.fresh) {
-        // A fresh canvas starts with one empty frame the size of the page, to design within.
-        const s = starter();
-        if (s) {
-          const f = document.createElement('div');
-          f.dataset.emKind = 'frame';
-          f.dataset.emName = 'Page';
-          f.style.cssText = `position: absolute; left: 0px; top: 0px; width: ${s.width}px; height: ${s.height}px; background-color: #FFFFFF; overflow: hidden;`;
-          area.append(f);
-          timer = setTimeout(save, 0);
-        }
-      } else if (area) {
+      if (area) {
         area.innerHTML = data.html || '';
         // Session-only markers would clash with this session's numbering ("All like this" families).
         for (const n of area.querySelectorAll('[data-em-new], [data-em-copy-of], [contenteditable]')) {

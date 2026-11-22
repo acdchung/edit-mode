@@ -34,7 +34,13 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 
 /* Glass: covers the page while editing so the app never sees hovers or clicks. */
 .glass { position: fixed; inset: 0; pointer-events: auto; cursor: default; }
-.board-label { position: fixed; left: 0; top: 0; pointer-events: none; font: 500 12px/16px var(--sans); color: rgba(0, 0, 0, .5); white-space: nowrap; }
+.dup-page { appearance: none; margin: 0; position: fixed; left: 0; top: 0; pointer-events: auto; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 10px;
+            border-radius: 8px; color: var(--text); font: 500 12px/16px var(--sans); white-space: nowrap; cursor: pointer; }
+.dup-page[hidden] { display: none; }
+.dup-page svg { width: 14px; height: 14px; color: var(--muted); }
+.dup-page:hover svg { color: var(--text); }
+.dup-page:active { scale: .97; }
+.dup-page:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .glass.dragging { cursor: grabbing; }
 
 /* ---------- Canvas ---------- */
@@ -140,8 +146,12 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .list li.conflict::before { background: var(--danger); }
 .list.designs { max-height: none; }
 .list li.design { display: flex; align-items: center; gap: 8px; height: 26px; }
-.list li.design .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.list li.design .spot { all: unset; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent-text); font-size: 11px; cursor: pointer; }
+.list li.design-width { display: flex; align-items: center; gap: 8px; height: 26px; padding-left: 24px; color: var(--muted); }
+.list li.design-width[hidden] { display: none; }
+.list li.design-width .text { flex: 1; }
+.list li.design-width::before { display: none; }
+.list li.design .text { flex: 0 1 auto; min-width: 48px; max-width: 50%; overflow: hidden; text-overflow: ellipsis; }
+.list li.design .spot { all: unset; flex: 1 1 0; text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent-text); font-size: 11px; cursor: pointer; }
 .list li.design .spot:hover { text-decoration: underline; }
 .seg { flex: none; display: flex; padding: 1px; border-radius: 5px; background: var(--field); }
 .seg button { all: unset; padding: 0 6px; border-radius: 4px; color: var(--muted); font-size: 11px; line-height: 18px; cursor: pointer; }
