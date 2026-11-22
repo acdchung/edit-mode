@@ -60,6 +60,16 @@ Steps:
 - **B3. Push from the canvas: replace in the slot.** Push rebuilds what's inside the copied piece and keeps its slot (how it sits in its parent: pinned over a corner, a grid cell, its place in a row), so overlapping pieces and one widget in a big dashboard work. Changing the slot itself is a change to the parent (copy the parent, or tweak live). The slot keeps its rules, not its pixels: if the piece changes size, the parent adjusts by its own code rules (a grid row grows, row neighbours shift, a piece pinned bottom-left grows upward from that corner). **Preview in page** before Push: the canvas version temporarily swaps into its real slot on the live page (and in every breakpoint copy), so the reflow is visible; if the parent can't take it, adjust the parent. After Push: a before/after toggle in place, plus Undo (and git, on a branch). Option at Push: "add as a new section below" for whole sections, to compare side by side.
 - Keep `demo-app/` (Payloom) as written by a typical team: it's the realistic test page.
 
+### First after the video (agreed with the user 2026-11-22)
+
+- **Bug: Push stays greyed out when a new design is the only change.** The pill's count (`renderPill`/`buildPill` in main.js: `changes.count + canvasCount()`) leaves out `newDesigns()`, so with nothing else changed the button is disabled and the "New designs" list can't be opened (⌘↵ goes straight to `openPushDialog`, which does count them). Fix: count new designs in the pill (cache the number next to `state.canvasDiff` in `scheduleCanvasDiff`, not per frame). Found by the user; it never showed in the rehearsal because other changes were always pending.
+- **Try on page (grows B3e "Preview in page").** The user's need: design custom elements on the canvas (several versions of a button, say) and see them in the real page, swapping between them, without a Push + Undo per try. Today ⌘V of a canvas item onto the page is blocked on purpose ("Stays on the canvas"): page elements are tied to code lines, and the way in is Push › New designs › Place. Plan:
+  1. **Try on page:** select a canvas design, then click a spot on the page or an element to replace. It shows there as a preview (the page reflows around it, as it really would); the code doesn't change.
+  2. **Swap versions:** with several versions selected (or a set of designs), a small switcher on the preview, ←/→ cycles them in place (like swapping an instance in Figma).
+  3. **Keep one:** Push sends the version in place, as "replace this" or "put this here" (B3d's build, plus a new replace mode); clearing the preview leaves nothing behind.
+  4. Probably: editing the design on the canvas updates the preview live.
+  Both uses matter equally to the user (replacing something that exists, and trying a spot for something new), so build both.
+
 ### Then: roadmap items 5–9 below (unchanged).
 
 ### 5. Absolute position inside auto layout (Figma: "Ignore auto layout")
