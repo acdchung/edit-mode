@@ -57,7 +57,7 @@ Run `npm run dev` as usual. Add an `EDITMODE.md` with your team's conventions (s
 
 ## How it was built
 
-I designed and built Edit Mode on my own, with Claude Code as my engineering partner. I made the product calls; Claude wrote the code and the browser tests. The working files are here too:
+I'm Andrew Chung, a product designer. I designed and built Edit Mode on my own, with Claude Code as my engineering partner. I made the product calls; Claude wrote the code and the browser tests. The working files are here too:
 
 - `DESIGN.md`: my design rules for the tool, with my original words kept as comments
 - `ROADMAP.md`: the plan, what was decided and why, and what each real Push taught us
