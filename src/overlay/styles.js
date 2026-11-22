@@ -34,13 +34,13 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 
 /* Glass: covers the page while editing so the app never sees hovers or clicks. */
 .glass { position: fixed; inset: 0; pointer-events: auto; cursor: default; }
-.dup-page { appearance: none; margin: 0; position: fixed; left: 0; top: 0; pointer-events: auto; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 10px;
-            border-radius: 8px; color: var(--text); font: 500 12px/16px var(--sans); white-space: nowrap; cursor: pointer; }
+.dup-page { appearance: none; margin: 0; padding: 0; border: 0; position: fixed; left: 0; top: 0; pointer-events: auto; display: grid; place-items: center;
+            width: 24px; height: 24px; border-radius: 6px; background: transparent; color: rgba(0, 0, 0, .45); cursor: pointer; }
 .dup-page[hidden] { display: none; }
-.dup-page svg { width: 14px; height: 14px; color: var(--muted); }
-.dup-page:hover svg { color: var(--text); }
-.dup-page:active { scale: .97; }
-.dup-page:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dup-page svg { width: 14px; height: 14px; }
+.dup-page:hover { background: rgba(0, 0, 0, .06); color: rgba(0, 0, 0, .8); }
+.dup-page:active { scale: .95; }
+.dup-page:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .glass.dragging { cursor: grabbing; }
 
 /* ---------- Canvas ---------- */

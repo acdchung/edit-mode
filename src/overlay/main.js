@@ -38,7 +38,7 @@ function init() {
     <style>${STYLES}</style>
     <div class="ui">
       <div class="glass" hidden></div>
-      <button class="dup-page glassy" hidden>${ICON.copy}<span>Duplicate page</span></button>
+      <button class="dup-page" hidden title="Duplicate page" aria-label="Duplicate page">${ICON.copy}</button>
       <div class="layer sibs"></div>
       <div class="layer hints"></div>
       <div class="layer guides"></div>
@@ -1878,7 +1878,9 @@ function init() {
         'margin-top': '0px', 'margin-bottom': '0px', 'margin-left': centered ? 'auto' : `${left}px`, 'margin-right': centered ? 'auto' : '0px' });
     });
     select(f);
-    canvas.toSelection(f.getBoundingClientRect());
+    // The view stays put (no jump); only if the copy landed completely out of sight, fit page and canvas.
+    const fr = f.getBoundingClientRect();
+    if (fr.right < 0 || fr.left > innerWidth || fr.bottom < 0 || fr.top > innerHeight) canvas.fit();
     toast('Duplicated', 'An identical copy of the page is on the canvas, ready to work on.', { ms: 3000 });
   }
 
@@ -2608,12 +2610,13 @@ function init() {
     if (state.editing && !state.editing.isConnected) stopText(); // don't stay stuck in text editing
     const sel = state.selected;
 
-    // An empty canvas offers to start from a copy of the page, where the canvas begins.
-    const ca = state.on && design.el;
-    dupPageBtn.hidden = !ca || ca.children.length > 0 || !!state.editing;
+    // Duplicate page: a small icon just right of the page's top-right corner, in the gap before the canvas
+    // (above the page there's no room when it's zoomed to fit).
+    dupPageBtn.hidden = !state.on || !design.el || !!state.editing;
     if (!dupPageBtn.hidden) {
-      const r = ca.getBoundingClientRect();
-      dupPageBtn.style.transform = `translate(${Math.round(r.left)}px, ${Math.round(r.top)}px)`;
+      const r = document.body.getBoundingClientRect();
+      dupPageBtn.style.left = `${Math.round(r.right + 8)}px`; // left/top, not transform: the press scale would scale a translate too
+      dupPageBtn.style.top = `${Math.round(r.top)}px`;
     }
 
     hoverBox.hidden = !state.on || !state.hovered || state.multi.includes(state.hovered) || !!state.editing || spacing.dragging || spacing.hovering;

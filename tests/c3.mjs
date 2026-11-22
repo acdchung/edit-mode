@@ -44,16 +44,16 @@ const compare = (copySel, origSel) => R(([copySel, origSel]) => {
 }, [copySel, origSel]);
 
 // ---------- A fresh canvas: empty, offering Duplicate page ----------
-const dupBtn = () => R(() => { const b = document.querySelector('edit-mode-root').shadowRoot.querySelector('.dup-page'); const a = document.querySelector('[data-em-canvas]').getBoundingClientRect(); const r = b.getBoundingClientRect(); return { shown: !b.hidden, text: b.textContent, atCanvas: Math.abs(r.left - a.left) < 1 && Math.abs(r.top - a.top) < 1 }; });
+const dupBtn = () => R(() => { const b = document.querySelector('edit-mode-root').shadowRoot.querySelector('.dup-page'); const pg = document.body.getBoundingClientRect(); const r = b.getBoundingClientRect(); return { shown: !b.hidden, label: b.getAttribute('aria-label'), w: r.width, besideTopRight: Math.abs(r.left - pg.right - 8) < 1.5 && Math.abs(r.top - pg.top) < 1.5 }; });
 check('a fresh canvas starts empty', await R(() => document.querySelector('[data-em-canvas]').children.length === 0));
 let db = await dupBtn();
-check('…with a "Duplicate page" button where the canvas begins', db.shown && /Duplicate page/.test(db.text) && db.atCanvas, JSON.stringify(db));
+check('…and a small Duplicate page icon just right of the page’s top-right corner', db.shown && db.label === 'Duplicate page' && db.w === 24 && db.besideTopRight, JSON.stringify(db));
 await p.evaluate(() => { // a page-sized frame to design in (what a fresh canvas used to start with)
   const f = document.createElement('div'); f.dataset.emKind = 'frame'; f.dataset.emName = 'Page';
   f.style.cssText = `position: absolute; left: 0px; top: 0px; width: ${document.body.offsetWidth}px; height: ${innerHeight}px; background-color: #FFFFFF; overflow: hidden;`;
   document.querySelector('[data-em-canvas]').append(f);
 }); await p.waitForTimeout(150);
-check('…which goes away once something is on the canvas', !(await dupBtn()).shown);
+check('…which stays once something is on the canvas', (await dupBtn()).shown);
 const names = await R(() => [...document.querySelector('edit-mode-root').shadowRoot.querySelectorAll('.lrow .lname')].map((n) => n.textContent));
 check('Layers names it "Page" under Canvas', names.slice(names.indexOf('Canvas')).includes('Page'), names.join(' | '));
 

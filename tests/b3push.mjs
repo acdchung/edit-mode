@@ -20,16 +20,21 @@ const push = () => S(`(root) => { const b = [...root.querySelectorAll('button.ac
 
 check('a fresh (empty) canvas: Push is off', (await push())?.disabled === true, JSON.stringify(await push()));
 
-await p.keyboard.press('Shift+Digit1'); await wait(300); // the canvas starts right of the page: fit both
-// The empty canvas's "Duplicate page" button copies the page where the canvas begins; ⌘Z takes it back.
+await wait(1500); await p.keyboard.press('Shift+Digit1'); await wait(600); // the canvas starts right of the page: fit both, once Edit Mode has settled
+// The Duplicate page icon (right of the page's top-right corner) copies the page where the canvas begins, without moving the view; ⌘Z takes it back.
 const dup = await S(`(root) => { const b = root.querySelector('.dup-page'); if (b.hidden) return null; const r = b.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }`);
-check('an empty canvas shows the Duplicate page button', !!dup);
-if (dup) { await p.mouse.click(...dup); await wait(900); }
+check('the Duplicate page icon is there', !!dup);
+const view0 = await p.evaluate(() => document.body.style.transform);
+const iconAt = () => S(`(root) => { const r = root.querySelector('.dup-page').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }`);
+let held = null;
+if (dup) { await p.mouse.move(...dup); await wait(80); await p.mouse.down(); await wait(80); held = await iconAt(); await p.mouse.up(); await wait(900); }
+check('…it stays in place while pressed (only shrinks)', held && Math.hypot(held[0] - dup[0], held[1] - dup[1]) < 1, JSON.stringify([dup, held]));
+check('…clicking it doesn’t move the view', (await p.evaluate(() => document.body.style.transform)) === view0);
 const copy = await p.evaluate(() => { const f = document.querySelector('[data-em-canvas] > [data-em-copy="page"]'); return f && { left: f.offsetLeft, top: f.offsetTop, hero: !!f.querySelector('.hero') }; });
 check('…clicking it puts a copy of the page at the canvas’s top-left', copy?.left === 0 && copy.top === 0 && copy.hero, JSON.stringify(copy));
-check('…and the button goes away', await S(`(root) => root.querySelector('.dup-page').hidden`));
+check('…and the icon stays', await S(`(root) => !root.querySelector('.dup-page').hidden`));
 await p.keyboard.press('Meta+z'); await wait(600);
-check('…⌘Z empties the canvas again, button back', (await p.evaluate(() => document.querySelector('[data-em-canvas]').children.length)) === 0 && !(await S(`(root) => root.querySelector('.dup-page').hidden`)));
+check('…⌘Z empties the canvas again', (await p.evaluate(() => document.querySelector('[data-em-canvas]').children.length)) === 0);
 
 // Draw a rectangle on the empty canvas.
 await p.keyboard.press('Shift+Digit1'); await wait(300);
