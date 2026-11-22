@@ -148,6 +148,8 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .list li.design { display: flex; align-items: center; gap: 8px; height: 26px; }
 .list li.design-width { display: flex; align-items: center; gap: 8px; height: 26px; padding-left: 24px; color: var(--muted); }
 .list li.design-width[hidden] { display: none; }
+.list li.design-width { margin-top: 8px; } /* breathing room under its design's buttons (DESIGN.md: 8px between rows) */
+.list li.design-width + li.design, .list li.design + li.design { margin-top: 12px; } /* each design reads as one group */
 .list li.design-width .text { flex: 1; }
 .list li.design-width::before { display: none; }
 .list li.design .text { flex: 0 1 auto; min-width: 48px; max-width: 50%; overflow: hidden; text-overflow: ellipsis; }
