@@ -4,8 +4,6 @@
 
 ![Edit Mode on the Payloom Console](docs/hero.png)
 
-**[Watch the 3-minute demo](https://youtu.be/TeyH6yRnNi8)**
-
 Designers work in Figma, but people use the product, which is code. Every handoff loses something: a spacing value, a font weight, a layout that comes back almost right. Edit Mode removes the handoff. Turn it on in the browser and your running React app becomes a Figma-style canvas: Layers, auto layout, constraints and the same shortcuts. What you select is the real screen, with real data.
 
 - **Tweak the live page.** Change padding, size, colour or text right where they are.
