@@ -153,6 +153,7 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .list li.design-width .text { flex: 1; }
 .list li.design-width::before { display: none; }
 .list li.design .text { flex: 0 1 auto; min-width: 48px; max-width: 50%; overflow: hidden; text-overflow: ellipsis; }
+.list li.design .where { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
 .list li.design .spot { all: unset; flex: 1 1 0; text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent-text); font-size: 11px; cursor: pointer; }
 .list li.design .spot:hover { text-decoration: underline; }
 .seg { flex: none; display: flex; padding: 1px; border-radius: 5px; background: var(--field); }

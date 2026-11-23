@@ -23,7 +23,7 @@ if (!window.__editModeOverlay) {
 }
 
 function init() {
-  const KEY = { on: 'edit-mode:on', toast: 'edit-mode:toast', reapply: 'edit-mode:reapply', relink: 'edit-mode:relink', built: 'edit-mode:built' };
+  const KEY = { on: 'edit-mode:on', toast: 'edit-mode:toast', reapply: 'edit-mode:reapply', relink: 'edit-mode:relink', built: 'edit-mode:built', onPage: 'edit-mode:on-page' };
   const store = {
     get: (k) => { try { return sessionStorage.getItem(k); } catch { return null; } },
     set: (k, v) => { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch {} },
@@ -116,6 +116,7 @@ function init() {
   let pingTimer = 0;
 
   let placedCount = 0;
+  let mounting = Promise.resolve(); // the canvas loading (design.js)
   const changes = createChanges(() => {
     scheduleCanvasDiff();
     // Designs on the page are saved with the canvas (design.js), so their edits are too.
@@ -317,7 +318,8 @@ function init() {
 
     if (next) {
       canvas.enter();
-      design.mount().then(() => setTimeout(() => {
+      mounting = design.mount();
+      mounting.then(() => setTimeout(() => {
         // After a Push or an Undo the code moved under the copies: match them to the page again.
         afterBuild(); // first: link what was just built, so re-linking sees it as built
         if (store.get(KEY.relink)) { try { if (relinkCanvas({ force: true })) store.set(KEY.relink, null); } catch (err) { console.error(err); } }
@@ -411,7 +413,7 @@ function init() {
   // New designs waiting to go to code (B3d), for the pill: so a new design on
   // its own can be pushed. One already built as a component counts again only
   // when it's set to be built again.
-  const countDesigns = () => { state.designCount = state.on ? newDesigns().filter((n) => !n.dataset.emBuilt || buildMode(n) !== 'skip').length : 0; };
+  const countDesigns = () => { state.designCount = state.on ? newDesigns().filter((n) => !n.dataset.emBuilt || buildMode(n) !== 'skip').length + placedDesigns().length : 0; };
   const pendingCount = () => changes.count + canvasCount() + state.designCount;
 
   function renderPill() {
@@ -500,7 +502,7 @@ function init() {
     clearTimeout(diffTimer);
     try { state.canvasDiff = compareNow(); } catch (err) { console.error(err); state.canvasDiff = []; }
     const list = changes.list();
-    if (!list.length && !state.canvasDiff.length && !newDesigns().length) return;
+    if (!list.length && !state.canvasDiff.length && !newDesigns().length && !placedDesigns().length) return;
     const d = h('div', 'dialog glassy');
     const title = h('h3');
     const setTitle = () => { const n = list.length + canvasCount() + buildsToSend().length; title.textContent = n ? `Push ${n} change${n === 1 ? '' : 's'} to code` : 'Push to code'; }; // 0: only new designs, none picked yet
@@ -563,10 +565,23 @@ function init() {
       }
     }
     // New designs (B3d): skip, place on the page, or make a component.
+    // Designs moved onto the page always go, built where they sit.
     const designs = newDesigns();
-    if (designs.length) {
+    const onPage = placedDesigns();
+    if (designs.length || onPage.length) {
       blocks.push(h('h4', 'sec', 'New designs'));
       const ul = h('ul', 'list designs');
+      for (const n of onPage) {
+        const li = h('li', 'design on-page');
+        const name = h('span', 'text');
+        name.textContent = designName(n);
+        const at = placementOf(n);
+        const where = h('span', 'where');
+        where.textContent = at.replaces?.length ? `Replaces ${at.replaces.map(q).join(', ')}` : spotLabel(at);
+        li.title = `${designName(n)} → built on the page, ${where.textContent.toLowerCase()}`;
+        li.append(name, where);
+        ul.append(li);
+      }
       for (const n of designs) {
         const li = h('li', 'design');
         const name = h('span', 'text');
@@ -784,14 +799,36 @@ function init() {
   const placeOf = (n) => { try { return JSON.parse(n.dataset.emPlace || 'null'); } catch { return null; } };
   const q = (r) => `“${r.name}”`;
   const spotLabel = (at) => (at.after ? `After ${q(at.after)}` : at.before ? `Before ${q(at.before)}` : `Inside ${q(at.parent)}`) + (at.after || at.before ? (at.parent.page ? '' : ` in ${q(at.parent)}`) : '');
+  // A design on the page, where it sits: its parent (named as Layers shows
+  // it) and its neighbours in the code (another design next to it is named,
+  // it's built in the same Push). Neighbours deleted or hidden in this Push
+  // are what it replaces.
+  function placementOf(n) {
+    const parent = n.parentElement;
+    const sibs = [...parent.children].filter((k) => k !== host && !NOT_LAYER.test(k.tagName) && (k.hasAttribute(ATTR) || k.hasAttribute(PLACED_ATTR)));
+    const i = sibs.indexOf(n);
+    const ref = (k) => (!k ? null : k.hasAttribute(PLACED_ATTR) ? { element: `new design “${designName(k)}”`, name: designName(k), design: true } : pageRef(k));
+    const seen = levelUp(n) || pageRoot();
+    const where = { ...pageRef(parent), name: seen === pageRoot() ? 'Page' : friendlyName(seen), ...(seen === pageRoot() ? { page: true } : {}) };
+    const gone = (k) => k && k.hasAttribute(ATTR) && getComputedStyle(k).display === 'none';
+    const replaces = [sibs[i - 1], sibs[i + 1]].filter(gone).map(pageRef);
+    return { parent: where, after: ref(sibs[i - 1]), before: ref(sibs[i + 1]), ...(replaces.length ? { replaces } : {}) };
+  }
   function buildsToSend() {
-    return newDesigns().filter((n) => buildMode(n) !== 'skip').map((n) => {
+    const onPage = placedDesigns().map((n) => {
+      const name = designName(n);
+      const r = box(n);
+      n.dataset.emDesign ||= Math.random().toString(36).slice(2, 10);
+      return { kind: 'build', id: n.dataset.emDesign, fromCanvas: 'new', onPage: true, mode: 'place', name, component: componentName(name), element: `new design “${name}”`,
+        placement: placementOf(n), width: panel.sizeModeOf(n, 'width') === 'fill' ? 'fill' : 'fixed', size: { width: Math.round(r.width), height: Math.round(r.height) }, ...buildHtml(n) };
+    });
+    return [...onPage, ...newDesigns().filter((n) => buildMode(n) !== 'skip').map((n) => {
       const name = designName(n);
       const r = box(n);
       n.dataset.emDesign ||= Math.random().toString(36).slice(2, 10); // who it is, across the reload after Push
       return { kind: 'build', id: n.dataset.emDesign, fromCanvas: 'new', mode: buildMode(n), name, component: componentName(name), element: `new design “${name}”`,
         placement: buildMode(n) === 'place' ? placeOf(n) : null, ...(buildMode(n) === 'place' ? { width: widthMode(n) } : {}), size: { width: Math.round(r.width), height: Math.round(r.height) }, ...buildHtml(n) };
-    });
+    })];
   }
   // After a Push that built new designs (once the page shows the new code).
   function afterBuild() {
@@ -802,11 +839,53 @@ function init() {
       for (const b of JSON.parse(raw)) {
         const n = canvasArea()?.querySelector(`:scope > [data-em-design="${CSS.escape(b.id)}"]`);
         if (!n) continue;
+        if (b.onPage) { n.remove(); continue; } // built where it sat on the page: its safety copy goes (it moved, Figma)
         if (b.mode === 'component') { n.dataset.emBuild = 'skip'; n.dataset.emBuilt = b.component; continue; }
         rememberLinks(n);
         if (linkDesign(n, b.placement)) n.dataset.emBuilt = b.component;
       }
     } catch (err) { console.error(err); }
+  }
+
+  // After Undo of a Push that built designs on the page: put them back where
+  // they sat (as designs again); if their spot is gone, onto the canvas.
+  // Returns how many couldn't go back on the page.
+  async function restorePlaced() {
+    const raw = store.get(KEY.onPage);
+    store.set(KEY.onPage, null);
+    if (!raw) return 0;
+    let missing = 0;
+    const find = (r) => (r?.source ? document.querySelectorAll(`[${ATTR}="${CSS.escape(r.source)}"]`)[r.index ?? 0] ?? null : null);
+    // Once the app has rendered their spots and the canvas has loaded (the fallback).
+    const items = JSON.parse(raw);
+    for (let i = 0; i < 40 && !items.every((it) => find(it.placement.parent)); i++) await new Promise((r) => setTimeout(r, 100));
+    await mounting;
+    changes.batch(`restore:${Date.now()}`, () => {
+      for (const { html, placement: at } of items) {
+        const t = document.createElement('template');
+        t.innerHTML = html;
+        const el = t.content.firstElementChild;
+        if (!el) continue;
+        const after = find(at.after), before = find(at.before);
+        const parent = after?.parentElement ?? before?.parentElement ?? find(at.parent);
+        if (parent) {
+          const kids = [...parent.children];
+          const index = after?.parentElement === parent ? kids.indexOf(after) + 1 : before?.parentElement === parent ? kids.indexOf(before) : kids.length;
+          changes.insert(el, parent, index, { what: 'copy', styles: {}, text: '' });
+          continue;
+        }
+        missing++;
+        el.removeAttribute(PLACED_ATTR);
+        const area = canvasArea();
+        if (!area) continue;
+        let home = null;
+        try { home = JSON.parse(el.dataset.emHome || 'null'); } catch {}
+        el.removeAttribute('data-em-home');
+        for (const [p, v] of [['position', 'absolute'], ['left', `${home?.left ?? 0}px`], ['top', `${home?.top ?? 0}px`]]) el.style.setProperty(p, v, 'important');
+        changes.insert(el, area, area.children.length, { what: 'copy', styles: {}, text: '' });
+      }
+    });
+    return missing;
   }
 
   // Where on the live page, as Push refers to page elements.
@@ -843,6 +922,9 @@ function init() {
       const top = y < r.top + r.height / 2;
       if (Math.abs(top ? r.top - pr.top : pr.bottom - r.bottom) > 4 * view.z + 2) break;
       if (passThrough(p)) continue;
+      // Near a top or bottom edge you mean above or below: never beside it in a row.
+      const gcs = p.parentElement && getComputedStyle(p.parentElement);
+      if (gcs && /flex/.test(gcs.display) && /^row/.test(gcs.flexDirection)) break;
       const sibs = [...(p.parentElement?.children ?? [])].filter((k) => k.getClientRects().length && !NOT_LAYER.test(k.tagName));
       if (p.hasAttribute(ATTR) && sibs.length >= 2) n = p;
     }
@@ -898,8 +980,12 @@ function init() {
     if (!list.length) return;
     if (list.some((c) => c.fromCanvas != null)) store.set(KEY.relink, '1'); // the code moves under the copies: link them again on the next load
     // New designs being built: after the push, a placed one is linked to its new code, a component goes back to Skip.
-    const built = list.filter((c) => c.kind === 'build').map((c) => ({ id: c.id, mode: c.mode, placement: c.placement, component: c.component }));
+    const built = list.filter((c) => c.kind === 'build').map((c) => ({ id: c.id, mode: c.mode, placement: c.placement, component: c.component, onPage: c.onPage }));
     store.set(KEY.built, built.length ? JSON.stringify(built) : null);
+    // Designs on the page, as they are: Undo puts them back where they sat.
+    const onPage = placedDesigns().map((n) => ({ html: n.outerHTML, placement: placementOf(n) }));
+    store.set(KEY.onPage, onPage.length ? JSON.stringify(onPage) : null);
+    if (onPage.length) design.touch(); // their ids reach the canvas save (afterBuild finds the safety copies by them)
     closeDialog();
     select(null);
     state.phase = 'running';
@@ -2879,7 +2965,7 @@ function init() {
       for (let i = 0; i < 40 && first && !document.querySelector(`[${ATTR}="${CSS.escape(first)}"]`); i++) {
         await new Promise((r) => setTimeout(r, 100));
       }
-      const missing = changes.reapply(list);
+      const missing = changes.reapply(list) + await restorePlaced();
       toast('Undone', missing ? `Your edits are back, except ${missing} that no longer match the page.` : 'Your code is restored and your edits are back. Adjust and push again.');
     }
 
