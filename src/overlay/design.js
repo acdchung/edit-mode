@@ -7,7 +7,7 @@
 // Top-level items are placed at x/y inside the area (like Figma's top-level
 // frames); what's inside them follows their own layout.
 
-import { CANVAS_ATTR } from './util.js';
+import { CANVAS_ATTR, PLACED_ATTR, placedDesigns } from './util.js';
 
 const GAP = 160; // between the page and the canvas
 const MIN_W = 1440;
@@ -35,7 +35,25 @@ export function createDesign() {
     area.style.height = `${h}px`;
   }
 
-  const html = () => area.innerHTML;
+  // Designs moved onto the live page aren't code yet: they're saved back at
+  // their spot on the canvas, so a reload (or a Push that doesn't build them)
+  // never loses them.
+  function html() {
+    let out = area.innerHTML;
+    for (const n of placedDesigns()) {
+      const c = n.cloneNode(true);
+      let home = null;
+      try { home = JSON.parse(n.dataset.emHome || 'null'); } catch {}
+      c.removeAttribute(PLACED_ATTR);
+      c.removeAttribute('data-em-home');
+      const set = (p, v) => c.style.setProperty(p, v, 'important');
+      set('position', 'absolute');
+      set('left', `${Math.round(home?.left ?? 0)}px`); set('top', `${Math.round(home?.top ?? 0)}px`);
+      set('right', 'auto'); set('bottom', 'auto');
+      out += c.outerHTML;
+    }
+    return out;
+  }
   function save({ keepalive = false } = {}) {
     clearTimeout(timer);
     timer = 0;
@@ -60,10 +78,12 @@ export function createDesign() {
       if (area) {
         area.innerHTML = data.html || '';
         // Session-only markers would clash with this session's numbering ("All like this" families).
-        for (const n of area.querySelectorAll('[data-em-new], [data-em-copy-of], [contenteditable]')) {
+        for (const n of area.querySelectorAll(`[data-em-new], [data-em-copy-of], [contenteditable], [${PLACED_ATTR}], [data-em-home]`)) {
           n.removeAttribute('data-em-new');
           n.removeAttribute('data-em-copy-of');
           n.removeAttribute('contenteditable');
+          n.removeAttribute(PLACED_ATTR);
+          n.removeAttribute('data-em-home');
         }
       }
     } catch {}
@@ -105,6 +125,7 @@ export function createDesign() {
     mount, unmount, contentRect,
     get el() { return area; },
     saveNow: () => save(), // for tests
+    touch() { if (area && !loading) { clearTimeout(timer); timer = setTimeout(save, SAVE_MS); } }, // something saved with it changed elsewhere
   };
 }
 

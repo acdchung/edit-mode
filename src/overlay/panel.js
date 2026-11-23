@@ -6,7 +6,7 @@
 // `changes.set(...)`, which previews the edit as an inline style.
 
 import {
-  ATTR, box, colorFromText, describe, family, fmt, isNumber, num, onCanvas, parseColor, parseSrc, resolveColor, sameSource,
+  ATTR, box, colorFromText, describe, family, fmt, isNumber, num, onCanvas, parseColor, parseSrc, placedOf, resolveColor, sameSource,
 } from './util.js';
 import { textNodeOf } from './changes.js';
 import { ICON, KEY } from './icons.js';
@@ -1777,15 +1777,18 @@ export function createPanel(ctx) {
       : 'no source';
     metaEl.title = src ? `${src.file}:${src.line}:${src.col}` : 'Not rendered from a JSX file in this project';
 
-    if (onCanvas(el)) { // on the design canvas: its kind (or the copy's tag) and where it lives
+    const placed = placedOf(el);
+    if (onCanvas(el) || placed) { // on the design canvas (or a design moved onto the page): its kind (or the copy's tag) and where it lives
       const kind = { frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', text: 'Text', image: 'Image', group: 'Group' }[el.dataset.emKind];
       nameEl.textContent = nameEl.title = el.dataset.emName || kind || describe(el);
       const from = parseSrc((el.dataset.emFrom || '').replace(/#\d+$/, ''));
-      metaEl.textContent = from ? `copy of ${from.file.split('/').pop()}:${from.line} · on the canvas` : 'on the canvas · not pushed';
-      metaEl.title = 'The design canvas beside your page. It\'s saved with the project, and never part of Push.';
+      metaEl.textContent = placed ? 'design on the page · not in code yet'
+        : from ? `copy of ${from.file.split('/').pop()}:${from.line} · on the canvas` : 'on the canvas · not pushed';
+      metaEl.title = placed ? 'Moved here from the canvas. Push builds it here; drag it back to the canvas to take it out.'
+        : 'The design canvas beside your page. It\'s saved with the project, and never part of Push.';
     }
 
-    openBtn.hidden = copyBtn.hidden = !src || !!isNew || onCanvas(el);
+    openBtn.hidden = copyBtn.hidden = !src || !!isNew || onCanvas(el) || !!placed;
     if (src) {
       srcText = `${src.file}:${src.line}:${src.col}`;
       openBtn.href = `vscode://file/${ROOT}/${srcText}`;

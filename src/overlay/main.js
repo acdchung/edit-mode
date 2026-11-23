@@ -3,7 +3,7 @@
 // and its CSS can't touch the app.
 
 import { STYLES } from './styles.js';
-import { ATTR, CANVAS_ATTR, NOT_LAYER, box, canvasArea, describe, family, friendlyName, num, onCanvas, parseColor, passThrough, sameSource, view, visualKids, visualParent } from './util.js';
+import { ATTR, CANVAS_ATTR, NOT_LAYER, box, canvasArea, describe, family, friendlyName, num, onCanvas, parseColor, passThrough, placedDesigns, placedOf, PLACED_ATTR, sameSource, view, visualKids, visualParent } from './util.js';
 import { createCanvas } from './canvas.js';
 import { createChanges, textNodeOf } from './changes.js';
 import { collectTokens } from './tokens.js';
@@ -115,13 +115,20 @@ function init() {
   let raf = 0;
   let pingTimer = 0;
 
+  let placedCount = 0;
   const changes = createChanges(() => {
     scheduleCanvasDiff();
+    // Designs on the page are saved with the canvas (design.js), so their edits are too.
+    const n = placedDesigns().length;
+    if (n || placedCount) design.touch();
+    placedCount = n;
     renderPill();
     if (state.selected) panel.refresh(); // Layers watches the page itself
   }, {
     pageRoot: () => pageRoot(),
-    onCanvas, // canvas edits: undoable, never pushed (until B3)
+    // Canvas edits, and edits to designs moved onto the page (not code yet):
+    // undoable, never pushed as page edits (Push compares or builds them instead).
+    onCanvas: (el) => onCanvas(el) || !!placedOf(el),
     // Undo/redo put the selection back to what it was at that point, like Figma.
     getSelection: () => [...state.multi],
     setSelection: (els) => {
@@ -859,7 +866,7 @@ function init() {
     // Named as Layers shows it (invisible wrappers like <main> skipped); the code location stays the real parent.
     const seen = levelUp(el) || pageRoot();
     const where = { ...pageRef(parent), name: seen === pageRoot() ? 'Page' : friendlyName(seen), ...(seen === pageRoot() ? { page: true } : {}) };
-    return { el, line, spot: { parent: where, after: pageRef(after), before: pageRef(before) } };
+    return { el, line, first, frame: seen, spot: { parent: where, after: pageRef(after), before: pageRef(before) } };
   }
   function startPick(n) {
     closeDialog();
@@ -1354,6 +1361,95 @@ function init() {
     return { container: into, anchor: into.children[f.toIndex] ?? null, line: f.line };
   }
 
+  // ---------- Designs onto the live page ----------
+  // A canvas design dragged over the page goes before or after the block
+  // under the pointer, picked as Push's Place does (the nearest card-sized
+  // block; ⌘ goes as deep as selecting does), into the flow of its frame.
+  // Placing freely on the page isn't possible: the page is code, and code has flow.
+  function pageDropAt(x, y, deep) {
+    const s = pickSpot(x, y, deep);
+    if (!s) return null;
+    return { container: s.el.parentElement, anchor: s.first ? s.el : s.el.nextElementSibling, line: s.line, frame: s.frame, page: true };
+  }
+  // How it sits in the page's flow: no longer placed at x/y, its size as
+  // designed (Fill on the canvas becomes Fixed, as in Figma; Hug stays Hug).
+  function sizing(k) {
+    const b = box(k);
+    return { w: b.width, h: b.height, wMode: panel.sizeModeOf(k, 'width'), hMode: panel.sizeModeOf(k, 'height') };
+  }
+  function joinPage(k, was) {
+    const cs = getComputedStyle(k);
+    if (/absolute|fixed/.test(cs.position)) changes.set(k, 'one', 'position', 'relative');
+    for (const side of ['left', 'top', 'right', 'bottom']) if (cs.getPropertyValue(side) !== 'auto') changes.set(k, 'one', side, 'auto');
+    if (k.style.getPropertyValue('translate')) changes.set(k, 'one', 'translate', 'none');
+    // As designed: a fixed size doesn't shrink to fit a row (Figma).
+    const pcs = getComputedStyle(k.parentElement);
+    const main = /flex/.test(pcs.display) ? (/^row/.test(pcs.flexDirection) ? was.wMode : was.hMode) : null;
+    if (main === 'fixed' && cs.flexShrink !== '0') changes.set(k, 'one', 'flex-shrink', '0');
+    const b = box(k);
+    for (const [p, size, mode] of [['width', was.w, was.wMode], ['height', was.h, was.hMode]]) {
+      if (mode !== 'fill' && Math.abs(b[p] - size) < 0.5) continue;
+      changes.set(k, 'one', p, mode === 'hug' ? 'fit-content' : `${Math.round(size)}px`);
+    }
+  }
+  // Where it goes back to on the canvas if the page reloads (design.js saves it there).
+  function homeOf(k, at) {
+    if (!onCanvas(k)) return placedOf(k)?.dataset.emHome ?? null;
+    const area = canvasArea();
+    const r = k.getBoundingClientRect(), ar = area.getBoundingClientRect();
+    const [l, t] = at ?? [(r.left - ar.left) / view.z - area.clientLeft, (r.top - ar.top) / view.z - area.clientTop];
+    return JSON.stringify({ left: Math.round(l), top: Math.round(t) });
+  }
+  // Move canvas designs (or designs already on the page) into the page's
+  // flow, before `anchor`. One undo step; the look is kept.
+  function placeOnPage(els, container, { anchor, looks, homes, group } = {}) {
+    const before = els.map((k, i) => ({
+      look: looks?.[i] ?? lookOf(k),
+      size: sizing(k),
+      home: homeOf(k, homes?.find((h) => h[0] === k)?.slice(1)),
+    }));
+    changes.batch(group ?? `topage:${Date.now()}`, () => {
+      els.forEach((k, i) => {
+        k.setAttribute(PLACED_ATTR, ''); // first: from here on its edits aren't page edits
+        if (before[i].home) k.dataset.emHome = before[i].home;
+        const rest = [...container.children].filter((c) => c !== k);
+        changes.move(k, 'one', anchor ? rest.indexOf(anchor) : rest.length, container);
+        keepLook(before[i].look, (n, p, v) => changes.set(n, 'one', p, v));
+        joinPage(k, before[i].size);
+      });
+    });
+    selectAll(els);
+    return true;
+  }
+  // ⌘V of canvas things with something on the page selected: copies of
+  // them, as designs on the page (after it, or inside it if it's auto layout).
+  function pasteToPage(items, anchor) {
+    const live = items.filter((it) => it.from?.isConnected);
+    const into = /flex|grid/.test(getComputedStyle(anchor).display) && !live.some((it) => it.from === anchor);
+    const parent = into ? anchor : anchor.parentElement;
+    if (!parent || !live.length) return [];
+    let index = into ? parent.children.length : [...parent.children].indexOf(anchor) + 1;
+    const made = live.map(({ from }) => ({ look: lookOf(from), size: sizing(from), home: homeOf(from), from }));
+    const added = [];
+    changes.batch(`paste:${Date.now()}`, () => {
+      for (const m of made) {
+        const el = m.from.cloneNode(true);
+        const all = [el, ...el.querySelectorAll('*')];
+        for (const n of all) for (const a of ['data-em-new', 'data-em-copy-of', 'data-em-design', 'data-em-build', 'data-em-place', 'data-em-built', 'contenteditable']) n.removeAttribute(a);
+        el.setAttribute(PLACED_ATTR, '');
+        if (m.home) {
+          const h = JSON.parse(m.home);
+          el.dataset.emHome = JSON.stringify({ left: h.left + 20, top: h.top + 20 }); // a copy: beside the original
+        }
+        changes.insert(el, parent, index++, { what: 'copy', styles: {}, text: '' });
+        keepLook({ to: all, looks: m.look.looks }, (n, p, v) => changes.set(n, 'one', p, v));
+        joinPage(el, m.size);
+        added.push(el);
+      }
+    });
+    return added;
+  }
+
   // While dragging, the elements sit at the top of the canvas (nothing clips
   // them, nothing covers them) and look as they did. All of it is undone
   // before the real move, which is what gets recorded.
@@ -1444,7 +1540,8 @@ function init() {
     glass.classList.add('dragging');
     // On the canvas: lifted above everything and following the pointer, then
     // dropped into whatever frame is under it (Figma).
-    if (els.every((k) => onCanvas(k) && k !== canvasArea())) { drag.canvas = { x: p.x, y: p.y, lifted: lift(drag.els) }; return; }
+    // Designs moved onto the page drag the same way: back to the canvas, or elsewhere on the page.
+    if (els.every((k) => (onCanvas(k) && k !== canvasArea()) || placedOf(k))) { drag.canvas = { x: p.x, y: p.y, lifted: lift(drag.els) }; return; }
     frame.classList.add('moving');
     multiLayer.classList.add('moving');
   }
@@ -1452,6 +1549,8 @@ function init() {
   function updateDrag(x, y) {
     if (drag.canvas) {
       const { lifted } = drag.canvas;
+      // Over the canvas: into a frame or onto the board; over the page: into its flow.
+      drag.drop = canvasDropAt(x, y, drag.els) ?? pageDropAt(x, y, pointer?.metaKey || pointer?.ctrlKey);
       let sx = x - drag.canvas.x;
       let sy = y - drag.canvas.y;
       // Snap (⌃ places freely): its edges and centre to what's around.
@@ -1464,7 +1563,7 @@ function init() {
         drag.canvas.r0 = { left: r.left - ax, top: r.top - ay, right: r.right - ax, bottom: r.bottom - ay, width: r.width, height: r.height };
       }
       const r0 = drag.canvas.r0;
-      if (!pointer?.ctrlKey) {
+      if (!pointer?.ctrlKey && !drag.drop?.page) {
         const at = (ax, ay) => ({ left: r0.left + ax, top: r0.top + ay, right: r0.right + ax, bottom: r0.bottom + ay, width: r0.width, height: r0.height });
         const s = snapper.move(at(sx, sy), drag.canvas.ts);
         sx += s.dx;
@@ -1478,7 +1577,6 @@ function init() {
         k.style.setProperty('left', `${l + dx}px`, 'important');
         k.style.setProperty('top', `${t + dy}px`, 'important');
       }
-      drag.drop = canvasDropAt(x, y, drag.els);
       showDrop(drag.drop && { ...drag.drop, free: drag.drop.container === canvasArea() }, true);
       return;
     }
@@ -1505,7 +1603,8 @@ function init() {
     if (onBoard) {
       const rects = els.map((k) => k.getBoundingClientRect()); // where they were let go
       unlift(onBoard.lifted);
-      if (drop) moveOnCanvas(els, drop.container, { anchor: drop.anchor, rects, looks: onBoard.lifted.looks, group });
+      if (drop?.page) placeOnPage(els, drop.container, { anchor: drop.anchor, looks: onBoard.lifted.looks, homes: onBoard.lifted.at, group });
+      else if (drop) moveOnCanvas(els, drop.container, { anchor: drop.anchor, rects, looks: onBoard.lifted.looks, group });
       selectAll(els);
       return;
     }
@@ -1896,7 +1995,14 @@ function init() {
     if (!clipboard.length) return;
     const target = canvasTarget();
     if (target) { selectAll(pasteToCanvas(clipboard, target)); return; }
-    if (clipboard.some((it) => onCanvas(it.from))) { toast('Stays on the canvas', 'Things from the canvas paste onto the canvas.', { ms: 2500 }); return; }
+    const designs = clipboard.filter((it) => onCanvas(it.from) || placedOf(it.from));
+    if (designs.length) {
+      if (designs.length < clipboard.length) { toast('Paste them separately', 'Things from the canvas and from the page can’t be pasted onto the page together.', { ms: 3000 }); return; }
+      const on = selection().filter((k) => !onCanvas(k));
+      if (!on.length) { toast('Select a spot on the page', 'It goes after what you select, or inside it if that’s auto layout.', { ms: 3000 }); return; }
+      selectAll(pasteToPage(clipboard, inOrder(on).at(-1)));
+      return;
+    }
     const sel = selection();
     const anchor = sel.length ? inOrder(sel).at(-1) : clipboard.at(-1).from;
     if (!anchor?.isConnected) return;

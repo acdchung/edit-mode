@@ -166,3 +166,10 @@ export function friendlyName(n) {
 export const CANVAS_ATTR = 'data-em-canvas';
 export const canvasArea = () => document.querySelector(`[${CANVAS_ATTR}]`);
 export const onCanvas = (el) => !!el?.closest?.(`[${CANVAS_ATTR}]`);
+
+// A design moved (or pasted) from the canvas onto the live page: not code
+// yet, so its edits stay out of the page's Push list; Push builds it there.
+export const PLACED_ATTR = 'data-em-placed';
+export const placedOf = (el) => (el?.closest && !onCanvas(el) ? el.closest(`[${PLACED_ATTR}]`) : null);
+export const placedDesigns = () => [...document.querySelectorAll(`[${PLACED_ATTR}]`)]
+  .filter((n) => !onCanvas(n) && !n.parentElement?.closest(`[${PLACED_ATTR}]`));
