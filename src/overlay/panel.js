@@ -2110,7 +2110,19 @@ export function createPanel(ctx) {
           }
         } }),
       strokeWeightCell),
-    strokeFour);
+    strokeFour,
+    row('two',
+      dropdown({ title: 'Stroke style',
+        options: () => {
+          const now = stroke()?.style;
+          const opts = [['solid', 'Solid'], ['dashed', 'Dashed'], ['dotted', 'Dotted']];
+          return !now || opts.some(([v]) => v === now) ? opts : [...opts, [now, now[0].toUpperCase() + now.slice(1)]]; // double, groove… as the code has it
+        },
+        read: () => stroke()?.style ?? 'solid',
+        write: (v) => {
+          if (strokeHidden()) strokeShow();
+          strokeSet('style', v); // only the stroke's own sides (one side, or Custom)
+        } })));
   const strokeAdd = addButton('stroke', () => {
     apply('border-style', 'solid');
     apply('border-width', '1px');

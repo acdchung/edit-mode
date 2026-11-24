@@ -102,6 +102,27 @@ check('Push gets background-image', await p.evaluate(() => window.__editMode.cha
 if (process.env.SHOT) { await btn('Add fill').click(); await p.waitForTimeout(100); const r = await p.locator(R('section:has(h4:text-is("Fill"))')).boundingBox(); await p.screenshot({ path: process.env.SHOT.replace(/\.png$/, '') + '-fill.png', clip: { x: r.x - 4, y: r.y - 4, width: r.width + 8, height: r.height + 8 } }); }
 check('⌘Z steps all the way back', await undoAll(start));
 
+// 8c. Stroke style: solid, dashed, dotted.
+const ddPick = async (title, label) => { await p.locator(R(`button[aria-label="${title}"]`)).first().click(); await p.waitForTimeout(80); await p.locator(R('.pop .pop-item'), { hasText: label }).first().click(); await p.waitForTimeout(100); };
+const sides = () => p.$eval('main .card', e => { const c = getComputedStyle(e); return ['top', 'right', 'bottom', 'left'].map(s => c.getPropertyValue(`border-${s}-style`)).join(' ') + ' | outline ' + c.outlineStyle; });
+await pick('main .card'); await p.waitForTimeout(80);
+const ddLabel = (title) => p.locator(R(`button[aria-label="${title}"] .dd-label`)).first().textContent();
+check('the card\'s stroke reads Solid', (await ddLabel('Stroke style')) === 'Solid', await ddLabel('Stroke style'));
+await ddPick('Stroke style', 'Dashed');
+check('Dashed: every side', (await sides()) === 'dashed dashed dashed dashed | outline none', await sides());
+await ddPick('Stroke style', 'Dotted');
+check('Dotted', (await sides()).startsWith('dotted dotted dotted dotted'), await sides());
+if (process.env.SHOT) { await ddPick('Stroke style', 'Dashed'); const r = await p.locator(R('section:has(h4:text-is("Stroke"))')).boundingBox(); await p.screenshot({ path: process.env.SHOT.replace(/\.png$/, '') + '-stroke.png', clip: { x: r.x - 4, y: r.y - 4, width: r.width + 8, height: r.height + 8 } }); const c2 = await p.locator('main .card').first().boundingBox(); await p.screenshot({ path: process.env.SHOT.replace(/\.png$/, '') + '-card.png', clip: { x: c2.x - 10, y: c2.y - 10, width: c2.width + 20, height: c2.height + 20 } }); await ddPick('Stroke style', 'Dotted'); }
+await ddPick('Stroke position', 'Outside');
+check('Outside keeps the style (an outline)', (await sides()) === 'none none none none | outline dotted', await sides());
+await ddPick('Stroke position', 'Inside');
+await p.locator(R('button[aria-label="Stroke sides"]')).click(); await p.waitForTimeout(80);
+await p.locator(R('.pop .pop-item'), { hasText: 'Bottom' }).first().click(); await p.waitForTimeout(100);
+await ddPick('Stroke style', 'Dashed');
+check('one side: only that side changes', (await sides()) === 'none none dashed none | outline none', await sides());
+check('Push gets the border style', await p.evaluate(() => window.__editMode.changes.list().some(c => /border.*style/.test(c.property))));
+check('⌘Z steps all the way back', await undoAll(start));
+
 check('no page errors', !errors.length, errors.join(' | '));
 console.log(results.join('\n'));
 console.log(`${results.filter(r => r.startsWith('PASS')).length}/${results.length} passed`);
