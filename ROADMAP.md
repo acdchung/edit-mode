@@ -96,6 +96,7 @@ Steps:
 - Typography fields that may be missing: alignment, vertical trim. Check what's already there first.
 
 ### 7. Min/max size and clip content
+- **Done 2026-11-24** (`limitItems`/`setLimit`/`limitFields`/`arrangeLimits` in panel.js; `listPop` takes `null` as a divider; `tests/item7.mjs`). Decisions (the user): limits the code sets show by themselves; placement matches Figma (fields under W / H, added and removed from the W / H menus, no ×).
 - Width and height menus: "Add min width", "Add max width" (and the same for height). Each one shows an extra field.
 - Clip content: done early (2026-11-20, a checkbox in Layout).
 

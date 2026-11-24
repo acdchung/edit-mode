@@ -259,7 +259,9 @@ export function createPanel(ctx) {
     openPop(anchor, (box) => {
       if (!items.length) box.append(h('div', 'pop-empty', 'Nothing found on this page'));
       // An item can carry a reason it's unavailable: shown greyed out, with the reason under it.
-      for (const [value, label, off] of items) {
+      for (const item of items) {
+        if (!item) { box.append(h('div', 'pop-sep')); continue; } // null: a divider
+        const [value, label, off] = item;
         const b = h('button', 'pop-item' + (String(value) === String(current) ? ' on' : '') + (off ? ' off' : ''));
         b.textContent = label;
         if (off) {
@@ -330,7 +332,7 @@ export function createPanel(ctx) {
     if (def.cap) outer.append((caption = cap(def.cap)));
     let prefix;
     if (def.prefix) {
-      prefix = h('span', def.prefix.startsWith('<') ? 'pre' : 'pre txt', def.prefix); // a letter (W, H, X…) needs less room than an icon
+      prefix = h('span', (def.prefix.startsWith('<') ? 'pre' : 'pre txt') + (def.prefixClass ? ` ${def.prefixClass}` : ''), def.prefix); // a letter (W, H, X…) needs less room than an icon
       prefix.title = def.title;
       wrap.append(prefix);
     }
@@ -952,8 +954,42 @@ export function createPanel(ctx) {
       prefix: axis === 'width' ? 'W' : 'H', title: axis === 'width' ? 'Width' : 'Height',
       read: (el) => fmt(box(el)[axis]),
       write: (t) => writeSize(axis, t),
-      modes: { options: (el) => sizeOptions(el, axis), read: (el) => sizeMode(el, axis), write: (m) => setSizing(axis, m) },
+      modes: { options: (el) => [...sizeOptions(el, axis), ...limitItems(el, axis)], read: (el) => sizeMode(el, axis),
+        write: (m) => (/^(add|remove)-/.test(m) ? setLimit(axis, m) : setSizing(axis, m)) },
     })));
+
+  // Min / max width and height (Figma's "Add min width"…, item 7): added and removed from the
+  // W / H menus; a field under W (width) or H (height) shows whenever a limit is set, by you or the code.
+  const limitSet = (cs, k, axis) => {
+    const v = cs.getPropertyValue(`${k}-${axis}`);
+    return k === 'min' ? !/^(auto|0px|0)$/.test(v) : v !== 'none';
+  };
+  const AXIS_WORD = { width: 'width', height: 'height' };
+  const limitItems = (el, axis) => [null, ...['min', 'max'].map((k) => (limitSet(getComputedStyle(el), k, axis)
+    ? [`remove-${k}`, `Remove ${k} ${AXIS_WORD[axis]}`] : [`add-${k}`, `Add ${k} ${AXIS_WORD[axis]}`]))];
+  function setLimit(axis, m) {
+    const [what, k] = m.split('-');
+    const prop = `${k}-${axis}`;
+    if (what === 'add') return apply(prop, `${fmt(box(sel())[axis])}px`); // starts at the current size (Figma)
+    if (changes.has(sel(), state.scope, prop)) changes.revert(sel(), state.scope, prop);
+    if (limitSet(getComputedStyle(sel()), k, axis)) apply(prop, k === 'min' ? 'auto' : 'none'); // set by the code: override it
+  }
+  const limitFields = ['min', 'max'].flatMap((k) => ['width', 'height'].map((axis) => {
+    const f = numField({ prefix: `${k === 'min' ? 'Min' : 'Max'} ${axis === 'width' ? 'W' : 'H'}`, prefixClass: 'long',
+      title: `${k === 'min' ? 'Minimum' : 'Maximum'} ${axis}`, read: pxRead(`${k}-${axis}`), write: pxWriter(`${k}-${axis}`) });
+    f.style.gridColumn = axis === 'width' ? '1' : '2';
+    return { k, axis, f };
+  }));
+  const limitRow = row('two limits', ...limitFields.map((x) => x.f));
+  function arrangeLimits(any) {
+    const shown = limitFields.map((x) => any((el, cs) => limitSet(cs, x.k, x.axis)));
+    const minRow = shown[0] || shown[1];
+    limitFields.forEach((x, i) => {
+      x.f.hidden = !shown[i];
+      x.f.style.gridRow = x.k === 'min' || !minRow ? '1' : '2'; // no empty row above the max fields
+    });
+    limitRow.hidden = !shown.some(Boolean);
+  }
 
   // X / Y (C4b): where something placed freely sits in its frame (top-level: on the canvas).
   const posRow = row('two',
@@ -1008,6 +1044,7 @@ export function createPanel(ctx) {
   const layout = section('Layout',
     autoBlock,
     sizeRow,
+    limitRow,
     posRow,
     gapRow,
     spacing('padding', 'padding', 0),
@@ -2055,6 +2092,7 @@ export function createPanel(ctx) {
     gapRow.hidden = !all((x, s) => /flex|grid/.test(s.display));
     clipRow.hidden = !all((x) => x.children.length > 0 || x.dataset.emKind === 'frame'); // things that can hold content
     const placed = all((x) => isPlaced(x));
+    arrangeLimits(any);
     posRow.hidden = !placed;
     pinBtn.hidden = !all((x) => ctx.inAutoLayout(x));
     constraints.hidden = !placed || !all((x) => !x.parentElement?.hasAttribute('data-em-canvas')); // top-level things have no frame to follow
