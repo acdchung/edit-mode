@@ -221,6 +221,7 @@ export function createPanel(ctx) {
 
   function openPop(anchor, build) {
     if (!pop.hidden && popAnchor === anchor) return closePop();
+    pop.className = 'pop glassy'; // a builder may add its own class (Type details)
     pop.replaceChildren();
     build(pop);
     pop.hidden = false;
@@ -487,7 +488,12 @@ export function createPanel(ctx) {
     fields.push(() => {
       if (!sel()) return;
       const v = common(def.read);
-      for (const [value, b] of buttons) b.classList.toggle('on', value === v);
+      const off = def.off ? common((el, cs) => def.off(el, cs) || '') : '';
+      for (const [value, b, title] of buttons.map((x, i) => [...x, def.options[i][2]])) {
+        b.classList.toggle('on', value === v);
+        b.disabled = !!off && off !== MIXED;
+        b.title = b.disabled ? `${title}: ${off}` : title;
+      }
     });
     return wrap;
   }
@@ -1126,6 +1132,121 @@ export function createPanel(ctx) {
       radiusCell),
     radiusFour);
 
+  // Text resizing (Figma): Auto width = one line that hugs; Auto height = a set
+  // (or filling) width that wraps, as tall as its text; Fixed size = both set.
+  const noWrap = (cs) => cs.textWrapMode === 'nowrap' || /nowrap|^pre$/.test(cs.whiteSpace);
+  function textResizing(el) {
+    if (sizeMode(el, 'height') === 'fixed') return 'fixed';
+    return sizeMode(el, 'width') === 'hug' && (noWrap(getComputedStyle(el)) || !wraps(el)) ? 'auto-width' : 'auto-height';
+  }
+  const wraps = (el) => probe(el, { 'white-space': 'nowrap' }, () => box(el).height) < box(el).height - 0.5; // more than one line now
+  const ensure = (axis, mode) => { if (sizeMode(sel(), axis) !== mode) setSizing(axis, mode); }; // no change when it's already so
+  function wrapText() {
+    if (!noWrap(getComputedStyle(sel()))) return;
+    if (changes.has(sel(), state.scope, 'white-space')) changes.revert(sel(), state.scope, 'white-space');
+    if (noWrap(getComputedStyle(sel()))) apply('white-space', 'normal');
+  }
+  function setTextResizing(mode) {
+    if (mode === 'auto-width') {
+      if (!noWrap(getComputedStyle(sel()))) apply('white-space', 'nowrap');
+      ensure('width', 'hug');
+      ensure('height', 'hug');
+      return;
+    }
+    if (sizeMode(sel(), 'width') === 'hug') setSizing('width', 'fixed'); // measured first, so wrapping changes nothing yet
+    wrapText();
+    ensure('height', mode === 'fixed' ? 'fixed' : 'hug');
+  }
+
+  // Vertical alignment inside a fixed-height text box: align-content on a
+  // block (the box's content moves; Chrome 123+, Safari 17.4+), the cross or
+  // main axis on a flex text element (a button).
+  const V_IN = { normal: 'top', start: 'top', 'flex-start': 'top', center: 'middle', end: 'bottom', 'flex-end': 'bottom' };
+  function vAlignOf(el, cs) {
+    if (/flex/.test(cs.display)) return V_IN[cs.flexDirection.startsWith('column') ? cs.justifyContent : cs.alignItems] || 'top';
+    if (cs.alignContent === 'normal' && el.tagName === 'BUTTON') return 'middle'; // buttons centre their text by default
+    return V_IN[cs.alignContent] || 'top';
+  }
+  function setVAlign(v) {
+    const cs = getComputedStyle(sel());
+    const flex = /flex/.test(cs.display);
+    const prop = flex ? (cs.flexDirection.startsWith('column') ? 'justify-content' : 'align-items') : 'align-content';
+    if (changes.has(sel(), state.scope, prop)) changes.revert(sel(), state.scope, prop);
+    if (vAlignOf(sel(), getComputedStyle(sel())) !== v) apply(prop, { top: flex ? 'flex-start' : 'start', middle: 'center', bottom: flex ? 'flex-end' : 'end' }[v]);
+  }
+
+  // Type details (Figma's "⋯"): decoration, case, truncate after N lines.
+  const clamped = (cs) => cs.webkitLineClamp !== 'none'; // (Chrome reports a clamped box's display as flow-root)
+  const detailsBtn = h('button', 'icon', ICON.more);
+  detailsBtn.title = 'Type details';
+  detailsBtn.setAttribute('aria-label', 'Type details');
+  function setTruncate(on, lines = 1) {
+    const props = ['display', '-webkit-box-orient', '-webkit-line-clamp', 'overflow'];
+    if (on) {
+      apply('display', '-webkit-box');
+      apply('-webkit-box-orient', 'vertical');
+      apply('-webkit-line-clamp', String(lines));
+      apply('overflow', 'hidden');
+      return;
+    }
+    for (const p of props) if (changes.has(sel(), state.scope, p)) changes.revert(sel(), state.scope, p);
+    if (clamped(getComputedStyle(sel()))) apply('-webkit-line-clamp', 'none'); // truncated by the code itself
+  }
+  function detailsPop(box) {
+    box.classList.add('details');
+    box.replaceChildren();
+    const again = () => { ctx.onEdit(); detailsPop(box); };
+    const seg = (cap, options, read, write) => {
+      const now = common(read);
+      const w = h('div', 'seg');
+      for (const [value, label, title] of options) {
+        const b = h('button', value === now ? 'on' : '', label);
+        b.title = title;
+        b.setAttribute('aria-label', title);
+        b.addEventListener('click', () => { act(null, () => write(value)); again(); });
+        w.append(b);
+      }
+      box.append(h('div', 'pop-title', cap), w);
+    };
+    seg('Decoration', [['none', ICON.noDecoration, 'No decoration'], ['underline', ICON.underline, 'Underline'], ['line-through', ICON.strike, 'Strikethrough']],
+      (el, cs) => (/underline/.test(cs.textDecorationLine) ? 'underline' : /line-through/.test(cs.textDecorationLine) ? 'line-through' : 'none'),
+      (v) => apply('text-decoration-line', v));
+    seg('Case', [['none', '–', 'As typed'], ['uppercase', 'AA', 'Uppercase'], ['lowercase', 'aa', 'Lowercase'], ['capitalize', 'Aa', 'Title case']],
+      (el, cs) => (/^(uppercase|lowercase|capitalize)$/.test(cs.textTransform) ? cs.textTransform : 'none'),
+      (v) => apply('text-transform', v));
+    const now = common((el, cs) => (clamped(cs) ? cs.webkitLineClamp : 'off'));
+    const check = h('label', 'checkrow');
+    const box1 = h('input');
+    box1.type = 'checkbox';
+    box1.checked = now !== 'off' && now !== MIXED;
+    box1.indeterminate = now === MIXED;
+    check.append(box1, h('span', '', 'Truncate text'));
+    box1.addEventListener('change', () => { act(null, () => setTruncate(box1.checked)); again(); });
+    box.append(check);
+    if (box1.checked) {
+      const f = h('label', 'field num');
+      const input = h('input');
+      input.value = now;
+      input.setAttribute('aria-label', 'Max lines');
+      const commit = () => {
+        const n = Math.round(+input.value);
+        if (!(n >= 1) || String(n) === now) return (input.value = now);
+        act(null, () => setTruncate(true, Math.min(99, n)));
+        again();
+      };
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); input.value = Math.max(1, (+input.value || 1) + (e.key === 'ArrowUp' ? 1 : -1)); commit(); }
+      });
+      input.addEventListener('blur', commit);
+      f.append(input);
+      const line = h('div', 'lines');
+      line.append(h('span', 'cap', 'Max lines'), f);
+      box.append(line);
+    }
+  }
+  detailsBtn.addEventListener('click', () => openPop(detailsBtn, detailsPop));
+
   // Text
   const typography = section('Text',
     row('one',
@@ -1167,7 +1288,19 @@ export function createPanel(ctx) {
                   ['right', ICON.right, 'Align right'], ['justify', ICON.justify, 'Justify']],
         read: (el, cs) => ({ start: 'left', end: 'right', '-webkit-center': 'center' })[cs.textAlign] || cs.textAlign,
         write: (v) => apply('text-align', v) })),
+    row('two',
+      segField({
+        options: [['top', ICON.vTop, 'Align text top'], ['middle', ICON.vMiddle, 'Align text middle'], ['bottom', ICON.vBottom, 'Align text bottom']],
+        read: (el, cs) => vAlignOf(el, cs),
+        off: (el) => (sizeMode(el, 'height') === 'fixed' ? null : 'only with a fixed height (Fixed size): the box is as tall as its text'),
+        write: (v) => setVAlign(v) }),
+      segField({
+        options: [['auto-width', ICON.autoWidth, 'Auto width'], ['auto-height', ICON.autoHeight, 'Auto height'], ['fixed', ICON.fixedSize, 'Fixed size']],
+        read: (el) => textResizing(el),
+        write: (v) => setTextResizing(v) })),
     colorRow({ title: 'Text color', read: (el, cs) => cs.color, write: (v) => apply('color', v) }));
+  typography.head.append(h('span', 'sh-acts'));
+  typography.head.lastChild.append(detailsBtn);
 
   // Fill
   const fillHidden = () => {
@@ -1853,6 +1986,11 @@ export function createPanel(ctx) {
     sizeModeOf: (el, axis) => sizeMode(el, axis), // for tests
     // Resize handles: set one element's size (CSS px), whatever is selected.
     sizeOf: (el, scope, axis, px) => withEl(el, () => setSize(axis, String(px)), scope),
+    // Text and the resize handles (Figma): dragging a side of one-line text lets it wrap
+    // (Auto height); double-clicking a side or the bottom fits it (Auto width / Auto height).
+    textWrap: (el, scope) => withEl(el, () => wrapText(), scope),
+    textFit: (el, mode) => act(null, () => { if (isText(sel())) setTextResizing(mode); }),
+    textResizingOf: (el) => withEl(el, () => textResizing(el)), // for tests
     autoLayout: (el, group, opts) => {
       const r = changes.batch(group ?? null, () => autoLayout(el, opts)); // once, not once per selected element
       ctx.onEdit();

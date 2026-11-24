@@ -72,6 +72,79 @@ check('a <br> is not a layer', !s.layerRow);
 await p.keyboard.press('Meta+z'); await p.waitForTimeout(80);
 check('⌘Z restores it', (await html()) === start2);
 
+// 6b. Resizing: Auto width / Auto height / Fixed size.
+const R = (q) => `edit-mode-root ${q}`;
+const btn = (label) => p.locator(R(`button[aria-label="${label}"]`)).first();
+const mode = () => p.evaluate(() => window.__editMode.panel.textResizingOf(window.__editMode.state.selected));
+const inline = (prop) => p.evaluate((prop) => window.__editMode.state.selected.style.getPropertyValue(prop), prop);
+const undoAll = async (to) => { for (let i = 0; i < 12 && (await html()) !== to; i++) { await p.keyboard.press('Meta+z'); await p.waitForTimeout(60); } return (await html()) === to; };
+const handle = async (dir) => p.evaluate((dir) => { const r = document.querySelector('edit-mode-root').shadowRoot.querySelector(`.frame .handle[data-dir="${dir}"]`).getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }, dir);
+await pick('.hero-title'); await p.waitForTimeout(80);
+check('a title filling its column reads Auto height', (await mode()) === 'auto-height', await mode());
+check('vertical align is greyed out unless Fixed size', await btn('Align text middle').isDisabled());
+await btn('Auto width').click(); await p.waitForTimeout(80);
+check('Auto width: one line that hugs', (await mode()) === 'auto-width' && /nowrap/.test(await inline('white-space')) && (await inline('width')) === 'fit-content', `${await mode()} ${await inline('white-space')} ${await inline('width')}`);
+const w1 = await p.$eval('.hero-title', e => e.offsetWidth);
+const [hx, hy] = await handle('w'); // the left edge: the right one sits under the properties panel
+await p.mouse.move(hx, hy); await p.mouse.down(); await p.mouse.move(hx + w1 * 0.4, hy, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(80);
+check('dragging a side of one-line text makes it wrap (Auto height)', (await mode()) === 'auto-height' && (await p.$eval('.hero-title', e => e.offsetHeight)) > 60, `${await mode()} h=${await p.$eval('.hero-title', e => e.offsetHeight)} w=${w1}→${await p.$eval('.hero-title', e => e.offsetWidth)} ws=${await inline('white-space')} width=${await inline('width')}`);
+await p.mouse.dblclick(...(await handle('w'))); await p.waitForTimeout(80);
+check('double-click a side: Auto width again', (await mode()) === 'auto-width', await mode());
+check('⌘Z steps back through it all', await undoAll(start2));
+await pick('.hero-title'); await p.waitForTimeout(50);
+await btn('Fixed size').click(); await p.waitForTimeout(80);
+check('Fixed size: height set', (await mode()) === 'fixed' && /px$/.test(await inline('height')), await inline('height'));
+check('vertical align is on with Fixed size', !(await btn('Align text middle').isDisabled()));
+await p.evaluate(() => window.__editMode.panel.sizeOf(window.__editMode.state.selected, 'one', 'height', 200)); await p.waitForTimeout(60);
+const textTop = () => p.$eval('.hero-title', e => { const r = document.createRange(); r.selectNodeContents(e); return Math.round(r.getBoundingClientRect().top - e.getBoundingClientRect().top); });
+const t0 = await textTop();
+await btn('Align text middle').click(); await p.waitForTimeout(80);
+const t1 = await textTop();
+await btn('Align text bottom').click(); await p.waitForTimeout(80);
+const t2 = await textTop();
+check('Align middle / bottom move the text down the box', t0 < 5 && t1 > t0 + 20 && t2 > t1 + 20, `${t0} ${t1} ${t2}`);
+await btn('Align text top').click(); await p.waitForTimeout(80);
+check('Align top puts it back (no leftover style)', (await textTop()) === t0 && !(await inline('align-content')), await inline('align-content'));
+await p.mouse.dblclick(...(await handle('s'))); await p.waitForTimeout(80);
+check('double-click the bottom: Auto height', (await mode()) === 'auto-height', await mode());
+check('⌘Z restores the page', await undoAll(start2));
+
+// 6d. Type details: decoration, case, truncate.
+await pick('.hero-title'); await p.waitForTimeout(50);
+await btn('Type details').click(); await p.waitForTimeout(80);
+check('⋯ opens Type details', await p.locator(R('.pop.details')).isVisible());
+await btn('Underline').click(); await p.waitForTimeout(60);
+await btn('Uppercase').click(); await p.waitForTimeout(60);
+const cs = () => p.$eval('.hero-title', e => { const c = getComputedStyle(e); return { d: c.textDecorationLine, t: c.textTransform, clamp: c.webkitLineClamp, h: e.offsetHeight }; });
+let c = await cs();
+check('underline and uppercase', c.d === 'underline' && c.t === 'uppercase', JSON.stringify(c));
+check('the menu shows them on', await btn('Underline').evaluate(b => b.classList.contains('on')) && await btn('Uppercase').evaluate(b => b.classList.contains('on')));
+if (process.env.SHOT) await p.screenshot({ path: process.env.SHOT, clip: { x: 900, y: 0, width: 380, height: 1000 } });
+const h1 = (await cs()).h;
+await p.evaluate(() => window.__editMode.panel.sizeOf(window.__editMode.state.selected, 'one', 'width', 260)); await p.waitForTimeout(60); // wraps to several lines
+await p.locator(R('.pop.details .checkrow')).click(); await p.waitForTimeout(80);
+c = await cs();
+check('Truncate text: one line', c.clamp === '1' && c.h < h1, JSON.stringify(c));
+const oneLine = c.h;
+const ml = p.locator(R('input[aria-label="Max lines"]'));
+await ml.fill('2'); await ml.press('Enter'); await p.waitForTimeout(80);
+c = await cs();
+check('Max lines 2: two lines', c.clamp === '2' && Math.abs(c.h - 2 * oneLine) < 4, JSON.stringify(c));
+const pushed = await p.evaluate(() => window.__editMode.changes.list().filter(c => c.kind === 'style').map(c => c.property));
+check('Push lists them as style changes', ['text-decoration-line', 'text-transform', '-webkit-line-clamp'].every(x => pushed.includes(x)), pushed.join(','));
+await p.locator(R('.pop.details .checkrow')).click(); await p.waitForTimeout(80);
+check('unticking Truncate removes it', (await cs()).clamp === 'none' && !(await inline('display')), JSON.stringify(await cs()));
+await p.keyboard.press('Escape');
+check('⌘Z restores the page', await undoAll(start2));
+
+// New text starts as Auto width.
+await p.evaluate(() => document.querySelector('.lines').remove());
+{ const c2 = await p.$eval('.cta-primary', e => { const r = e.getBoundingClientRect(); return [r.x + 5, r.bottom + 30]; });
+  await p.keyboard.press('Escape'); await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
+  await p.keyboard.press('KeyT'); await p.mouse.click(...c2); await p.keyboard.type('Hi'); await p.keyboard.press('Escape'); await p.waitForTimeout(80);
+  check('new text is Auto width', (await mode()) === 'auto-width', `${await mode()} ${await p.evaluate(() => { const s = window.__editMode.state.selected; return s.outerHTML.slice(0, 200); })}`);
+  check('⌘Z removes it', await undoAll(start)); }
+
 // A <br /> written in the code (COPY=<sample copy dir>: edits its Hero.jsx, then restores it).
 if (process.env.COPY) {
   const fs = await import('node:fs');

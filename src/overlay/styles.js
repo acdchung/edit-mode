@@ -337,6 +337,12 @@ input::selection { background: rgba(13,153,255,.4); }
        padding: 4px; border-radius: 10px; pointer-events: auto; user-select: none; }
 .pop:has(.sw-grid) { width: 224px; padding: 10px; }
 .pop-title { color: var(--muted); font-size: 11px; margin: 0 0 6px; }
+.pop.details { width: 200px; padding: 10px; }
+.pop.details .seg { margin-bottom: 10px; }
+.pop.details .checkrow { height: 24px; }
+.pop.details .lines { display: grid; grid-template-columns: 1fr 64px; align-items: center; gap: 8px; margin-top: 4px; }
+.seg button:disabled { opacity: .35; cursor: default; }
+.seg button:disabled:hover { color: var(--muted); }
 .sw-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin-bottom: 10px; }
 .sw { all: unset; aspect-ratio: 1; border-radius: 5px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); transition: transform 120ms var(--ease); }
 @media (hover: hover) and (pointer: fine) { .sw:hover { transform: scale(1.1); } }

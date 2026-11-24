@@ -1816,7 +1816,7 @@ function init() {
     if (tool === 'text') {
       el = document.createElement('p');
       el.textContent = 'Text';
-      info = { what: 'text', styles: { margin: '0px' }, text: 'Text' };
+      info = { what: 'text', styles: { margin: '0px', 'white-space': 'nowrap', width: 'fit-content' }, text: 'Text' }; // Auto width, like new Figma text
     } else if (tool === 'frame') {
       // A frame, like a new Figma frame: a fixed size, white, no auto layout
       // (what you put in stays where you put it; ⇧A adds auto layout).
@@ -2563,6 +2563,7 @@ function init() {
             if (lock || /[ew]/.test(dir)) panel.sizeOf(k, scope, 'width', nw);
             if (lock || /[ns]/.test(dir)) panel.sizeOf(k, scope, 'height', nh);
           }
+          for (const [k] of start) if ((lock || /[ew]/.test(dir)) && isText(k)) panel.textWrap(k, scope); // one-line text wraps to its new width
         });
       };
       const up = () => {
@@ -2574,6 +2575,14 @@ function init() {
       handle.addEventListener('pointermove', move);
       handle.addEventListener('pointerup', up);
       handle.addEventListener('pointercancel', up);
+    });
+    // Double-click an edge of text (Figma): a side → Auto width, the top or bottom → Auto height.
+    handle.addEventListener('dblclick', (e) => {
+      const el = state.selected;
+      e.stopPropagation();
+      if (!el || state.multi.length > 1 || !isText(el)) return;
+      const dir = handle.dataset.dir;
+      if (dir.length === 1) panel.textFit(el, /[ew]/.test(dir) ? 'auto-width' : 'auto-height');
     });
   }
 

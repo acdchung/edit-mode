@@ -65,6 +65,16 @@ const PATHS = {
   radius: '<path d="M21 11a8 8 0 0 0-8-8" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />', // square-round-corner
   weight: '<path d="M13 21h8" /><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />', // pen-line
   lineHeight: '<path d="m21 16-4 4-4-4" /><path d="M17 20V4" /><path d="m3 8 4-4 4 4" /><path d="M7 4v16" />', // arrow-up-down
+  autoWidth: '<path d="m18 8 4 4-4 4" /> <path d="M2 12h20" /> <path d="m6 8-4 4 4 4" />', // move-horizontal
+  autoHeight: '<path d="M12 2v20" /> <path d="m8 18 4 4 4-4" /> <path d="m8 6 4-4 4 4" />', // move-vertical
+  fixedSize: '<path d="M8 3H5a2 2 0 0 0-2 2v3" /> <path d="M21 8V5a2 2 0 0 0-2-2h-3" /> <path d="M3 16v3a2 2 0 0 0 2 2h3" /> <path d="M16 21h3a2 2 0 0 0 2-2v-3" />', // maximize
+  vTop: '<path d="M5 3h14" /> <path d="m18 13-6-6-6 6" /> <path d="M12 7v14" />', // arrow-up-to-line
+  vMiddle: '<path d="M10 12H8" /> <path d="M12 22v-6" /> <path d="M12 8V2" /> <path d="m15 19-3-3-3 3" /> <path d="m15 5-3 3-3-3" /> <path d="M16 12h-2" /> <path d="M22 12h-2" /> <path d="M4 12H2" />', // fold-vertical
+  vBottom: '<path d="M12 17V3" /> <path d="m6 11 6 6 6-6" /> <path d="M19 21H5" />', // arrow-down-to-line
+  noDecoration: '<path d="M5 12h14" />', // minus
+  underline: '<path d="M6 4v6a6 6 0 0 0 12 0V4" /> <line x1="4" x2="20" y1="20" y2="20" />', // underline
+  strike: '<path d="M16 4H9a3 3 0 0 0-2.83 4" /> <path d="M14 12a4 4 0 0 1 0 8H6" /> <line x1="4" x2="20" y1="12" y2="12" />', // strikethrough
+  more: '<circle cx="12" cy="12" r="1" /> <circle cx="19" cy="12" r="1" /> <circle cx="5" cy="12" r="1" />', // ellipsis
   letterSpacing: '<path d="M8 3 4 7l4 4" /><path d="M4 7h16" /><path d="m16 21 4-4-4-4" /><path d="M20 17H4" />', // arrow-left-right
   open: '<path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />', // external-link
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />', // copy
