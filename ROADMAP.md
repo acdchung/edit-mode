@@ -112,7 +112,9 @@ Steps:
 
 ### 9. Figma shortcuts
 
-**Plan agreed with the user 2026-11-24:** 9a (done 2026-11-24: `toggleHiddenAll`/`toggleLockAll` in layers.js, `textKey` in main.js → `panel.textKey`; `tests/item9.mjs`) ⇧⌘H hide/show and ⇧⌘L lock (shortcuts for what Layers has); text shortcuts ⌘B bold, ⌘I italic, ⌘U underline, ⇧⌘> / ⇧⌘< font size ±1 (⌥: ±10), ⌥⌘L / ⌥⌘T / ⌥⌘R align text left/center/right. 9b ⌥⌘C / ⌥⌘V copy and paste style: fill, stroke, effects, corner radius, opacity and text style (font, size, weight, style, line height, letter spacing, alignment, decoration, case), not size or layout; onto several at once; one ⌘Z. Flip: skipped as a shortcut, goes in the panel with rotation (item 8).
+**Done 2026-11-24 (9a, 9b).**
+
+**Plan agreed with the user 2026-11-24:** 9a (done 2026-11-24: `toggleHiddenAll`/`toggleLockAll` in layers.js, `textKey` in main.js → `panel.textKey`; `tests/item9.mjs`) ⇧⌘H hide/show and ⇧⌘L lock (shortcuts for what Layers has); text shortcuts ⌘B bold, ⌘I italic, ⌘U underline, ⇧⌘> / ⇧⌘< font size ±1 (⌥: ±10), ⌥⌘L / ⌥⌘T / ⌥⌘R align text left/center/right. 9b (done 2026-11-24: `copyStyle`/`pasteStyle` in panel.js, `STYLE_PROPS`/`TEXT_PROPS`; a border, outline or image that isn't there copies only its style, so Push stays lean; `state.styleClip` in main.js) ⌥⌘C / ⌥⌘V copy and paste style: fill, stroke, effects, corner radius, opacity and text style (font, size, weight, style, line height, letter spacing, alignment, decoration, case), not size or layout; onto several at once; one ⌘Z. Flip: skipped as a shortcut, goes in the panel with rotation (item 8).
 
 | Shortcut | Action |
 |---|---|

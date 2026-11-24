@@ -20,6 +20,16 @@ const WEIGHTS = [
   ['100', 'Thin'], ['200', 'Extra Light'], ['300', 'Light'], ['400', 'Regular'], ['500', 'Medium'],
   ['600', 'Semi Bold'], ['700', 'Bold'], ['800', 'Extra Bold'], ['900', 'Black'],
 ];
+// Copy / paste style (⌥⌘C / ⌥⌘V): fill, stroke, effects, corner radius, opacity,
+// and the text style for text. Order matters: a border's style before its width.
+const SIDE_PROPS = ['top', 'right', 'bottom', 'left'].flatMap((s) => [`border-${s}-style`, `border-${s}-width`, `border-${s}-color`]);
+const STYLE_PROPS = ['background-color', 'background-image', 'background-size', 'background-position', 'background-repeat',
+  ...SIDE_PROPS, 'outline-style', 'outline-width', 'outline-color', 'outline-offset',
+  'box-shadow', 'filter', 'backdrop-filter',
+  'border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius', 'opacity'];
+const TEXT_PROPS = ['font-family', 'font-size', 'font-weight', 'font-style', 'line-height', 'letter-spacing', 'text-align',
+  'text-decoration-line', 'text-transform', 'color'];
+const hasText = (el) => isText(el) || [...el.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim());
 const DEFAULT_FILL = '#FFFFFF';
 const DEFAULT_SHADOW = '0px 4px 4px 0px rgba(0, 0, 0, 0.25)';
 const SIDES = ['top', 'right', 'bottom', 'left'];
@@ -2101,6 +2111,29 @@ export function createPanel(ctx) {
       input.select();
     },
     menuOpen: () => !pop.hidden,
+    // ⌥⌘C / ⌥⌘V (Figma's copy / paste properties): the look, not the size or layout.
+    copyStyle: () => {
+      const el = sel();
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      // Only what's there: no border → just its style ("none"), no image → no image settings.
+      const skip = (p) => (/^border-(top|right|bottom|left)-(width|color)$/.test(p) && cs.getPropertyValue(p.replace(/-(width|color)$/, '-style')) === 'none')
+        || (/^outline-(width|color|offset)$/.test(p) && cs.outlineStyle === 'none')
+        || (/^background-(size|position|repeat)$/.test(p) && cs.backgroundImage === 'none');
+      const props = [...STYLE_PROPS, ...(hasText(el) ? TEXT_PROPS : [])].filter((p) => !skip(p)); // text style only from text
+      return { values: props.map((p) => [p, cs.getPropertyValue(p)]) };
+    },
+    pasteStyle: (clip) => {
+      act(`paste-style:${Date.now()}`, () => {
+        const cs = getComputedStyle(sel());
+        const own = hasText(sel());
+        for (const [p, v] of clip.values) {
+          if (TEXT_PROPS.includes(p) && !own) continue; // text style only onto things with text
+          if (cs.getPropertyValue(p) !== v) apply(p, v);
+        }
+      });
+      refresh(true);
+    },
     // Figma's text shortcuts on the selection (all of it must be text): bold, italic, underline,
     // font size up/down, text alignment. Returns false when nothing selected has text.
     textKey: (kind, arg) => {

@@ -2697,6 +2697,17 @@ function init() {
     if (mod && e.shiftKey && !e.altKey && e.code === 'KeyH' && state.selected) { stop(); layers.toggleHiddenAll(selection()); return; } // ⇧⌘H (Figma)
     if (mod && e.shiftKey && !e.altKey && e.code === 'KeyL' && state.selected) { stop(); layers.toggleLockAll(selection()); return; } // ⇧⌘L (Figma)
     if (textKey(e)) { stop(); return; }
+    if (mod && e.altKey && !e.shiftKey && e.code === 'KeyC' && state.selected) { // ⌥⌘C: copy properties (Figma)
+      stop();
+      state.styleClip = panel.copyStyle();
+      toast('Copied properties', '⌥⌘V pastes them onto what you select.', { ms: 2500 });
+      return;
+    }
+    if (mod && e.altKey && !e.shiftKey && e.code === 'KeyV' && state.selected) { // ⌥⌘V: paste properties
+      stop();
+      if (state.styleClip) panel.pasteStyle(state.styleClip);
+      return;
+    }
     if (mod && e.code === 'KeyG' && !e.shiftKey) { stop(); groupSelection(); return; }
     if (mod && e.code === 'KeyG' && e.shiftKey) { stop(); ungroupSelection(); return; } // ⇧⌘G (Figma)
     if (mod && /^Bracket(Left|Right)$/.test(e.code) && state.selected) { // ⌘] ⌘[ ⌥⌘] ⌥⌘[ (Figma), also blocks the browser's Back

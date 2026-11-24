@@ -81,6 +81,38 @@ await pick('.hero'); await p.waitForTimeout(60);
 await key('Meta+KeyB'); await key('Meta+Shift+Period');
 check('on a section without its own text: nothing changes', (await html()) === start);
 
+// 9b. ⌥⌘C / ⌥⌘V: copy and paste properties.
+const look = (q) => p.$eval(q, e => { const c = getComputedStyle(e); const r = e.getBoundingClientRect(); return { bg: c.backgroundColor, radius: c.borderTopLeftRadius, color: c.color, font: c.fontFamily, size: c.fontSize, weight: c.fontWeight, w: Math.round(r.width), h: Math.round(r.height) }; });
+const src = await look('.cta-primary');
+await pick('.cta-primary'); await key('Meta+Alt+KeyC');
+check('⌥⌘C says "Copied properties"', /Copied properties/.test(await p.locator('edit-mode-root .toast').last().textContent().catch(() => '')));
+const card0 = await look('main .card');
+await pick('main .card'); await key('Meta+Alt+KeyV');
+let card = await look('main .card');
+check('onto a card: fill and corners', card.bg === src.bg && card.radius === src.radius, JSON.stringify(card));
+check("…its size doesn't change", card.w === card0.w && card.h === card0.h, `${card0.w}×${card0.h} → ${card.w}×${card.h}`);
+check('…no text style on something without its own text', card.color === card0.color && card.size === card0.size, JSON.stringify(card));
+await key('Meta+z');
+check('one ⌘Z undoes the paste', (await html()) === start);
+const t0 = await look('.hero-title');
+await pick('.hero-title'); await key('Meta+Alt+KeyV');
+let t = await look('.hero-title');
+check('onto text: the text style too', t.bg === src.bg && t.color === src.color && t.size === src.size && t.weight === src.weight && t.font === src.font, JSON.stringify(t));
+check("…its width doesn't change", t.w === t0.w, `${t0.w} → ${t.w}`);
+const styled = await p.evaluate(() => window.__editMode.changes.list().filter(c => c.kind === 'style').map(c => c.property));
+const rows = await p.evaluate(() => window.__editMode.changes.list().length);
+check('a lean Push list (no border details for a border that is gone)', rows <= 12, `${rows} rows`);
+check('Push gets them as style changes', ['background-color', 'color', 'font-size'].every(x => styled.includes(x)), styled.join(','));
+await key('Meta+z');
+check('one ⌘Z undoes it', (await html()) === start);
+await pick('.hero-title'); await p.waitForTimeout(60);
+await p.keyboard.down('Shift'); await p.mouse.click(...(await ctr('.hero-body'))); await p.keyboard.up('Shift'); await p.waitForTimeout(60);
+await key('Meta+Alt+KeyV');
+check('onto two at once', (await look('.hero-title')).bg === src.bg && (await look('.hero-body')).bg === src.bg);
+await key('Meta+z');
+check('…one ⌘Z', (await html()) === start);
+await key('Escape'); await key('Escape'); await key('Escape');
+
 check('no page errors', !errors.length, errors.join(' | '));
 console.log(results.join('\n'));
 console.log(`${results.filter(r => r.startsWith('PASS')).length}/${results.length} passed`);

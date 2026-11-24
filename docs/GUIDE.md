@@ -34,6 +34,7 @@ Everything Edit Mode does, in detail. For a quick start, see the [README](../REA
 | ⌘\ | Hide / show the Edit Mode UI |
 | ⌘C / ⌘V / ⌘X | Copy, paste (after the selection, or into an empty box you added), cut |
 | ⌘D | Duplicate |
+| ⌥⌘C / ⌥⌘V | Copy / paste properties (Figma): fill, stroke, effects, corner radius and opacity, plus the text style (font, size, weight, style, line height, letter spacing, alignment, decoration, case, color) when both have text. Not size or layout. Pastes onto everything selected; one ⌘Z |
 | ⇧⌘H / ⇧⌘L | Hide or show / lock or unlock the selection (like the eye and lock in Layers; with several, if all are hidden they all show, otherwise all hide) |
 | ⌘B / ⌘I / ⌘U | Bold / italic / underline on and off, for selected text (also while you're typing in it: the whole layer) |
 | ⇧⌘> / ⇧⌘< | Font size up / down 1px (with ⌥: 10px) |
