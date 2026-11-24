@@ -1,4 +1,4 @@
-// Fonts for the Font field (roadmap 6e).
+// Fonts for the Font field (roadmap 6e, 6f).
 //
 // - Fonts on this computer: Chrome's Local Font Access (`queryLocalFonts`),
 //   asked once (Chrome shows a permission prompt the first time; it needs a
@@ -8,6 +8,9 @@
 //   (`font-family` in any rule) or declared with @font-face. Edits are inline
 //   styles, so they never count. A font picked from this computer that isn't
 //   one of these only shows where it's installed: Push says so.
+// - Google Fonts (6f): the family list from the Google Fonts API, mirrored on
+//   jsDelivr (no API key; fetched when the list first opens). Picking one loads
+//   it on the page through fonts.googleapis.com; Push asks Claude to add it.
 
 const GENERIC = /^(serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-serif|ui-sans-serif|ui-monospace|ui-rounded|emoji|math|fangsong|-apple-system|blinkmacsystemfont|inherit|initial|unset)$/i;
 export const firstFamily = (stack) => (stack || '').split(',')[0].replace(/["']/g, '').trim();
@@ -73,10 +76,13 @@ function codeFamilies() {
     }
   };
   for (const sheet of document.styleSheets) {
-    if (sheet.ownerNode?.closest?.('edit-mode-root')) continue;
+    if (sheet.ownerNode?.closest?.('edit-mode-root') || sheet.ownerNode?.dataset?.emFont) continue; // ours: not the project's
     try { walk(sheet.cssRules); } catch {} // a cross-origin sheet can't be read: its fonts don't count
   }
-  for (const face of document.fonts) inCode.add(face.family.replace(/["']/g, '').trim().toLowerCase());
+  for (const face of document.fonts) {
+    const f = face.family.replace(/["']/g, '').trim();
+    if (!injected.has(f)) inCode.add(f.toLowerCase()); // a Google font we loaded isn't the project's
+  }
   return inCode;
 }
 // Does the project load this family (a stack's first family)? Generic families count as loaded.
@@ -92,4 +98,53 @@ export function notLoaded(html) {
     if (f && !loadedByCode(f)) out.add(f);
   }
   return [...out];
+}
+
+// ---------- Google Fonts ----------
+const GOOGLE_LIST = 'https://cdn.jsdelivr.net/npm/google-font-metadata@6.0.8/data/api-response.json';
+let google = null; // Map family → [{ name, weight, italic }]
+let googleLoad = null;
+export const googleReady = () => !!google;
+export function loadGoogle() {
+  googleLoad ||= fetch(GOOGLE_LIST).then((r) => (r.ok ? r.json() : [])).then((list) => {
+    google = new Map(list.map((f) => [f.family, f.variants.map((v) => {
+      const weight = v === 'regular' || v === 'italic' ? 400 : parseInt(v, 10) || 400;
+      return { weight, italic: v.endsWith('italic') };
+    }).sort((a, b) => a.weight - b.weight || a.italic - b.italic)]));
+    return google;
+  }).catch(() => { googleLoad = null; return null; }); // offline: no Google group (try again next time)
+  return googleLoad;
+}
+export const googleFamilies = () => (google ? [...google.keys()] : []);
+export const googleStyles = (family) => google?.get(family) || null;
+export const isGoogle = (family) => !!google?.has(family);
+
+// Load a Google font on the page (all its styles), once. Families the code
+// already loads, or installed on this computer, don't need it.
+const injected = new Set();
+export function useFont(stack) {
+  const f = firstFamily(stack);
+  if (!f || injected.has(f) || !isGoogle(f) || localStyles(f)) return;
+  codeFamilies(); // read the code's fonts before adding ours
+  if (loadedByCode(f)) return;
+  injected.add(f);
+  const axes = googleStyles(f).map((x) => `${x.italic ? 1 : 0},${x.weight}`).sort();
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.dataset.emFont = f;
+  link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(f).replace(/%20/g, '+')}:ital,wght@${axes.join(';')}&display=swap`;
+  document.head.append(link);
+}
+// Where a font the code doesn't load comes from (for Push): Google Fonts, or this computer.
+export const fontSource = (stack) => (isGoogle(firstFamily(stack)) ? 'google' : 'local');
+
+// After a reload: load the Google fonts that edits and canvas designs use.
+export function restoreFonts() {
+  const used = new Set();
+  for (const el of document.querySelectorAll('[style*="font-family"]')) {
+    const f = firstFamily(el.style.getPropertyValue('font-family'));
+    if (f && !loadedByCode(f)) used.add(f);
+  }
+  if (!used.size) return;
+  loadGoogle().then(() => { for (const f of used) useFont(f); });
 }

@@ -9,7 +9,7 @@ import {
   ATTR, box, colorFromText, describe, family, fmt, isNumber, num, onCanvas, parseColor, parseSrc, placedOf, resolveColor, sameSource,
 } from './util.js';
 import { isText } from './changes.js';
-import { firstFamily, loadLocal, localFamilies, localStatus, localStyles } from './fonts.js';
+import { firstFamily, googleFamilies, googleReady, googleStyles, loadGoogle, loadLocal, localFamilies, localStatus, localStyles, useFont } from './fonts.js';
 import { ICON, KEY } from './icons.js';
 import { IMAGE_FIT, fitOf, pickImage, uploadImage } from './assets.js';
 import { CONSTRAINT_OPTIONS, constraintOf, frameBox, isPlaced, placeBox } from './constraints.js';
@@ -1146,18 +1146,20 @@ export function createPanel(ctx) {
     return st === 'italic' ? (name === 'Regular' ? 'Italic' : `${name} Italic`) : name;
   };
   function styleOptions(cs) {
-    const own = localStyles(firstFamily(cs.fontFamily));
+    const own = fontStyles(cs);
     const opts = own
-      ? own.map((x) => [`${x.weight}|${x.italic ? 'italic' : 'normal'}`, x.name])
+      ? own.map((x) => { const k = `${x.weight}|${x.italic ? 'italic' : 'normal'}`; return [k, x.name || styleName(k)]; })
       : WEIGHTS.flatMap(([w]) => [`${w}|normal`, `${w}|italic`]).map((k) => [k, styleName(k)]);
     const now = styleKey(cs);
     return opts.some(([v]) => v === now) ? opts : [...opts, [now, styleName(now)]];
   }
 
+  // The styles a font really has: this computer's, else Google's (null: unknown).
+  const fontStyles = (cs) => localStyles(firstFamily(cs.fontFamily)) || googleStyles(firstFamily(cs.fontFamily));
   // A font from this computer without the current style: its nearest style (Figma), same italic first.
   function nearestStyle() {
     const cs = getComputedStyle(sel());
-    const own = localStyles(firstFamily(cs.fontFamily));
+    const own = fontStyles(cs);
     if (!own || own.some((x) => `${x.weight}|${x.italic ? 'italic' : 'normal'}` === styleKey(cs))) return;
     const italic = styleKey(cs).endsWith('italic');
     const best = [...own].sort((a, b) => (a.italic !== italic) - (b.italic !== italic) || Math.abs(a.weight - num(cs.fontWeight)) - Math.abs(b.weight - num(cs.fontWeight)))[0];
@@ -1196,10 +1198,15 @@ export function createPanel(ctx) {
         };
         group('On this page', page.filter(match));
         const st = localStatus();
-        if (st === 'ready') group('On your computer', localFamilies().filter((f) => !page.includes(f) && match(f)));
+        const mine = st === 'ready' ? localFamilies() : [];
+        if (st === 'ready') group('On your computer', mine.filter((f) => !page.includes(f) && match(f)));
         else if (st === 'loading') list.append(h('div', 'pop-title', 'On your computer'), h('div', 'pop-empty', 'Loading…'));
-        else if (st === 'denied') list.append(h('div', 'pop-title', 'On your computer'),
+        else if (st === 'denied' && !q) list.append(h('div', 'pop-title', 'On your computer'),
           h('div', 'pop-empty', 'Chrome didn\'t allow access to your fonts. Allow Fonts in the site settings (left of the address), then reopen this list.'));
+        if (googleReady()) {
+          const shown = new Set([...page, ...mine]);
+          group('Google Fonts', googleFamilies().filter((f) => !shown.has(f) && match(f)));
+        }
         if (!list.querySelector('.pop-item') && q) list.append(h('div', 'pop-empty', 'No fonts match'));
       };
       search.addEventListener('input', render);
@@ -1210,6 +1217,7 @@ export function createPanel(ctx) {
       if (localStatus() !== 'ready' && localStatus() !== 'unsupported') {
         loadLocal().then(() => { if (box.contains(list)) render(); });
       }
+      if (!googleReady()) loadGoogle().then(() => { if (box.contains(list)) render(); });
       render();
       requestAnimationFrame(() => search.focus());
     });
@@ -1339,6 +1347,7 @@ export function createPanel(ctx) {
           const rest = getComputedStyle(sel()).fontFamily.split(',').slice(1).join(',').trim();
           const value = t.includes(',') ? t : `"${t.replace(/["']/g, '')}"${rest ? ', ' + rest : ''}`;
           if (!CSS.supports('font-family', value)) return false;
+          useFont(value); // a Google font: load it on the page
           apply('font-family', value);
           nearestStyle();
         } })),

@@ -15,7 +15,7 @@ import { ICON, KEY as GLYPH } from './icons.js';
 import { IMAGE_FIT, isImageFile, uploadImage } from './assets.js';
 import { frameBox, placeBox } from './constraints.js';
 import { createSnapper } from './snap.js';
-import { loadedByCode, notLoaded } from './fonts.js';
+import { fontSource, loadedByCode, notLoaded, restoreFonts } from './fonts.js';
 import { buildHtml, compareCanvas, componentName, designName, linkDesign, newDesigns, relinkCanvas, rememberLinks } from './compare.js';
 
 if (!window.__editModeOverlay) {
@@ -325,6 +325,7 @@ function init() {
         afterBuild(); // first: link what was just built, so re-linking sees it as built
         if (store.get(KEY.relink)) { try { if (relinkCanvas({ force: true })) store.set(KEY.relink, null); } catch (err) { console.error(err); } }
         scheduleCanvasDiff(0);
+        restoreFonts(); // Google fonts used by edits and canvas designs: load them again
       }, 300));
       calmPage(true);
       if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
@@ -729,10 +730,10 @@ function init() {
   const PIN = { h: { start: 'left', end: 'right', both: 'left and right', center: 'centered', scale: 'scaling' }, v: { start: 'top', end: 'bottom', both: 'top and bottom', center: 'centered', scale: 'scaling' } };
   // A font the project doesn't load (picked from this computer): it only shows where it's installed (6e).
   const fontNotLoaded = (c) => c.kind === 'style' && c.property === 'font-family' && !loadedByCode(c.value || c.to);
-  const describeChange = (c) => describeOne(c) + (fontNotLoaded(c) ? ' · installed on your computer only' : '');
+  const describeChange = (c) => describeOne(c) + (!fontNotLoaded(c) ? '' : fontSource(c.value || c.to) === 'google' ? ' · from Google Fonts' : ' · installed on your computer only');
   // What Claude is told about such fonts, on the change (or the new design) that uses them.
   function markFonts(c) {
-    if (fontNotLoaded(c)) return { ...c, fontNotLoaded: true };
+    if (fontNotLoaded(c)) return { ...c, fontNotLoaded: true, fontSource: fontSource(c.value || c.to) };
     const fonts = c.kind === 'build' ? notLoaded(c.html) : [];
     return fonts.length ? { ...c, fontsNotLoaded: fonts } : c;
   }

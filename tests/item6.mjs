@@ -9,6 +9,13 @@ await p.addInitScript(() => { try { localStorage.setItem('edit-mode:layers', '0'
 // Fonts on this computer (6e): a fixed list stands in for Chrome's (its permission prompt can't be answered in a test).
 await p.addInitScript(() => { window.queryLocalFonts = async () => [['Avenir Next', 'Regular'], ['Avenir Next', 'Demi Bold'], ['Avenir Next', 'Demi Bold Italic'], ['Menlo', 'Regular'], ['.SF NS', 'Regular']].map(([family, style]) => ({ family, style, fullName: `${family} ${style}`, postscriptName: family })); });
 const pushed = [];
+// Google Fonts (6f): a small list instead of the real 1,900, and no real font files.
+await p.route('**/google-font-metadata@*/data/api-response.json', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify([
+  { family: 'Inter', variants: ['regular', 'italic', '600', '700', '700italic'], category: 'sans-serif' },
+  { family: 'Menlo', variants: ['regular'], category: 'monospace' }, // also on "this computer": listed once
+  { family: 'Lora', variants: ['regular'], category: 'serif' }]) }));
+const fontCss = [];
+await p.route('https://fonts.googleapis.com/**', (r) => { fontCss.push(r.request().url()); r.fulfill({ contentType: 'text/css', body: '' }); });
 await p.route('**/@edit-mode/push', (route) => { pushed.push(JSON.parse(route.request().postData())); route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"test: not sent"}' }); });
 await p.goto('http://localhost:5390'); await p.waitForSelector('.cta-primary');
 const html = () => p.$eval('#root', e => e.innerHTML.replace(/ style=""/g, ''));
@@ -183,6 +190,40 @@ await p.evaluate(() => document.querySelector('.lines').remove());
   check('a font not on this computer: nine weights, each also italic', gen.length === 18 && gen.includes('Bold Italic') && gen.includes('Italic'), gen.join('|'));
   await p.keyboard.press('Escape');
   check('⌘Z restores the page', await undoAll(start)); }
+
+// 6f. Google Fonts: a third group; picking one loads it; Push says where it's from.
+{ await pick('.hero-title'); await p.waitForTimeout(60);
+  await btn('Fonts').click(); await p.waitForTimeout(200);
+  const groups = () => p.evaluate(() => { const l = document.querySelector('edit-mode-root').shadowRoot.querySelector('.pop.fonts .font-list'); const out = []; for (const n of l.children) n.classList.contains('pop-title') ? out.push([n.textContent]) : out.at(-1)?.push(n.textContent); return out; });
+  let g = await groups();
+  const google = g.find(x => x[0] === 'Google Fonts') || [];
+  check('Google Fonts is the third group, without fonts listed above', g.length === 3 && g[2][0] === 'Google Fonts' && google.join('|') === 'Google Fonts|Inter|Lora', JSON.stringify(g));
+  await p.keyboard.type('inter'); await p.keyboard.press('Enter'); await p.waitForTimeout(120);
+  const link = await p.evaluate(() => document.querySelector('link[data-em-font="Inter"]')?.href || '');
+  check('picking it loads it on the page, with all its styles', /family=Inter:ital,wght@0,400;0,600;0,700;1,400;1,700/.test(decodeURIComponent(link)), link);
+  check('…and the title uses it', (await p.$eval('.hero-title', e => getComputedStyle(e).fontFamily)).startsWith('Inter'));
+  await btn('Font weight').click(); await p.waitForTimeout(100);
+  const items = await p.locator(R('.pop .pop-item')).allTextContents();
+  check("the style menu lists Google's styles for it", items.join('|') === 'Regular|Italic|Semi Bold|Bold|Bold Italic', items.join('|'));
+  await p.keyboard.press('Escape');
+  await p.keyboard.press('Meta+Enter'); await p.waitForTimeout(250);
+  const rows = await p.locator(R('.dialog .list li')).allTextContents();
+  check('the Push list says it comes from Google Fonts', rows.some(r => /Inter.*from Google Fonts/.test(r)) && !rows.some(r => /installed on your computer/.test(r)), rows.join(' / '));
+  await p.locator(R('.dialog .pbtn.primary')).click(); await p.waitForTimeout(400);
+  const sent = pushed.at(-1)?.changes || [];
+  check('Push tells Claude (fontSource: google)', sent.some(c => c.property === 'font-family' && c.fontNotLoaded && c.fontSource === 'google'), JSON.stringify(sent.filter(c => c.property === 'font-family')));
+  await p.keyboard.press('Escape'); await p.waitForTimeout(100);
+  check('⌘Z restores the page', await undoAll(start));
+  // After a reload, Google fonts used in inline styles (canvas designs) load again.
+  await p.reload(); await p.waitForSelector('.hero-title'); await p.waitForTimeout(500);
+  const back = await p.evaluate(async () => {
+    const d = document.createElement('div'); d.style.fontFamily = '"Lora", serif'; d.textContent = 'x'; document.body.append(d);
+    (await import('/@edit-mode/fonts.js')).restoreFonts();
+    await new Promise(r => setTimeout(r, 400)); d.remove();
+    return !!document.querySelector('link[data-em-font="Lora"]');
+  });
+  check('after a reload, Google fonts in use load again', back);
+  await p.keyboard.press('Alt+KeyE'); await p.waitForTimeout(100); await p.keyboard.press('Alt+KeyE'); await p.waitForTimeout(150); }
 
 // A <br /> written in the code (COPY=<sample copy dir>: edits its Hero.jsx, then restores it).
 if (process.env.COPY) {
