@@ -105,6 +105,8 @@ export function createRunner({ root, publicDir = join(root, 'public'), claudePat
     const batchDir = join(dir, id);
     mkdirSync(batchDir);
     writeJSON(join(batchDir, 'changes.json'), payload.changes);
+    // Designs that sat on the page, as they were (not for Claude): Undo hands them back so they return to the page.
+    if (payload.onPage?.length) writeJSON(join(batchDir, 'on-page.json'), payload.onPage);
     const images = copyImages(payload.changes);
     writeJSON(join(batchDir, 'context.json'), { url: payload.url, viewport: payload.viewport, elements: payload.context,
       ...(images.map.length ? { images: images.map } : {}) });
@@ -209,7 +211,7 @@ export function createRunner({ root, publicDir = join(root, 'public'), claudePat
     }
     writeJSON(statePath, { last: { ...last, undone: true } });
     log(`undid ${last.id}: restored ${restored.length} file(s)` + (skipped.length ? `, skipped ${skipped.join(', ')}` : ''));
-    return { changes: readJSON(join(batchDir, 'changes.json'), []), restored, skipped };
+    return { changes: readJSON(join(batchDir, 'changes.json'), []), onPage: readJSON(join(batchDir, 'on-page.json'), []), restored, skipped };
   }
 
   // The design canvas beside the page (overlay: design.js), saved as its HTML.

@@ -20,7 +20,7 @@ let pushed = null;
 let status = { running: false, last: null };
 await p.route('**/@edit-mode/push', (route) => { pushed = JSON.parse(route.request().postData()); status = { running: false, last: { id: 'run1', ok: true, summary: 'Built it (test).', files: ['src/App.jsx'], undoable: true } }; route.fulfill({ contentType: 'application/json', body: '{"id":"run1"}' }); });
 await p.route('**/@edit-mode/status', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(status) }));
-await p.route('**/@edit-mode/undo', (route) => { status = { running: false, last: null }; route.fulfill({ contentType: 'application/json', body: JSON.stringify({ changes: pushed.changes }) }); });
+await p.route('**/@edit-mode/undo', (route) => { status = { running: false, last: null }; route.fulfill({ contentType: 'application/json', body: JSON.stringify({ changes: pushed.changes, onPage: pushed.onPage }) }); }); // as runner.js answers: the batch's on-page.json
 
 await p.goto('http://localhost:5393'); await p.waitForSelector('.people-table');
 await R((html) => fetch('/@edit-mode/canvas', { method: 'PUT', body: JSON.stringify({ html }) }), DESIGN);
@@ -54,6 +54,7 @@ check('the title counts them', /Push 3 changes/.test(await ui('.dialog h3')), aw
 await p.keyboard.press('Meta+Enter'); await p.waitForTimeout(400);
 const builds = pushed?.changes.filter((c) => c.kind === 'build') ?? [];
 const promo = builds.find((c) => c.name === 'Promo'), banner = builds.find((c) => c.name === 'Banner');
+check('Push keeps the designs as they were with the batch (for Undo), outside the changes', pushed.onPage?.length === 2 && pushed.onPage.every((d) => /data-em-placed/.test(d.html)));
 check('Push sends both as builds on the page', builds.length === 2 && builds.every((c) => c.onPage && c.mode === 'place'), JSON.stringify(builds.map((c) => [c.name, c.onPage, c.mode])));
 check('Promo: after the charts, before the people card, width as designed', promo?.placement.after?.name === 'Charts' && /people/.test(promo?.placement.before?.element) && promo.width === 'fixed' && promo.size.width === 360,
   JSON.stringify(promo?.placement));
@@ -73,6 +74,7 @@ check('…and the saved canvas no longer has them', !/Promo|Banner/.test(saved),
 
 // Undo: the code comes back (faked), and so do the designs, on the page where they sat.
 await p.keyboard.press('Alt+KeyE'); await p.waitForTimeout(400); // off: the pill offers Undo
+await R(() => { for (const k of Object.keys(sessionStorage)) if (k !== 'edit-mode:on') sessionStorage.removeItem(k); }); // as if from another tab: nothing kept in this one
 status = { running: false, last: { id: 'run1', ok: true, summary: 'x', files: ['src/App.jsx'], undoable: true } };
 await R(() => window.__editMode && null);
 await p.evaluate(() => document.querySelector('edit-mode-root').shadowRoot.querySelector('.act')?.click()); await p.waitForTimeout(300);

@@ -982,9 +982,9 @@ function init() {
     // New designs being built: after the push, a placed one is linked to its new code, a component goes back to Skip.
     const built = list.filter((c) => c.kind === 'build').map((c) => ({ id: c.id, mode: c.mode, placement: c.placement, component: c.component, onPage: c.onPage }));
     store.set(KEY.built, built.length ? JSON.stringify(built) : null);
-    // Designs on the page, as they are: Undo puts them back where they sat.
+    // Designs on the page, as they are: Undo puts them back where they sat
+    // (saved with the batch on the server, so Undo works from any tab).
     const onPage = placedDesigns().map((n) => ({ html: n.outerHTML, placement: placementOf(n) }));
-    store.set(KEY.onPage, onPage.length ? JSON.stringify(onPage) : null);
     if (onPage.length) design.touch(); // their ids reach the canvas save (afterBuild finds the safety copies by them)
     closeDialog();
     select(null);
@@ -999,6 +999,7 @@ function init() {
           viewport: { width: innerWidth, height: innerHeight },
           changes: list,
           context: contextFor(list),
+          ...(onPage.length ? { onPage } : {}),
         }),
       });
       const data = await res.json();
@@ -1049,6 +1050,7 @@ function init() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Undo failed');
       store.set(KEY.reapply, JSON.stringify(data.changes.filter((c) => c.fromCanvas == null))); // canvas rows: the copies still have them
+      store.set(KEY.onPage, data.onPage?.length ? JSON.stringify(data.onPage) : null); // designs that sat on the page go back there
       store.set(KEY.on, '1');
       store.set(KEY.relink, '1');
       if (data.skipped?.length) {
