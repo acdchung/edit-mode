@@ -70,14 +70,16 @@ Steps:
   3. **Real Push done 2026-11-23 (the user's go-ahead), on a console copy:** a "Start notice" dropped above the people card and a "Run summary" dropped above the stats card, with the stats card deleted. Claude (45s) made both components (`StartNotice`, `RunSummary`, the summary reusing `card` and the run data), put them exactly at their spots, replaced `<StatTiles />`, used tokens (and said which measured values it snapped), no `!important`. The real Undo restored all 5 files byte for byte and the delete came back, but the designs didn't: their backup lived in the Push's tab (sessionStorage) and Undo ran from another. Fixed: Push sends them as `onPage` (runner.js writes the batch's `on-page.json`, not for Claude), and Undo returns them, so they come back from any tab; `pushpage.mjs` now undoes from a fresh tab.
   Later, if wanted: a ←/→ version switcher; Layers drags between page and canvas (rows); dragging real page elements out to the canvas (= delete from code).
 
-### Then: roadmap items 5–9 below (unchanged).
+### Then: roadmap items 5–9 below. Order agreed 2026-11-23: 6 → 9 → 7 → 8 (5 is done).
 
 ### 5. Absolute position inside auto layout (Figma: "Ignore auto layout")
+- **Done on the canvas (C4b, 2026-11-20): the pin in Layout, X/Y, constraints. Not on the live page, on purpose (2026-11-23): the page is for checking, and nothing is placed freely on it (it's code, and code has flow; same rule as dragging designs into the page).** The notes below are the original plan.
 - A toggle in Layout for a child of an auto-layout frame. It sets `position: absolute`, and `position: relative` on the parent.
 - Then show X/Y fields (top/left) and allow dragging the element freely inside its parent.
 - Constraints (left/right/center…) are optional, later.
 
 ### 6. Text
+- **NEXT.** Today (2026-11-23): Enter or Esc *finishes* editing (`main.js` keydown, "Editing text on the page"); the editing outline was fixed the same day (only the 1px selection frame). Check the panel's Text section in `panel.js` for what exists before proposing steps.
 - While editing:
   - Enter inserts a line break (`<br>`); Esc or clicking outside finishes
   - ⌘Enter also finishes
