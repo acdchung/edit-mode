@@ -1464,15 +1464,19 @@ export function createPanel(ctx) {
       const input = h('input');
       input.value = now;
       input.setAttribute('aria-label', 'Max lines');
+      let last = now;
+      const group = `lines:${Date.now()}`; // ↑/↓ while focused: one undo step
       const commit = () => {
-        const n = Math.round(+input.value);
-        if (!(n >= 1) || String(n) === now) return (input.value = now);
-        act(null, () => setTruncate(true, Math.min(99, n)));
-        again();
+        const n = Math.min(99, Math.round(+input.value));
+        if (!(n >= 1)) return (input.value = last);
+        input.value = n;
+        if (String(n) === last) return;
+        last = String(n);
+        act(group, () => setTruncate(true, n)); // in place: the field keeps the focus
       };
       input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); commit(); }
-        else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); input.value = Math.max(1, (+input.value || 1) + (e.key === 'ArrowUp' ? 1 : -1)); commit(); }
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); input.value = Math.max(1, (+input.value || 1) + (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 10 : 1)); commit(); }
       });
       input.addEventListener('blur', commit);
       f.append(input);
@@ -1913,7 +1917,9 @@ export function createPanel(ctx) {
     // Several selected: only when they share the same layers (stops are edited by position).
     const shared = !many() || common((x, cs) => cs.backgroundImage) !== MIXED;
     layerList.hidden = !list.length || !shared;
-    const sig = `${li}|${model.map((x) => `${x.hidden}:${x.value}`).join('|')}`;
+    // Rebuild the rows only when the stack's shape changes (moving the open editor would
+    // take the focus out of a field mid-typing, e.g. Shift+↑ in its opacity); values update in place.
+    const sig = `${li}|${model.map((x) => `${x.hidden}:${typeOf(x.value)}`).join('|')}`;
     if (!layerList.hidden && sig !== layerSig) {
       layerSig = sig;
       layerList.replaceChildren(...model.map((x, i) => {
@@ -1921,6 +1927,8 @@ export function createPanel(ctx) {
         node.dataset.i = i;
         return node;
       }));
+    } else if (!layerList.hidden) {
+      for (const r of layerList.querySelectorAll(':scope > .flrow')) r.querySelector('.thumb').style.background = model[+r.dataset.i]?.value || '';
     }
     const g = parseGradient(list[li]);
     const off = gradHidden();

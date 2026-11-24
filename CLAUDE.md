@@ -160,6 +160,7 @@ New elements copy the parent's spacing rhythm (`rhythm()`).
 - Keyboard shortcuts must only bail out when the user is *typing* (input or contenteditable), not merely when focus is on a panel button.
 - Esc closes `.dialog` elements only; toasts must never swallow it.
 - Panel number fields commit on blur only if the value changed (`focusValue`), otherwise they create phantom changes.
+- A field must keep the focus through ↑/↓ nudges (the user holds Shift+↑ for steps of 10): never rebuild or move the DOM around a field because its value changed. Dynamic lists (fill rows, effects) rebuild only when their shape changes; values update in place. `tests/nudge.mjs` checks this across the panel.
 - Inside contenteditable buttons, spaces need `execCommand('insertText')`.
 - `sizeMode` reads inline styles first; measuring alone misreads Fixed as Fill. Fill is detected by `probe()`: grow the parent for one measurement (lifting its max size) and see if the element follows. Comparing sizes misread a fixed-height button whose row is only as tall as it.
 - Line height reads through `computedStyleMap()` so a unitless multiplier (1.35) shows as written; `getComputedStyle` always gives pixels.
