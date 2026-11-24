@@ -286,6 +286,10 @@ h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--text); }
 .pre.txt.long { width: 40px; } /* Min W, Max H */
 .pop-sep { height: 1px; margin: 4px 0; background: var(--hair); }
 .fx-list:empty { display: none; }
+.layers-list { position: relative; }
+.layers-list > .grad { margin-bottom: 8px; }
+.flrow > .dd.kind { flex: 1; min-width: 0; }
+.fl-drop { position: absolute; left: 0; right: 0; height: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; }
 .fx + .fx { padding-top: 8px; border-top: 1px solid var(--hair); }
 .fx .crow > .f:first-child { min-width: 0; }
 .mode-tag + .pick { margin-right: 0; }

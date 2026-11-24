@@ -65,6 +65,43 @@ await key('Meta+z'); await p.waitForTimeout(80);
 check('undo after hiding: one visible shadow row, no ghost', (await rows()).join() === 'Drop shadow', (await rows()).join());
 check('⌘Z restores', await undoAll(start));
 
+// 8b. Stacked fills.
+const img = () => p.$eval('main .card', e => getComputedStyle(e).backgroundImage);
+const fillRows = () => p.evaluate(() => [...document.querySelector('edit-mode-root').shadowRoot.querySelectorAll('.layers-list > [data-i]')].map(n => (n.classList.contains('grad') ? '*' : '') + (n.querySelector('.kind .dd-label')?.textContent || '') + (n.classList.contains('off') ? '(hidden)' : '')));
+await pick('main .card'); await p.waitForTimeout(80);
+check('a card without a fill: no layers yet', (await fillRows()).length === 0 && (await img()) === 'none');
+await btn('Add fill').click(); await p.waitForTimeout(100);
+check('+ on nothing: a plain white fill', (await p.$eval('main .card', e => getComputedStyle(e).backgroundColor)) === 'rgb(255, 255, 255)' && (await img()) === 'none');
+await btn('Add fill').click(); await p.waitForTimeout(100);
+check('+ adds a solid fill on top of the white', /^linear-gradient\(rgb\(217, 217, 217\), rgb\(217, 217, 217\)\)$/.test(await img()) && (await fillRows()).join() === '*Solid', `${await img()} | ${(await fillRows()).join()}`);
+const lc = field('Layer color');
+await lc.fill('FF0000'); await lc.press('Enter'); await p.waitForTimeout(80);
+check("a solid layer's colour", /rgb\(255, 0, 0\), rgb\(255, 0, 0\)/.test(await img()), await img());
+await p.locator(R('.layers-list > .grad .kind')).click(); await p.waitForTimeout(80);
+await p.locator(R('.pop .pop-item'), { hasText: 'Linear' }).first().click(); await p.waitForTimeout(100);
+check('its type menu turns it into a gradient', /^linear-gradient\(rgb\(255, 0, 0\) 0%/.test(await img()) && (await fillRows()).join() === '*Linear', `${await img()} | ${(await fillRows()).join()}`);
+await btn('Add fill').click(); await p.waitForTimeout(100);
+let fr = await fillRows();
+check('another + stacks a solid on top; the gradient becomes a row below', fr.join() === '*Solid,Linear' && /^linear-gradient\(rgb\(217, 217, 217\), rgb\(217, 217, 217\)\), linear-gradient\(rgb\(255, 0, 0\)/.test(await img()), `${fr.join()} | ${await img()}`);
+await p.locator(R('.layers-list > .flrow')).first().locator('.icon').first().click(); await p.waitForTimeout(100);
+check('hiding the lower layer takes it out of the CSS, keeps its row', (await fillRows()).join() === '*Solid,Linear(hidden)' && !/255, 0, 0/.test(await img()), `${(await fillRows()).join()} | ${await img()}`);
+await p.locator(R('.layers-list > .flrow')).first().locator('.icon').first().click(); await p.waitForTimeout(100);
+check('showing it puts it back below', /217\)\), linear-gradient\(rgb\(255, 0, 0\)/.test(await img()), await img());
+// Drag the lower row above the top one.
+const k1 = await p.locator(R('.layers-list > .flrow .kind')).first().boundingBox();
+const top = await p.locator(R('.layers-list > .grad')).boundingBox();
+await p.mouse.move(k1.x + 20, k1.y + k1.height / 2); await p.mouse.down();
+await p.mouse.move(k1.x + 20, top.y + 4, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(150);
+check('dragging a row restacks the layers', /^linear-gradient\(rgb\(255, 0, 0\)/.test(await img()) && (await fillRows()).join() === '*Linear,Solid', `${(await fillRows()).join()} | ${await img()}`);
+await p.locator(R('.layers-list > .flrow .kind')).first().click(); await p.waitForTimeout(100);
+check('clicking a row opens it for editing', (await fillRows()).join() === 'Linear,*Solid', (await fillRows()).join());
+await btn('Remove gradient or image').click(); await p.waitForTimeout(100);
+check('× removes the open layer', (await fillRows()).join() === '*Linear' && !/217/.test(await img()), `${(await fillRows()).join()} | ${await img()}`);
+check('the white solid stays underneath', (await p.$eval('main .card', e => getComputedStyle(e).backgroundColor)) === 'rgb(255, 255, 255)');
+check('Push gets background-image', await p.evaluate(() => window.__editMode.changes.list().some(c => c.property === 'background-image')));
+if (process.env.SHOT) { await btn('Add fill').click(); await p.waitForTimeout(100); const r = await p.locator(R('section:has(h4:text-is("Fill"))')).boundingBox(); await p.screenshot({ path: process.env.SHOT.replace(/\.png$/, '') + '-fill.png', clip: { x: r.x - 4, y: r.y - 4, width: r.width + 8, height: r.height + 8 } }); }
+check('⌘Z steps all the way back', await undoAll(start));
+
 check('no page errors', !errors.length, errors.join(' | '));
 console.log(results.join('\n'));
 console.log(`${results.filter(r => r.startsWith('PASS')).length}/${results.length} passed`);

@@ -1580,32 +1580,44 @@ export function createPanel(ctx) {
   // (several layers stacked: roadmap item 8). Figma's fill types map to
   // Solid = background-color, Linear/Radial/Angular = linear/radial/conic-gradient,
   // Image = url() with Fill (cover), Fit (contain) or Tile.
-  const layers = () => splitList(gradHidden() ? hiddenStore.get(sel()).grad : getComputedStyle(sel()).backgroundImage);
-  const gradHidden = () => {
+  // Stacked fills (8b): background-image's layers, top first, each a row; the solid
+  // background-color is the bottom row. A hidden layer leaves the CSS but keeps its
+  // place (kept per element with the CSS it was hidden against, so an undo wins).
+  // `li` is the layer being edited (its row shows the angle, gradient bar and stops).
+  let li = 0;
+  let shownEl = null;
+  function bgModel(el = sel()) {
+    const cs = getComputedStyle(el);
+    const st = hiddenStore.get(el);
+    if (st?.bg && st.bg.seen !== cs.backgroundImage) delete st.bg; // stale: an undo
+    const list = splitList(cs.backgroundImage).map((value) => ({ value, hidden: false }));
+    for (const x of (st?.bg?.list || []).slice().sort((a, b) => a.at - b.at)) list.splice(Math.min(x.at, list.length), 0, { value: x.value, hidden: true });
+    return list;
+  }
+  function bgWrite(list) {
     const el = sel();
-    const s = hiddenStore.get(el);
-    if (s?.grad && getComputedStyle(el).backgroundImage === 'none') return true;
-    if (s) delete s.grad;
-    return false;
-  };
-  const gradient = () => parseGradient(layers()[0]);
+    const vis = list.filter((x) => !x.hidden).map((x) => x.value);
+    if (vis.length) { if (getComputedStyle(el).backgroundImage !== vis.join(', ')) apply('background-image', vis.join(', ')); }
+    else clear(['background-image', 'background'], (cs) => cs.backgroundImage !== 'none', () => apply('background-image', 'none'));
+    const hidden = list.flatMap((x, at) => (x.hidden ? [{ at, value: x.value }] : []));
+    if (hidden.length) stash(el).bg = { list: hidden, seen: getComputedStyle(el).backgroundImage };
+    else if (hiddenStore.get(el)) delete hiddenStore.get(el).bg;
+  }
+  const layers = () => bgModel().map((x) => x.value); // every layer, hidden ones too (indexes stay put)
+  const gradHidden = () => !!bgModel()[li]?.hidden;
+  const gradient = () => parseGradient(layers()[li]);
   const isImage = (layer) => /^url\(/.test(layer || '');
-  function unhideLayer() {
-    if (gradHidden()) { apply('background-image', stash(sel()).grad); delete stash(sel()).grad; }
-  }
-  function setLayers(list) {
-    if (list.length) return apply('background-image', list.join(', '));
-    clear(['background-image', 'background'], (cs) => cs.backgroundImage !== 'none', () => apply('background-image', 'none'));
-  }
+  // A solid colour as a layer (Figma's solid fill above others): a gradient of one colour.
+  const solidLayer = (c) => `linear-gradient(${c}, ${c})`;
+  const solidOf = (layer) => { const g = parseGradient(layer); return g && g.type === 'linear' && g.stops.length === 2 && g.stops[0].color === g.stops[1].color ? g.stops[0].color : null; };
   function gradSet(patch) {
-    unhideLayer();
-    const list = layers();
-    const g = parseGradient(list[0]);
+    const list = bgModel();
+    const g = parseGradient(list[li]?.value);
     if (!g) return;
     const next = patch(g);
     if (!next) return false;
-    list[0] = buildGradient(next);
-    apply('background-image', list.join(', '));
+    list[li].value = buildGradient(next);
+    bgWrite(list);
   }
   const resetImageFit = () => clear(['background-size', 'background-position', 'background-repeat'], () => false, () => {});
 
@@ -1625,37 +1637,43 @@ export function createPanel(ctx) {
   }
   function fillTypeOne(type, from, image) {
     const cs = getComputedStyle(sel());
-    const list = layers();
-    const first = from === 'layer' ? list[0] : null;
-    const g = parseGradient(first);
+    const model = bgModel();
+    const first = from === 'layer' ? model[li]?.value : null;
+    const solidColor = solidOf(first); // a solid layer: becomes its colour fading out, like a solid fill
+    const g = solidColor ? null : parseGradient(first);
     const wasImage = isImage(first);
-    const rest = from === 'layer' ? list.slice(1) : list;
     const solid = fillHidden() ? stash(sel()).fill : cs.backgroundColor;
-    if (gradHidden()) delete stash(sel()).grad;
     if (type === 'solid') {
-      if (from === 'solid') return;
-      setLayers(rest);
-      if (wasImage) resetImageFit();
-      apply('background-color', g ? g.stops[0].color : DEFAULT_FILL);
+      if (from === 'solid' || solidColor) return;
+      const color = g ? g.stops[0].color : DEFAULT_FILL;
+      if (li === model.length - 1 && isClear(cs.backgroundColor)) { // the bottom layer over no colour: plain background-color
+        model.splice(li, 1);
+        bgWrite(model);
+        li = Math.max(0, li - 1);
+        apply('background-color', color);
+      } else { model[li].value = solidLayer(color); bgWrite(model); }
+      if (wasImage && !model.some((x) => isImage(x.value))) resetImageFit();
       return;
     }
     let layer;
     if (type === 'image') layer = `url("${image.url}")`;
     else if (g) layer = buildGradient({ ...g, type, dir: GRAD_DIR[type] });
     else {
-      const base = from === 'solid' && !isClear(solid) ? solid : '#000000';
+      const base = solidColor || (from === 'solid' && !isClear(solid) ? solid : '#000000');
       layer = buildGradient({ repeating: false, type, dir: GRAD_DIR[type],
         stops: [{ color: withAlpha(base, 1), pos: '0%' }, { color: withAlpha(base, 0), pos: '100%' }] });
     }
-    apply('background-image', [layer, ...rest].join(', '));
+    if (from === 'layer') model[li].value = layer;
+    else { model.unshift({ value: layer, hidden: false }); li = 0; }
+    bgWrite(model);
     if (type === 'image' && !wasImage) for (const [k, v] of Object.entries(IMAGE_FIT.fill)) apply(k, v);
-    if (type !== 'image' && wasImage) resetImageFit();
+    if (type !== 'image' && wasImage && !model.some((x) => isImage(x.value))) resetImageFit();
     if (from === 'solid') {
       delete stash(sel()).fill;
       clear(['background-color'], (c) => !isClear(c.backgroundColor), () => apply('background-color', 'transparent'));
     }
   }
-  const typeOf = (layer) => (isImage(layer) ? 'image' : parseGradient(layer)?.type ?? 'pattern');
+  const typeOf = (layer) => (isImage(layer) ? 'image' : solidOf(layer) ? 'solid' : parseGradient(layer)?.type ?? 'pattern');
   // Fill types, as a row of tabs at the top of the solid fill's color menu.
   function typeTabs(box, now, onPick) {
     const seg = h('div', 'seg types');
@@ -1672,7 +1690,8 @@ export function createPanel(ctx) {
   kindBtn.append(h('span', 'chev', ICON.chevron));
   kindBtn.title = 'Fill type';
   kindBtn.addEventListener('click', () => {
-    const now = typeOf(layers()[0]);
+    if (kindBtn.dragged) return; // the end of a reorder drag, not a click
+    const now = typeOf(layers()[li]);
     listPop(kindBtn, FILL_TYPES, now, (t) => {
       if (t === now && t !== 'image') return;
       setFillType(t, 'layer'); // Image again: choose another image
@@ -1685,19 +1704,20 @@ export function createPanel(ctx) {
     listPop(fitBtn, [['fill', 'Fill'], ['fit', 'Fit'], ['tile', 'Tile']], fitOf(getComputedStyle(sel())), (v) =>
       act(null, () => { for (const [k, val] of Object.entries(IMAGE_FIT[v])) apply(k, val); })));
   const gradEye = h('button', 'icon', ICON.eye);
-  gradEye.addEventListener('click', () => act(null, () => {
-    if (gradHidden()) unhideLayer();
-    else { stash(sel()).grad = getComputedStyle(sel()).backgroundImage; apply('background-image', 'none'); }
-  }));
+  const toggleLayer = (i) => act(null, () => { const m = bgModel(); if (!m[i]) return; m[i].hidden = !m[i].hidden; bgWrite(m); });
+  const removeLayer = (i) => act(null, () => {
+    const m = bgModel();
+    if (!m[i]) return;
+    const was = m.splice(i, 1)[0].value;
+    bgWrite(m);
+    if (isImage(was) && !m.some((x) => isImage(x.value))) resetImageFit();
+    li = Math.min(li, Math.max(0, m.length - 1));
+  });
+  gradEye.addEventListener('click', () => toggleLayer(li));
   const gradX = h('button', 'icon', ICON.x);
   gradX.title = 'Remove';
   gradX.setAttribute('aria-label', 'Remove gradient or image');
-  gradX.addEventListener('click', () => act(null, () => {
-    const was = layers()[0];
-    delete stash(sel()).grad;
-    setLayers(layers().slice(1));
-    if (isImage(was)) resetImageFit();
-  }));
+  gradX.addEventListener('click', () => removeLayer(li));
   const angleOf = (dir) => /^(?:from\s+)?(-?[\d.]+)deg/.exec(dir || '');
   const angleField = numField({ prefix: ICON.angle, title: 'Gradient angle', min: -360, suffix: '°',
     read: () => {
@@ -1813,27 +1833,110 @@ export function createPanel(ctx) {
     row.classList.add('stop');
     return row;
   });
+  // A solid layer's colour (both stops of its one-colour gradient).
+  const solidRow = colorRow({ title: 'Layer color',
+    read: () => solidOf(layers()[li]) ?? 'transparent',
+    write: (v) => { const m = bgModel(); if (!m[li]) return; m[li].value = solidLayer(v); bgWrite(m); } });
+  solidRow.classList.add('solid-layer');
   const gradBlock = h('div', 'grad');
-  gradBlock.append(gradHead, bar, ...stopRows);
+  gradBlock.append(gradHead, bar, solidRow, ...stopRows);
+
+  // The other layers: a compact row each ([swatch + type] [eye] [×]); clicking one edits it.
+  // Drag any row's swatch up or down to restack (Figma: top of the list = on top).
+  const layerList = h('div', 'layers-list');
+  let layerSig = null;
+  function layerRow(i, x) {
+    const r = h('div', 'crow flrow' + (x.hidden ? ' off' : ''));
+    const kb = h('button', 'dd kind', '<i class="thumb"></i><span class="dd-label"></span>');
+    kb.title = 'Edit this fill · drag to restack';
+    kb.setAttribute('aria-label', `Fill layer ${i + 1}`);
+    const th = kb.querySelector('.thumb');
+    th.style.background = x.value;
+    th.style.backgroundSize = 'cover';
+    kb.querySelector('.dd-label').textContent = Object.fromEntries(FILL_TYPES)[typeOf(x.value)] ?? 'Pattern';
+    kb.addEventListener('click', () => { if (kb.dragged) return; li = i; refresh(true); });
+    dragRow(kb, i);
+    const eye = h('button', 'icon', x.hidden ? ICON.eyeOff : ICON.eye);
+    eye.title = x.hidden ? 'Show' : 'Hide';
+    eye.addEventListener('click', () => toggleLayer(i));
+    const del = h('button', 'icon', ICON.x);
+    del.title = 'Remove';
+    del.setAttribute('aria-label', `Remove fill layer ${i + 1}`);
+    del.addEventListener('click', () => removeLayer(i));
+    r.append(kb, eye, del);
+    return r;
+  }
+  // Restack by dragging a row's swatch: a line shows where it lands; one ⌘Z.
+  const dropMark = h('div', 'fl-drop');
+  function dragRow(handle, i) {
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      const y0 = e.clientY;
+      let to = null;
+      handle.dragged = false;
+      const rowsNow = () => [...layerList.children].filter((n) => n.dataset.i != null);
+      const move = (ev) => {
+        if (!handle.dragged && Math.abs(ev.clientY - y0) < 4) return;
+        handle.dragged = true;
+        const rs = rowsNow();
+        to = rs.findIndex((n) => ev.clientY < n.getBoundingClientRect().top + n.getBoundingClientRect().height / 2);
+        if (to < 0) to = rs.length;
+        const ref = rs[to];
+        const lr = layerList.getBoundingClientRect();
+        dropMark.style.top = `${(ref ? ref.getBoundingClientRect().top : rs.at(-1).getBoundingClientRect().bottom) - lr.top - 4}px`;
+        layerList.append(dropMark);
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move, true);
+        window.removeEventListener('pointerup', up, true);
+        dropMark.remove();
+        const from = i ?? li; // the open row's own swatch: the layer being edited
+        if (handle.dragged && to != null) {
+          const j = to > from ? to - 1 : to;
+          if (j !== from) act(null, () => { const m = bgModel(); const [x] = m.splice(from, 1); m.splice(j, 0, x); bgWrite(m); });
+          li = j;
+          refresh(true);
+        }
+        setTimeout(() => { handle.dragged = false; }); // the click that follows the drag isn't a click
+      };
+      window.addEventListener('pointermove', move, true);
+      window.addEventListener('pointerup', up, true);
+    });
+  }
+  dragRow(kindBtn, null);
   fields.push(() => {
     const el = sel();
     if (!el) return;
-    const list = layers();
-    const g = parseGradient(list[0]);
-    const off = gradHidden();
+    const model = bgModel();
+    const list = model.map((x) => x.value);
+    li = Math.min(li, Math.max(0, list.length - 1));
     // Several selected: only when they share the same layers (stops are edited by position).
-    gradBlock.hidden = !list.length || (many() && common((x, cs) => cs.backgroundImage) === MIXED);
+    const shared = !many() || common((x, cs) => cs.backgroundImage) !== MIXED;
+    layerList.hidden = !list.length || !shared;
+    const sig = `${li}|${model.map((x) => `${x.hidden}:${x.value}`).join('|')}`;
+    if (!layerList.hidden && sig !== layerSig) {
+      layerSig = sig;
+      layerList.replaceChildren(...model.map((x, i) => {
+        const node = i === li ? gradBlock : layerRow(i, x);
+        node.dataset.i = i;
+        return node;
+      }));
+    }
+    const g = parseGradient(list[li]);
+    const off = gradHidden();
+    gradBlock.hidden = layerList.hidden;
     if (gradBlock.hidden) return;
-    const type = typeOf(list[0]);
+    const type = typeOf(list[li]);
     kindBtn.querySelector('.dd-label').textContent = Object.fromEntries(FILL_TYPES)[type] ?? 'Pattern';
     const thumb = kindBtn.querySelector('.thumb');
-    thumb.style.background = list[0] || '';
+    thumb.style.background = list[li] || '';
     thumb.style.backgroundSize = 'cover';
     thumb.style.backgroundPosition = 'center';
-    angleField.hidden = !g || g.type === 'radial' || (g.dir && !angleOf(g.dir));
+    angleField.hidden = !g || type === 'solid' || g.type === 'radial' || (g.dir && !angleOf(g.dir));
+    solidRow.hidden = type !== 'solid';
     fitBtn.hidden = type !== 'image';
     if (type === 'image') fitBtn.querySelector('.dd-label').textContent = { fill: 'Fill', fit: 'Fit', tile: 'Tile', custom: 'Custom' }[fitOf(getComputedStyle(el))];
-    const ps = g && stopPositions(g.stops);
+    const ps = g && type !== 'solid' && stopPositions(g.stops);
     bar.hidden = !ps;
     if (ps) {
       stopSel = Math.min(stopSel, g.stops.length - 1);
@@ -1847,7 +1950,7 @@ export function createPanel(ctx) {
       });
     }
     stopRows.forEach((r, i) => {
-      r.hidden = !g || i >= g.stops.length;
+      r.hidden = !g || type === 'solid' || i >= g.stops.length;
       const x = r.querySelector(':scope > .icon:last-child');
       if (x) { x.disabled = !g || g.stops.length <= 2; x.title = x.disabled ? 'A gradient needs two stops' : 'Remove stop'; }
     });
@@ -1855,8 +1958,16 @@ export function createPanel(ctx) {
     gradBlock.classList.toggle('off', off);
   });
 
-  const fill = section('Fill', gradBlock, fillRow);
-  const fillAdd = addButton('fill', () => apply('background-color', DEFAULT_FILL));
+  const fill = section('Fill', layerList, fillRow);
+  // + (Figma): nothing yet → a solid colour; otherwise a solid layer on top of the rest.
+  const fillAdd = addButton('fill', () => {
+    const cs = getComputedStyle(sel());
+    if (isClear(cs.backgroundColor) && !fillHidden() && !bgModel().length) return apply('background-color', DEFAULT_FILL);
+    const m = bgModel();
+    m.unshift({ value: solidLayer('rgb(217, 217, 217)'), hidden: false });
+    bgWrite(m);
+    li = 0;
+  });
   fill.head.append(fillAdd);
 
   // Stroke: "Inside" = border, "Outside" = outline.
@@ -2211,6 +2322,7 @@ export function createPanel(ctx) {
   // ---------- Public ----------
   function show(el) {
     closePop();
+    if (el !== shownEl) { li = 0; layerSig = null; shownEl = el; } // a new selection starts at its top fill
     multi.hidden = !many();
     header.hidden = body.hidden = footer.hidden = !el;
     canvasSec.hidden = !!el;
@@ -2300,8 +2412,8 @@ export function createPanel(ctx) {
     };
     const solid = any((x, s) => !isClear(s.backgroundColor) || fillHidden());
     fillRow.hidden = !solid;
-    empty(fill, fillAdd, !solid && !any((x, s) => s.backgroundImage !== 'none' || gradHidden()));
-    fillAdd.hidden = solid;
+    empty(fill, fillAdd, !solid && !any((x) => bgModel(x).length > 0));
+    fillAdd.hidden = false; // fills stack: + always adds one on top
     empty(strokeSec, strokeAdd, !any((x, s) => strokeOf(s) || strokeHidden()));
     effects.classList.toggle('empty', !any((x) => fxModel(x).length > 0)); // + always shows: effects stack
   }
