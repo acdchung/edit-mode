@@ -19,7 +19,8 @@ await p.goto('http://localhost:5390'); await p.waitForSelector('.page');
 await p.keyboard.press('Alt+KeyE'); await p.waitForTimeout(800);
 
 
-const btn = await R(() => { const root = document.querySelector('edit-mode-root').shadowRoot; const x = [...root.querySelectorAll('button')].find((n) => /Duplicate/i.test(n.title || n.getAttribute('aria-label') || '')); const r = x.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+await p.keyboard.press('Shift+Digit1'); await p.waitForTimeout(300); // fit: the Duplicate page icon sits just right of the page's corner (off-screen in this wide window otherwise)
+const btn = await R(() => { const root = document.querySelector('edit-mode-root').shadowRoot; const x = root.querySelector('.dup-page'); const r = x.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
 await p.mouse.move(...btn); await p.waitForTimeout(100); await p.mouse.click(...btn); await p.waitForTimeout(800);
 const d = await R(() => {
   const f = document.querySelector('[data-em-canvas] > [data-em-name="Page copy"]'); const c = f.firstElementChild; const z = f.getBoundingClientRect().width / f.offsetWidth;

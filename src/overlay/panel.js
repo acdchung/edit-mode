@@ -2017,13 +2017,51 @@ export function createPanel(ctx) {
 
   const body = h('div', 'pb');
   body.append(alignRow, multi, layout, constraints, appearance, typography, fill, strokeSec, effects);
-  column.append(header, body, footer);
+  // Nothing selected: the canvas's own colour (Figma shows the page's Background here).
+  // Edit Mode's, not the app's: remembered per browser, never pushed, no undo step.
+  const bgWrap = h('div', 'field color');
+  const bgSw = h('button', 'swatch', '<i></i>');
+  bgSw.title = 'Pick a color';
+  const bgHex = h('input', 'hex');
+  bgHex.spellcheck = false;
+  bgHex.setAttribute('aria-label', 'Canvas background');
+  bgWrap.append(bgSw, bgHex);
+  const bgReset = h('button', 'icon', ICON.x);
+  bgReset.title = 'Back to the default grey';
+  bgReset.setAttribute('aria-label', 'Reset canvas background');
+  const bgRow = h('div', 'crow');
+  bgRow.append(bgWrap, bgReset);
+  const canvasSec = section('Canvas', h('div', 'cap', 'Background'), bgRow);
+  canvasSec.classList.add('canvas-bg');
+  const paintBg = () => {
+    const c = ctx.canvasBackground();
+    bgSw.firstChild.style.background = c;
+    if (shadow.activeElement !== bgHex) bgHex.value = (parseColor(c)?.hex || c).replace(/^#/, '');
+    bgReset.style.visibility = c.toLowerCase() === ctx.defaultCanvasBackground() ? 'hidden' : '';
+    bgWrap.classList.remove('bad');
+  };
+  const setBg = (c) => { ctx.setCanvasBackground(c); paintBg(); };
+  bgSw.addEventListener('click', () => colorPop(bgSw, ctx.canvasBackground(), (v) => setBg(parseColor(v)?.hex || v)));
+  bgHex.addEventListener('focus', () => bgHex.select());
+  bgHex.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') bgHex.blur();
+    else if (e.key === 'Escape') { paintBg(); bgHex.blur(); }
+  });
+  bgHex.addEventListener('change', () => {
+    const v = colorFromText(bgHex.value);
+    if (v) setBg(parseColor(v)?.hex || v); else bgWrap.classList.add('bad');
+  });
+  bgReset.addEventListener('click', () => setBg(null));
+
+  column.append(header, body, footer, canvasSec);
   column.hidden = true;
 
   // ---------- Public ----------
   function show(el) {
     closePop();
     multi.hidden = !many();
+    header.hidden = body.hidden = footer.hidden = !el;
+    canvasSec.hidden = !!el;
     if (many() && el) {
       column.hidden = false;
       nameEl.textContent = `${state.multi.length} selected`;
@@ -2035,8 +2073,8 @@ export function createPanel(ctx) {
       refresh(true);
       return;
     }
-    column.hidden = !el; // appears instantly: it shows on almost every selection
-    if (!el) return;
+    column.hidden = !el && !state.on; // appears instantly; with nothing selected (Edit Mode on) it shows the canvas colour
+    if (!el) return paintBg();
 
     const own = el.getAttribute(ATTR);
     const tagged = own ? el : el.parentElement?.closest(`[${ATTR}]`);

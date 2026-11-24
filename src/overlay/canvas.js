@@ -17,6 +17,9 @@ const STEPS = [0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 const MIN = 0.1;
 const MAX = 4;
 const CANVAS = '#e9e9eb';
+// The canvas colour (the user's choice, per browser; never pushed: it's Edit Mode's, not the app's).
+const BG_KEY = 'edit-mode:canvas-bg';
+const background = () => { try { return localStorage.getItem(BG_KEY) || CANVAS; } catch { return CANVAS; } };
 const KEEP = 80; // px of the page that always stays on screen
 
 // `extra()`: the design canvas beside the page (design.js), as screen rects:
@@ -77,7 +80,7 @@ export function createCanvas({ onChange = () => {}, area = () => ({ left: 0, rig
     // (same layout, but painted with the page's background).
     const m = ['top', 'right', 'bottom', 'left'].map((s) => bcs.getPropertyValue(`margin-${s}`));
     setStyle(html, 'overflow', 'hidden');
-    setStyle(html, 'background', CANVAS);
+    setStyle(html, 'background', background());
     if (pageBg) setStyle(b, 'background-color', pageBg);
     if (m.some((v) => parseFloat(v))) {
       ['top', 'right', 'bottom', 'left'].forEach((s, i) => {
@@ -187,7 +190,14 @@ export function createCanvas({ onChange = () => {}, area = () => ({ left: 0, rig
     zoomAt(1);
   }
 
+  // Set the canvas colour (null: back to the default grey).
+  function setBackground(c) {
+    try { if (c && c.toLowerCase() !== CANVAS) localStorage.setItem(BG_KEY, c); else localStorage.removeItem(BG_KEY); } catch {}
+    if (on) html.style.setProperty('background', background(), 'important');
+  }
+
   return {
     enter, exit, zoomAt, step, panBy, fit, toSelection, reset,
+    background, setBackground, defaultBackground: CANVAS,
   };
 }

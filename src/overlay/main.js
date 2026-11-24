@@ -140,6 +140,9 @@ function init() {
     },
   });
   const panel = createPanel({
+    canvasBackground: () => canvas.background(),
+    setCanvasBackground: (c) => { canvas.setBackground(c); canvasInk(); },
+    defaultCanvasBackground: () => canvas.defaultBackground,
     shadow,
     state,
     changes,
@@ -333,6 +336,8 @@ function init() {
       freeze(true);
       pingTimer = setInterval(() => freeze(true), 2000);
       loop();
+      panel.show(state.selected); // nothing selected: the canvas colour
+      canvasInk();
     } else {
       design.unmount(); // saves the canvas first: discarding page edits must not touch it
       changes.discardAll();
@@ -2595,6 +2600,12 @@ function init() {
       const dir = handle.dataset.dir;
       if (dir.length === 1) panel.textFit(el, /[ew]/.test(dir) ? 'auto-width' : 'auto-height');
     });
+  }
+
+  // Things drawn straight on the canvas (the Duplicate page icon) stay visible on a dark canvas.
+  function canvasInk() {
+    const [r, g, b] = (getComputedStyle(document.documentElement).backgroundColor.match(/[\d.]+/g) || [255, 255, 255]).map(Number);
+    host.style.setProperty('--on-canvas', (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5 ? 'rgba(255, 255, 255, .6)' : 'rgba(0, 0, 0, .45)');
   }
 
   // ---------- Keyboard ----------
