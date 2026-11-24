@@ -93,7 +93,7 @@ check('⌘Z twice restores both', await same());
 
 // Shadow: added to both, then X changed: each keeps its own other values.
 await selectCards(0, 1);
-await p.locator('edit-mode-root button[aria-label="Add shadow"]').click(); await wait();
+await p.locator('edit-mode-root button[aria-label="Add effect"]').click(); await wait();
 await field('Shadow X offset').fill('10'); await field('Shadow X offset').press('Enter'); await wait();
 { const s = await st(() => [...document.querySelectorAll('.card')].map(c => getComputedStyle(c).boxShadow));
   check('Add shadow + X offset reach both cards', s[0] === s[1] && /10px 4px/.test(s[0]) && s[2] === 'none', s.join(' | ')); }

@@ -1901,70 +1901,124 @@ export function createPanel(ctx) {
   });
   strokeSec.head.append(strokeAdd);
 
-  // Effects: first box-shadow, Figma-style.
-  const shadowHidden = () => {
-    const el = sel();
-    const s = hiddenStore.get(el);
-    if (s?.shadow && getComputedStyle(el).boxShadow === 'none') return true;
-    if (s) delete s.shadow;
-    return false;
+  // Effects (Figma, 8a): a list of Drop shadow / Inner shadow (box-shadow layers, in order),
+  // Layer blur (filter: blur) and Background blur (backdrop-filter: blur). Hidden ones are kept
+  // per element (with what the CSS looked like then, so an undo that brings them back wins).
+  const FX_TYPES = [['drop', 'Drop shadow'], ['inner', 'Inner shadow'], ['blur', 'Layer blur'], ['backdrop', 'Background blur']];
+  const blurOf = (v) => { const m = /blur\(\s*([\d.]+)px\s*\)/.exec(v || ''); return m ? +m[1] : null; };
+  const withBlur = (v, px) => {
+    const rest = (v && v !== 'none' ? v : '').replace(/blur\([^)]*\)/, '').trim();
+    const out = [rest, px == null ? '' : `blur(${fmt(px)}px)`].filter(Boolean).join(' ');
+    return out || 'none';
   };
-  const shadowList = () => splitList(shadowHidden() ? hiddenStore.get(sel()).shadow : getComputedStyle(sel()).boxShadow);
-  const shadowFirst = () => parseShadow(shadowList()[0]);
-  function shadowSet(patch) {
-    if (shadowHidden()) {
-      const v = stash(sel()).shadow;
-      delete stash(sel()).shadow;
-      apply('box-shadow', v);
+  // The list as shown: [{ kind: 'shadow' | 'blur' | 'backdrop', value, hidden }]
+  function fxModel(el) {
+    const cs = getComputedStyle(el);
+    const st = hiddenStore.get(el);
+    if (st?.fx && st.fx.seen !== `${cs.boxShadow}|${cs.filter}|${cs.backdropFilter}`) delete st.fx; // stale (an undo)
+    const hid = st?.fx?.list || [];
+    const shadows = splitList(cs.boxShadow).map((value) => ({ kind: 'shadow', value, hidden: false }));
+    for (const x of hid.filter((x) => x.kind === 'shadow').sort((a, b) => a.at - b.at)) shadows.splice(Math.min(x.at, shadows.length), 0, { kind: 'shadow', value: x.value, hidden: true });
+    const out = [...shadows];
+    for (const kind of ['blur', 'backdrop']) {
+      const px = blurOf(kind === 'blur' ? cs.filter : cs.backdropFilter);
+      const h0 = hid.find((x) => x.kind === kind);
+      if (px != null) out.push({ kind, value: px, hidden: false });
+      else if (h0) out.push({ kind, value: h0.value, hidden: true });
     }
-    const list = shadowList();
-    if (!list.length) return;
-    list[0] = buildShadow({ ...parseShadow(list[0]), ...patch });
-    apply('box-shadow', list.join(', '));
+    return out;
   }
-  const shadowNum = (prefix, key, min, title) =>
-    numField({ prefix, title, min,
-      read: () => fmt(shadowFirst()?.[key] ?? 0),
-      write: (t) => (isNumber(t) ? shadowSet({ [key]: Math.max(min, +t) }) : false) });
-  const shadowEye = h('button', 'icon', ICON.eye);
-  shadowEye.addEventListener('click', () => act(null, () => {
-    if (shadowHidden()) {
-      const v = stash(sel()).shadow;
-      delete stash(sel()).shadow;
-      apply('box-shadow', v);
-    } else {
-      stash(sel()).shadow = getComputedStyle(sel()).boxShadow;
-      apply('box-shadow', 'none');
+  function fxWrite(list) {
+    const el = sel();
+    const shadows = list.filter((x) => x.kind === 'shadow');
+    const visible = shadows.filter((x) => !x.hidden).map((x) => x.value).join(', ') || 'none';
+    const cs = getComputedStyle(el);
+    if (cs.boxShadow !== visible) apply('box-shadow', visible);
+    for (const kind of ['blur', 'backdrop']) {
+      const prop = kind === 'blur' ? 'filter' : 'backdrop-filter';
+      const x = list.find((y) => y.kind === kind && !y.hidden);
+      const v = withBlur(getComputedStyle(el).getPropertyValue(prop), x ? x.value : null);
+      if (getComputedStyle(el).getPropertyValue(prop) !== v) {
+        if (v === 'none' && changes.has(el, state.scope, prop)) changes.revert(el, state.scope, prop);
+        if (getComputedStyle(el).getPropertyValue(prop) !== v) apply(prop, v);
+      }
     }
-  }));
-  const shadowX = h('button', 'icon', ICON.x);
-  shadowX.title = 'Remove';
-  shadowX.setAttribute('aria-label', 'Remove shadow');
-  shadowX.addEventListener('click', () => act(null, () => {
-    delete stash(sel()).shadow;
-    clear(['box-shadow'], (cs) => cs.boxShadow !== 'none', () => apply('box-shadow', 'none'));
-  }));
-  const shadowTypeRow = h('div', 'crow');
-  shadowTypeRow.append(
-    dropdown({ title: 'Shadow type',
-      options: () => [['drop', 'Drop shadow'], ['inner', 'Inner shadow']],
-      read: () => (shadowFirst()?.inset ? 'inner' : 'drop'),
-      write: (v) => shadowSet({ inset: v === 'inner' }) }),
-    shadowEye, shadowX);
-  const effects = section('Effects',
-    shadowTypeRow,
-    colorRow({ title: 'Shadow color', read: () => shadowFirst()?.color ?? 'rgba(0, 0, 0, 0.25)', write: (v) => shadowSet({ color: v }) }),
-    row('four',
-      shadowNum('X', 'x', -999, 'Shadow X offset'), shadowNum('Y', 'y', -999, 'Shadow Y offset'),
-      shadowNum('B', 'blur', 0, 'Shadow blur'), shadowNum('S', 'spread', -999, 'Shadow spread')));
-  const shadowAdd = addButton('shadow', () => apply('box-shadow', DEFAULT_SHADOW));
-  effects.head.append(shadowAdd);
-  fields.push(() => {
-    if (!sel()) return;
-    const off = shadowHidden();
-    shadowEye.innerHTML = off ? ICON.eyeOff : ICON.eye;
-    shadowEye.title = off ? 'Show' : 'Hide';
-    effects.body.classList.toggle('off', off);
+    const hidden = list.flatMap((x, i) => (x.hidden ? [{ kind: x.kind, value: x.value, at: x.kind === 'shadow' ? shadows.indexOf(x) : 0 }] : []));
+    const after = getComputedStyle(el);
+    if (hidden.length) stash(el).fx = { list: hidden, seen: `${after.boxShadow}|${after.filter}|${after.backdropFilter}` };
+    else if (hiddenStore.get(el)) delete hiddenStore.get(el).fx;
+  }
+  const fxEdit = (fn) => { const list = fxModel(sel()); if (fn(list) !== false) fxWrite(list); };
+  const typeOfFx = (x) => (x.kind === 'shadow' ? (parseShadow(x.value).inset ? 'inner' : 'drop') : x.kind);
+  function setFxType(i, type) {
+    fxEdit((list) => {
+      const x = list[i];
+      if (!x || typeOfFx(x) === type) return false;
+      if (x.kind === 'shadow' && (type === 'drop' || type === 'inner')) { x.value = buildShadow({ ...parseShadow(x.value), inset: type === 'inner' }); return; }
+      if (type === 'blur' || type === 'backdrop') {
+        if (list.some((y, j) => j !== i && y.kind === type)) return false; // one of each (greyed out in the menu)
+        list[i] = { kind: type, value: x.kind === 'shadow' ? 4 : x.value, hidden: x.hidden };
+      } else list[i] = { kind: 'shadow', value: buildShadow({ ...parseShadow(DEFAULT_SHADOW), inset: type === 'inner' }), hidden: x.hidden };
+      list.sort((a, b) => (a.kind === 'shadow' ? 0 : a.kind === 'blur' ? 1 : 2) - (b.kind === 'shadow' ? 0 : b.kind === 'blur' ? 1 : 2));
+    });
+  }
+  const fxAdd = () => fxEdit((list) => { list.splice(list.filter((x) => x.kind === 'shadow').length, 0, { kind: 'shadow', value: DEFAULT_SHADOW, hidden: false }); });
+
+  const effectsList = h('div', 'fx-list');
+  const effects = section('Effects', effectsList);
+  const fxAddBtn = addButton('effect', fxAdd);
+  effects.head.append(fxAddBtn);
+  let fxSig = null;
+  let fxFields = [];
+  function fxRow(i, x, n) {
+    const label = (t) => (n === 1 ? t : t.replace(/^(Remove shadow|Shadow)/, `$1 ${n}`)); // the first shadow keeps plain names ("Shadow X offset"); then "Shadow 2 X offset"
+    const typeBtn = dropdown({ title: label(x.kind === 'shadow' ? 'Shadow type' : 'Effect type'),
+      options: (el) => { const m = fxModel(el); return FX_TYPES.map(([v, l]) => [v, l, (v === 'blur' || v === 'backdrop') && m.some((y, j) => j !== i && y.kind === v) ? `Already has a ${l.toLowerCase()}` : null]); },
+      read: (el) => (fxModel(el)[i] ? typeOfFx(fxModel(el)[i]) : MIXED),
+      write: (v) => setFxType(i, v) });
+    const eye = h('button', 'icon', x.hidden ? ICON.eyeOff : ICON.eye);
+    eye.title = x.hidden ? 'Show' : 'Hide';
+    eye.addEventListener('click', () => act(null, () => fxEdit((list) => { if (!list[i]) return false; list[i].hidden = !list[i].hidden; })));
+    const del = h('button', 'icon', ICON.x);
+    del.title = 'Remove';
+    del.setAttribute('aria-label', x.kind === 'shadow' ? label('Remove shadow') : `Remove ${x.kind === 'blur' ? 'layer blur' : 'background blur'}`);
+    del.addEventListener('click', () => act(null, () => fxEdit((list) => { if (!list[i]) return false; list.splice(i, 1); })));
+    const head = h('div', 'crow' + (x.hidden ? ' off' : ''));
+    const box = h('div', 'fx' + (x.hidden ? ' off' : ''));
+    if (x.kind !== 'shadow') {
+      const amount = numField({ prefix: 'B', title: x.kind === 'blur' ? 'Layer blur' : 'Background blur', min: 0,
+        read: (el) => fmt(fxModel(el)[i]?.value ?? 0),
+        write: (t) => (isNumber(t) ? fxEdit((list) => { if (!list[i]) return false; list[i].value = Math.max(0, +t); }) : false) });
+      head.append(typeBtn, eye, del);
+      box.append(head, row('two', amount));
+      return box;
+    }
+    const sh = (el) => parseShadow(fxModel(el)[i]?.value);
+    const setSh = (patch) => fxEdit((list) => { if (list[i]?.kind !== 'shadow') return false; list[i].value = buildShadow({ ...parseShadow(list[i].value), ...patch }); });
+    const num1 = (prefix, key, min, title) => numField({ prefix, title: label(title), min,
+      read: (el) => fmt(sh(el)?.[key] ?? 0),
+      write: (t) => (isNumber(t) ? setSh({ [key]: Math.max(min, +t) }) : false) });
+    head.append(typeBtn, eye, del);
+    box.append(head,
+      colorRow({ title: label('Shadow color'), read: (el) => sh(el)?.color ?? 'rgba(0, 0, 0, 0.25)', write: (v) => setSh({ color: v }) }),
+      row('four', num1('X', 'x', -999, 'Shadow X offset'), num1('Y', 'y', -999, 'Shadow Y offset'),
+        num1('B', 'blur', 0, 'Shadow blur'), num1('S', 'spread', -999, 'Shadow spread')));
+    return box;
+  }
+  // Rebuild the rows when the list's shape changes; otherwise just refresh their fields.
+  fields.push((force) => {
+    const el = sel();
+    if (!el) return;
+    const model = fxModel(el);
+    const sig = model.map((x) => `${typeOfFx(x)}${x.hidden ? '-' : ''}`).join(',');
+    if (sig !== fxSig) {
+      fxSig = sig;
+      const n0 = fields.length;
+      let shadowN = 0;
+      effectsList.replaceChildren(...model.map((x, i) => fxRow(i, x, x.kind === 'shadow' ? ++shadowN : 1)));
+      fxFields = fields.splice(n0); // these rows' fields refresh here, and go when the rows do
+    }
+    for (const f of fxFields) f(force);
   });
 
   const footer = h('div', 'foot');
@@ -2151,7 +2205,7 @@ export function createPanel(ctx) {
     empty(fill, fillAdd, !solid && !any((x, s) => s.backgroundImage !== 'none' || gradHidden()));
     fillAdd.hidden = solid;
     empty(strokeSec, strokeAdd, !any((x, s) => strokeOf(s) || strokeHidden()));
-    empty(effects, shadowAdd, !any((x, s) => s.boxShadow !== 'none' || shadowHidden()));
+    effects.classList.toggle('empty', !any((x) => fxModel(x).length > 0)); // + always shows: effects stack
   }
 
   function refresh(force) {

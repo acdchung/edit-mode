@@ -285,6 +285,9 @@ h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--text); }
 .pre.txt { width: 20px; }
 .pre.txt.long { width: 40px; } /* Min W, Max H */
 .pop-sep { height: 1px; margin: 4px 0; background: var(--hair); }
+.fx-list:empty { display: none; }
+.fx + .fx { padding-top: 8px; border-top: 1px solid var(--hair); }
+.fx .crow > .f:first-child { min-width: 0; }
 .mode-tag + .pick { margin-right: 0; }
 input { border: 0; outline: none; background: transparent; font: inherit; font-size: 12px; font-variant-numeric: tabular-nums;
         color: inherit; padding: 0 0 0 8px; margin: 0; min-width: 0; width: 100%; height: 100%; }

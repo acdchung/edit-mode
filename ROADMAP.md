@@ -101,6 +101,7 @@ Steps:
 - Clip content: done early (2026-11-20, a checkbox in Layout).
 
 ### 8. Effects, fills and strokes
+- **8a done 2026-11-24** (`fxModel`/`fxWrite`/`fxRow` in panel.js: the rows rebuild when the list's shape changes and their fields are taken out of the panel's `fields` into `fxFields`; hidden effects kept per element with the CSS they were hidden against; `tests/item8.mjs`).
 - **Plan agreed with the user 2026-11-24:** 8a effects list (Drop shadow, Inner shadow, Layer blur, Background blur; several stack; + adds, type menu per row) → 8b stacked fills (eye, ×, reorder) → 8c stroke solid/dashed/dotted → 8d rotation field + rotate cursor outside the corners (⇧ 15°) + flip H/V buttons beside it. Crop mode: later (the user barely uses it). Before 8a: **canvas background colour** (done 2026-11-24: canvas.js `background`/`setBackground`, `localStorage['edit-mode:canvas-bg']`; the panel's `canvasSec` when nothing is selected; main.js `canvasInk` sets `--on-canvas` so the Duplicate page icon stays visible on dark; `tests/canvasbg.mjs`; `tests/pagewidth.mjs` fixed: it clicked the Duplicate icon off-screen since 2026-11-22) (the user's request): a Canvas section in the panel when nothing is selected (Figma's page Background), per browser, never pushed.
 - Effects: layer blur (`filter: blur`) and background blur (`backdrop-filter`).
 - Several shadows stacked in one `box-shadow`.
