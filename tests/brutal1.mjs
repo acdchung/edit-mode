@@ -23,7 +23,7 @@ async function page() {
 { const p = await page();
   const c = await p.box('.cta-primary');
   await p.keyboard.press('KeyR'); await p.mouse.move(c.x + 5, c.y + c.height + 5); await p.mouse.down(); await p.mouse.move(c.x + 85, c.y + c.height + 45, { steps: 4 }); await p.mouse.up();
-  await p.keyboard.press('KeyT'); await p.mouse.click(c.x + 5, c.y - 4); await p.keyboard.type('Hello'); await p.keyboard.press('Enter');
+  await p.keyboard.press('KeyT'); await p.mouse.click(c.x + 5, c.y - 4); await p.keyboard.type('Hello'); await p.keyboard.press('Escape');
   await p.tap('.eyebrow'); await p.tap('.hero-title', true); await p.keyboard.press('Shift+KeyA');
   await p.tap('main .card:nth-child(1) .card-thumb'); await p.S('input[aria-label="Gradient stop 1"]').fill('FF0000'); await p.keyboard.press('Enter');
   await p.tap('main .card:nth-child(2) .card-title'); await p.keyboard.press('Escape'); await p.keyboard.press('Meta+d');
@@ -40,7 +40,7 @@ async function page() {
 // 2. Emptying a new text leaves an invisible element behind?
 { const p = await page();
   const c = await p.box('.cta-primary');
-  await p.keyboard.press('KeyT'); await p.mouse.click(c.x + 5, c.y + c.height + 5); await p.keyboard.press('Backspace'); await p.keyboard.press('Enter');
+  await p.keyboard.press('KeyT'); await p.mouse.click(c.x + 5, c.y + c.height + 5); await p.keyboard.press('Backspace'); await p.keyboard.press('Escape'); // Enter is a new line since item 6
   const left = await p.evaluate(() => [...document.querySelectorAll('[data-em-new]')].filter(e => e.getClientRects().length).length);
   const listed = await p.evaluate(() => window.__editMode.changes.count);
   check('emptied new text is removed (Figma deletes empty text)', left === 0 && listed === 0, `visible=${left} changes=${listed}`);

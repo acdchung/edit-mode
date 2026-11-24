@@ -1,7 +1,7 @@
 export const ATTR = 'data-src';
 
 // Tags that are never layers (Layers panel, page top level).
-export const NOT_LAYER = /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|LINK|META)$/;
+export const NOT_LAYER = /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|LINK|META|BR)$/; // a <br> is part of its text layer
 
 // Canvas zoom (see canvas.js). Screen pixels ÷ z = CSS pixels.
 export const view = { z: 1 };

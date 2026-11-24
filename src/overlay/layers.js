@@ -6,7 +6,7 @@
 // (Figma lists the topmost layer first; on a web page that's usually last).
 
 import { NOT_LAYER, canvasArea, describe, friendlyName, layerView, onCanvas, visualKids, visualParent } from './util.js';
-import { textNodeOf } from './changes.js';
+import { isText, textOf } from './changes.js';
 import { ICON } from './icons.js';
 
 const INDENT = 14;
@@ -100,8 +100,8 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     const kind = { frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', image: 'Image', group: 'Group' }[n.dataset.emKind];
     if (kind) return kind; // drawn on the canvas
     const tag = n.tagName.toLowerCase();
-    if (n.dataset.emNew && !n.children.length && !textNodeOf(n)) return n.style.borderRadius === '50%' ? 'Ellipse' : 'Rectangle';
-    const text = textNodeOf(n)?.nodeValue.trim();
+    if (n.dataset.emNew && !n.children.length && !isText(n)) return n.style.borderRadius === '50%' ? 'Ellipse' : 'Rectangle';
+    const text = isText(n) ? textOf(n).replace(/\s+/g, ' ').trim() : '';
     if (text) return text.length > 40 ? text.slice(0, 40) + '…' : text;
     if (tag === 'img') return n.alt || 'Image';
     if (n.dataset.emNew) return 'Frame';
@@ -119,7 +119,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     if (n.dataset.emKind === 'group') return ICON.group;
     if (tag === 'svg') return ICON.vector;
     if (/^(img|picture|video)$/.test(tag)) return ICON.image;
-    if (textNodeOf(n)) return ICON.text;
+    if (isText(n)) return ICON.text;
     if (n.dataset.emNew && !n.children.length) return n.style.borderRadius === '50%' ? ICON.ellipse : ICON.rect;
     const cs = getComputedStyle(n);
     if (/flex/.test(cs.display)) return cs.flexDirection.startsWith('column') ? ICON.stackCol : ICON.stackRow;

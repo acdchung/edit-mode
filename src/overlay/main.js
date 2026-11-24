@@ -5,7 +5,7 @@
 import { STYLES } from './styles.js';
 import { ATTR, CANVAS_ATTR, NOT_LAYER, box, canvasArea, describe, family, friendlyName, num, onCanvas, parseColor, passThrough, placedDesigns, placedOf, PLACED_ATTR, sameSource, view, visualKids, visualParent } from './util.js';
 import { createCanvas } from './canvas.js';
-import { createChanges, textNodeOf } from './changes.js';
+import { createChanges, isText } from './changes.js';
 import { collectTokens } from './tokens.js';
 import { createPanel } from './panel.js';
 import { createLayers } from './layers.js';
@@ -757,7 +757,7 @@ function init() {
       const moved = c.parent && c.fromParent && (c.parent.source !== c.fromParent.source || c.parent.index !== c.fromParent.index);
       return moved ? `Move ${who} into ${c.parent.element}, ${where}` : `Move ${who}: position ${c.from + 1} → ${c.to + 1}, ${where}`;
     }
-    if (c.kind === 'text') return `Text of ${who}: “${pretty(c.from)}” → “${pretty(c.to)}”`;
+    if (c.kind === 'text') { const t = (v) => pretty(v).replace(/\n/g, ' ↵ '); return `Text of ${who}: “${t(c.from)}” → “${t(c.to)}”`; }
     return `${propName(c.property)} of ${who}: ${pretty(c.from)} → ${pretty(c.to)}`;
   }
 
@@ -1224,7 +1224,7 @@ function init() {
     glass.setPointerCapture(e.pointerId);
     if (state.tool === 'text') {
       const onText = deepHit(e.clientX, e.clientY);
-      if (onText && textNodeOf(onText)) { // like Figma: the Text tool edits text you click on
+      if (onText && isText(onText)) { // like Figma: the Text tool edits text you click on
         setTool('select');
         select(onText);
         startText(onText);
@@ -1729,7 +1729,7 @@ function init() {
     if (!sel) return;
     const inner = hitInside(sel, x, y);
     if (inner) select(inner);
-    else if (textNodeOf(sel)) startText(sel);
+    else if (isText(sel)) startText(sel);
   }
   glass.addEventListener('dblclick', (e) => drill(e.clientX, e.clientY));
 
@@ -2613,9 +2613,10 @@ function init() {
     const mod = e.metaKey || e.ctrlKey;
     const stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
 
-    // Editing text on the page: Enter or Esc finishes; other keys type.
+    // Editing text (Figma): Enter is a new line; Esc or ⌘Enter finishes; other keys type.
     if (state.editing) {
-      if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Escape') { stop(); stopText(); }
+      if (e.key === 'Escape' || (e.key === 'Enter' && mod)) { stop(); stopText(); }
+      else if (e.key === 'Enter') { stop(); document.execCommand('insertLineBreak'); }
       else if (e.key === ' ') { stop(); document.execCommand('insertText', false, ' '); } // buttons eat Space otherwise
       else e.stopImmediatePropagation();
       return;
@@ -2709,7 +2710,7 @@ function init() {
     if (sel && !mod) {
       if (e.key === 'Enter' && !onControl) {
         stop();
-        if (textNodeOf(sel)) startText(sel);
+        if (isText(sel)) startText(sel);
         else if (sel.firstElementChild) {
           const first = visualKids(sel, (k) => k !== host && k.getClientRects().length > 0)[0] || sel.firstElementChild;
           select(pickable(first) || sel);

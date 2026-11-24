@@ -16,7 +16,7 @@
 // Things on the canvas outside any copy aren't compared (B3d: "Build this").
 
 import { ATTR, NOT_LAYER, canvasArea, describe } from './util.js';
-import { textNodeOf } from './changes.js';
+import { isText, textOf } from './changes.js';
 import { constraintOf, frameBox } from './constraints.js';
 
 const FROM = 'data-em-from';
@@ -242,8 +242,7 @@ export function compareCopy({ top, roots }, copy = { id: 0, name: copyName(top) 
         parent: near(linked.get(linkedUp(c))?.el ?? o.el.parentElement) });
     }
     // Text.
-    const ct = textNodeOf(c), ot = textNodeOf(o.el);
-    if (ct && ot && ct.nodeValue !== ot.nodeValue) out.push({ kind: 'text', ...ref(o), from: ot.nodeValue, to: ct.nodeValue });
+    if (isText(c) && isText(o.el) && textOf(c) !== textOf(o.el)) out.push({ kind: 'text', ...ref(o), from: textOf(o.el), to: textOf(c) });
     // Moved into another container.
     if (!isRoot.has(c)) {
       const up = linkedUp(c);
@@ -297,7 +296,7 @@ export function compareCopy({ top, roots }, copy = { id: 0, name: copyName(top) 
     const pe = n.parentElement;
     if (!linked.has(pe) && !pe.querySelector(`[${FROM}]`)) continue;
     out.push({ kind: 'insert', newId: idOf(n), element: `new ${newName(n)}`, what: n.dataset.emKind || n.tagName.toLowerCase(), tag: n.tagName.toLowerCase(),
-      styles: inlineStyles(n), text: n.children.length ? null : n.textContent, html: cleanHtml(n), parent, ...neighbours(n),
+      styles: inlineStyles(n), text: isText(n) ? textOf(n) : n.children.length ? null : n.textContent, html: cleanHtml(n), parent, ...neighbours(n),
       insideNew: linked.has(pe) ? undefined : idOf(pe), fromCanvas: copy.id, copyName: copy.name });
   }
 

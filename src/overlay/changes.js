@@ -17,10 +17,65 @@ export const POS = '#pos'; // position in the DOM: [parent, nextSibling]
 const SIZE = /^(width|height|flex-basis|(min|max)-(width|height))$/;
 const PLACE = /^(left|right|top|bottom|translate)$/; // canvas positions under constraints (constraints.js)
 
-export const textNodeOf = (el) => {
-  const nodes = [...el.childNodes].filter((n) => !(n.nodeType === 3 && !n.nodeValue.trim() && el.childNodes.length > 1));
-  return nodes.length === 1 && nodes[0].nodeType === 3 ? nodes[0] : null;
+// Text layers: elements holding only text and line breaks (`<br>`), like
+// `Pay people<br/>anywhere`. A line break reads as "\n". Elements with other
+// elements inside (a bold word, a link) aren't text layers (yet).
+const isBr = (n) => n.nodeName === 'BR';
+export const isText = (el) => {
+  const nodes = [...el.childNodes].filter((n) => n.nodeType !== 8); // comments don't count
+  return nodes.some((n) => n.nodeType === 3) && nodes.every((n) => n.nodeType === 3 || isBr(n));
 };
+// A <br> from the code that the text no longer needs is hidden, not removed (React
+// keeps it); the inline style is the mark, so it survives a reload of the canvas.
+const unused = (n) => n.style.display === 'none';
+export const textOf = (el) => [...el.childNodes].map((n) => (n.nodeType === 3 ? n.nodeValue : isBr(n) && !unused(n) ? '\n' : '')).join('');
+
+// The text and <br> nodes React rendered, captured before anything edits them.
+// Writing text never removes them (React would fail to update a node that's
+// gone): lines go into them in order, extra lines get new nodes, and spare ones
+// are emptied (text) or hidden (<br>).
+const base = new WeakMap();
+const added = new WeakMap();
+export const keepNodes = (el) => { if (!base.has(el)) base.set(el, [...el.childNodes].filter((n) => n.nodeType === 3 || isBr(n))); };
+export function setText(el, value) {
+  keepNodes(el);
+  for (const n of added.get(el) || []) n.remove();
+  const own = base.get(el);
+  const texts = own.filter((n) => n.nodeType === 3);
+  const brs = own.filter(isBr);
+  const fresh = [];
+  const out = [];
+  const lines = value.split('\n');
+  lines.forEach((line, i) => {
+    const t = texts.shift() ?? (fresh.push(document.createTextNode('')), fresh.at(-1));
+    t.nodeValue = line;
+    out.push(t);
+    if (i < lines.length - 1) {
+      const br = brs.shift() ?? (fresh.push(document.createElement('br')), fresh.at(-1));
+      if (unused(br)) { br.style.removeProperty('display'); if (br.getAttribute('style') === '') br.removeAttribute('style'); }
+      out.push(br);
+    }
+  });
+  for (const t of texts) { t.nodeValue = ''; out.push(t); }
+  for (const br of brs) { br.style.display = 'none'; out.push(br); }
+  added.set(el, fresh);
+  el.replaceChildren(...out);
+}
+
+// What the person typed while editing (contenteditable may add its own <br>s,
+// text nodes or a <div> per line).
+function typed(el) {
+  let s = '';
+  const walk = (p) => {
+    for (const n of p.childNodes) {
+      if (n.nodeType === 3) s += n.nodeValue;
+      else if (isBr(n)) { if (!unused(n)) s += '\n'; }
+      else if (n.nodeType === 1) { if (s && !s.endsWith('\n') && /^(DIV|P)$/.test(n.nodeName)) s += '\n'; walk(n); }
+    }
+  };
+  walk(el);
+  return s;
+}
 
 export function createChanges(onChange, { getSelection = () => [], setSelection = () => {}, pageRoot = () => null, onCanvas = () => false } = {}) {
   let entries = new Map(); // logical key → entry (what Claude will be told)
@@ -38,7 +93,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
   // ---------- low level ----------
   const read = (el, prop) =>
     prop === TEXT
-      ? textNodeOf(el)?.nodeValue ?? ''
+      ? textOf(el)
       : prop === POS
         ? [el.parentNode, el.nextSibling]
         : [el.style.getPropertyValue(prop), el.style.getPropertyPriority(prop)];
@@ -51,8 +106,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
       return;
     }
     if (prop === TEXT) {
-      const n = textNodeOf(el);
-      if (n) n.nodeValue = value;
+      if (base.has(el) || isText(el)) setText(el, value);
       return;
     }
     if (value[0]) el.style.setProperty(prop, value[0], value[1]);
@@ -275,21 +329,20 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
   // Text editing happens in the DOM (contenteditable); bracket it with these.
   let textEdit = null;
   function beginText(el) {
-    const node = textNodeOf(el);
-    if (!node) return false;
+    if (!base.has(el) && !isText(el)) return false;
+    keepNodes(el);
     const st = step();
     touch(st, el, TEXT);
-    textEdit = { el, node, before: node.nodeValue };
+    textEdit = { el, before: textOf(el) };
     return true;
   }
   function endText() {
     if (!textEdit) return;
-    const { el, node, before } = textEdit;
+    const { el, before } = textEdit;
     textEdit = null;
-    // contenteditable may split/replace text nodes; put React's original node back.
-    const text = el.textContent.replace(/\n$/, '');
-    node.nodeValue = text;
-    el.replaceChildren(node);
+    // contenteditable may split/replace nodes; put React's own nodes back with the new lines.
+    const text = typed(el).replace(/\n$/, ''); // the browser's trailing <br> after a last line break
+    setText(el, text);
     const t = targets(el, 'one');
     const key = `${t.key}|${TEXT}`;
     const from = entries.get(key)?.from ?? before;
@@ -377,7 +430,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
           move(el, c.scope, c.to, ps[c.parent.index ?? 0] || el.parentElement);
         }
         else if (c.kind === 'text' && beginText(el)) {
-          textNodeOf(el).nodeValue = c.to;
+          setText(el, c.to);
           endText();
         }
       }

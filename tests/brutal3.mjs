@@ -84,7 +84,7 @@ const ACTIONS = {
   nudge: async () => { await p.keyboard.press(pick(['ArrowDown', 'ArrowRight', 'Shift+ArrowUp', 'ArrowLeft'])); await wait(); return true; },
   autoLayout: async () => { await p.keyboard.press('Shift+KeyA'); await wait(); return true; },
   group: async (pt) => { const o = await otherPoint(); if (!o) return false; await p.keyboard.down('Shift'); await p.mouse.click(...o); await p.keyboard.up('Shift'); await wait(); await p.keyboard.press('Meta+g'); await wait(); return true; },
-  text: async () => { await p.keyboard.press('Enter'); await wait(); if (!(await st(() => !!window.__editMode.state.editing))) return false; await p.keyboard.type('QA'); await p.keyboard.press('Enter'); await wait(); return true; },
+  text: async () => { await p.keyboard.press('Enter'); await wait(); if (!(await st(() => !!window.__editMode.state.editing))) return false; await p.keyboard.type('QA'); await p.keyboard.press('Escape'); await wait(); return true; },
   drag: async (pt) => { const o = await otherPoint(); if (!o) return false; await drag(pt, o); return true; },
   altDrag: async (pt) => { const o = await otherPoint(); if (!o) return false; await drag(pt, o, ['Alt']); return true; },
   cutPaste: async () => { await p.keyboard.press('Meta+x'); await wait(); await p.keyboard.press('Meta+v'); await wait(); return true; },

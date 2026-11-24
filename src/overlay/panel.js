@@ -8,7 +8,7 @@
 import {
   ATTR, box, colorFromText, describe, family, fmt, isNumber, num, onCanvas, parseColor, parseSrc, placedOf, resolveColor, sameSource,
 } from './util.js';
-import { textNodeOf } from './changes.js';
+import { isText } from './changes.js';
 import { ICON, KEY } from './icons.js';
 import { IMAGE_FIT, fitOf, pickImage, uploadImage } from './assets.js';
 import { CONSTRAINT_OPTIONS, constraintOf, frameBox, isPlaced, placeBox } from './constraints.js';
@@ -1810,7 +1810,7 @@ export function createPanel(ctx) {
     const els = picked();
     const all = (f) => els.every((x) => withEl(x, () => f(x, getComputedStyle(x))));
     const any = (f) => els.some((x) => withEl(x, () => f(x, getComputedStyle(x))));
-    typography.hidden = !all((x) => /^(INPUT|TEXTAREA|SELECT)$/.test(x.tagName) || textNodeOf(x) ||
+    typography.hidden = !all((x) => /^(INPUT|TEXTAREA|SELECT)$/.test(x.tagName) || isText(x) ||
       [...x.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim()));
     gapRow.hidden = !all((x, s) => /flex|grid/.test(s.display));
     clipRow.hidden = !all((x) => x.children.length > 0 || x.dataset.emKind === 'frame'); // things that can hold content

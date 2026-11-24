@@ -79,7 +79,15 @@ Steps:
 - Constraints (left/right/center…) are optional, later.
 
 ### 6. Text
-- **NEXT.** Today (2026-11-23): Enter or Esc *finishes* editing (`main.js` keydown, "Editing text on the page"); the editing outline was fixed the same day (only the 1px selection frame). Check the panel's Text section in `panel.js` for what exists before proposing steps.
+- **NEXT. Plan agreed with the user 2026-11-23** (the Text section already had font, weight, size, line height, letter spacing, horizontal align, color; only elements holding a single text node are editable):
+  - **6a** Done 2026-11-23 (`isText`/`textOf`/`setText`/`keepNodes` in changes.js: text layers are text + `<br>`s; writing never removes React's own nodes, spare ones are emptied or hidden with an inline `display: none`; `tests/item6.mjs`, `COPY=<sample copy>` adds a real JSX `<br />` case). Enter = new line (shown live, pushed as `<br />`), Esc / ⌘Enter / click outside finish; text that already has `<br>`s in the code becomes editable as lines.
+  - **6b** Resizing: Auto width / Auto height / Fixed size buttons in Text, in step with Layout's W/H.
+  - **6c** Vertical align (top/middle/bottom), greyed out with a reason unless Fixed size.
+  - **6d** "⋯" Type details menu: decoration (none/underline/strikethrough), case (as typed/UPPER/lower/Title), **truncate text with a number of lines** (`-webkit-line-clamp`, default 1). Paragraph spacing dropped (in code it's Layout's gap/margin).
+  - **6e** Fonts from your computer (Chrome's Local Font Access, one-time permission): one searchable list, "On this page" first, then "On your computer" A–Z; the weight menu offers the picked font's real styles, **italics included**. Push marks local-only fonts ("installed on your computer only") and Claude says whether the project loads them. Safari/Firefox keep today's picker.
+  - **6f** Google Fonts in the same picker (work for everyone; Push adds them to the project).
+  - **Later (the user: "needs to become editable eventually"):** editing text with mixed styles inside (a bold word, a link).
+- Before this: Enter or Esc *finished* editing (`main.js` keydown, "Editing text on the page"); the editing outline was fixed 2026-11-23 (only the 1px selection frame).
 - While editing:
   - Enter inserts a line break (`<br>`); Esc or clicking outside finishes
   - ⌘Enter also finishes

@@ -20,7 +20,7 @@ Rules:
 3. `scope: "all"`: change the shared CSS rule (or, for a `new #N` family, the class that the new element and its copies share). Render copies so that they use the same rule.
    `scope: "one"`: add a modifier class for just that instance (e.g. `.card--featured`) and style it. If the element is rendered from a list (`.map`), apply the class conditionally using the item's data or index, whichever is cleanest.
 4. Prefer existing CSS variables and values. If a new value is very close to an existing variable or a value used elsewhere (15px next to a 16px scale), use the existing one. Don't change values that are clearly deliberate.
-5. `kind: "text"`: change the text in the JSX, or in the data it comes from.
+5. `kind: "text"`: change the text in the JSX, or in the data it comes from. A `\n` in `from`/`to` is a line break: write it as `<br />` in JSX (or the way the data already marks line breaks). A `text` in an insert or a build follows the same rule.
 6. `kind: "delete"`: remove the element from the JSX. For `scope: "one"` in a list, remove that item from the data or filter it out, whichever is cleanest. Remove CSS that becomes unused only if it's obviously dead.
 7. `kind: "move"`: the element was dragged to a new spot. `fromParent`/`from` say where it was, `parent`/`to` where it is now (`from`/`to` are 0-based positions among the parent's element children; each parent has its `source` and `index` among elements from that source). `after`/`before` name its new neighbours.
    - Same parent: reorder the JSX. If the siblings come from a `.map` over data, reorder the data instead.
