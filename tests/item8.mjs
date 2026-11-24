@@ -123,6 +123,47 @@ check('one side: only that side changes', (await sides()) === 'none none dashed 
 check('Push gets the border style', await p.evaluate(() => window.__editMode.changes.list().some(c => /border.*style/.test(c.property))));
 check('⌘Z steps all the way back', await undoAll(start));
 
+// 8d. Rotation and flip.
+const tf = (q) => p.$eval(q, e => { const c = getComputedStyle(e); return `${c.rotate}|${c.scale}`; });
+await pick('.cta-primary'); await p.waitForTimeout(80);
+check('Rotation reads 0', (await field('Rotation').inputValue()) === '0', await field('Rotation').inputValue());
+await set('Rotation', 15);
+check('15° in the field turns it counter-clockwise (Figma): CSS rotate −15deg', (await tf('.cta-primary')) === '-15deg|none', await tf('.cta-primary'));
+await btn('Rotate 90° right').click(); await p.waitForTimeout(80);
+check('Rotate 90° right', (await tf('.cta-primary')) === '75deg|none' && (await field('Rotation').inputValue()) === '-75', `${await tf('.cta-primary')} ${await field('Rotation').inputValue()}`);
+await set('Rotation', 0);
+check('0 takes the rotation off', (await tf('.cta-primary')).startsWith('none') || (await tf('.cta-primary')).startsWith('0deg'), await tf('.cta-primary'));
+await btn('Flip horizontal').click(); await p.waitForTimeout(80);
+check('Flip horizontal = scale -1 1', (await tf('.cta-primary')).endsWith('|-1 1'), await tf('.cta-primary'));
+await btn('Flip vertical').click(); await p.waitForTimeout(80);
+check('then Flip vertical = -1 -1 (Chrome writes it "-1")', /\|-1( -1)?$/.test(await tf('.cta-primary')), await tf('.cta-primary'));
+await btn('Flip horizontal').click(); await p.waitForTimeout(80); await btn('Flip vertical').click(); await p.waitForTimeout(80);
+check('flipping back leaves nothing behind', (await tf('.cta-primary')).endsWith('|none') && !(await p.evaluate(() => window.__editMode.changes.list().some(c => c.property === 'scale'))), await tf('.cta-primary'));
+// Drag the zone just outside a corner: a quarter turn clockwise, ⇧ snaps to 15°.
+const zone = await p.evaluate(() => { const r = document.querySelector('edit-mode-root').shadowRoot.querySelector('.frame .rot[data-dir="ne"]').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+const bb = await p.locator('.cta-primary').boundingBox();
+const [cx, cy] = [bb.x + bb.width / 2, bb.y + bb.height / 2];
+const ang = Math.atan2(zone[1] - cy, zone[0] - cx); const rad = Math.hypot(zone[0] - cx, zone[1] - cy);
+await p.mouse.move(...zone); await p.keyboard.down('Shift'); await p.mouse.down();
+for (let i = 1; i <= 8; i++) { const a = ang + (Math.PI / 2) * (i / 8); await p.mouse.move(cx + rad * Math.cos(a), cy + rad * Math.sin(a)); }
+await p.mouse.up(); await p.keyboard.up('Shift'); await p.waitForTimeout(100);
+check('dragging a corner zone a quarter turn with ⇧: 90° clockwise', (await tf('.cta-primary')).startsWith('90deg') && (await field('Rotation').inputValue()) === '-90', `${await tf('.cta-primary')} ${await field('Rotation').inputValue()}`);
+const props = await p.evaluate(() => window.__editMode.changes.list().map(c => c.property));
+check('Push gets rotate', props.includes('rotate'), props.join(','));
+const own = await p.$eval('.cta-primary', e => [e.offsetWidth, e.offsetHeight]);
+const wh = [Math.round(+(await field('Width').inputValue())), Math.round(+(await field('Height').inputValue()))];
+check("rotated: W/H show the layer's own size, not its tilted footprint", Math.abs(wh[0] - own[0]) <= 1 && Math.abs(wh[1] - own[1]) <= 1, `${wh} vs ${own}`);
+if (process.env.SHOT) {
+  await set('Rotation', -12);
+  const r = await p.locator(R('section:has(h4:text-is("Layout"))')).boundingBox();
+  await p.screenshot({ path: process.env.SHOT.replace(/\.png$/, '') + '-rot.png', clip: { x: r.x - 4, y: r.y - 4, width: r.width + 8, height: 200 } });
+  await p.evaluate(() => document.querySelector('edit-mode-root').style.visibility = 'hidden');
+  const hb = await p.locator('.hero').boundingBox();
+  await p.screenshot({ path: process.env.SHOT.replace(/\.png$/, '') + '-hero.png', clip: { x: hb.x, y: hb.y, width: hb.width, height: hb.height } });
+  await p.evaluate(() => document.querySelector('edit-mode-root').style.visibility = '');
+}
+check('⌘Z steps all the way back', await undoAll(start));
+
 check('no page errors', !errors.length, errors.join(' | '));
 console.log(results.join('\n'));
 console.log(`${results.filter(r => r.startsWith('PASS')).length}/${results.length} passed`);

@@ -73,6 +73,12 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 
 .handle { position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; background: #fff;
           border: 1px solid var(--accent); border-radius: 1px; pointer-events: auto; }
+.rot { position: absolute; width: 16px; height: 16px; pointer-events: auto; cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2720%27%20height%3D%2720%27%20viewBox%3D%27-2%20-2%2028%2028%27%20fill%3D%27none%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cg%20stroke%3D%27white%27%20stroke-width%3D%275%27%3E%3Cpath%20d%3D%27M21%2012a9%209%200%201%201-9-9c2.52%200%204.93%201%206.74%202.74L21%208%27%20/%3E%3Cpath%20d%3D%27M21%203v5h-5%27%20/%3E%3C/g%3E%3Cg%20stroke%3D%27black%27%20stroke-width%3D%272%27%3E%3Cpath%20d%3D%27M21%2012a9%209%200%201%201-9-9c2.52%200%204.93%201%206.74%202.74L21%208%27%20/%3E%3Cpath%20d%3D%27M21%203v5h-5%27%20/%3E%3C/g%3E%3C/svg%3E") 10 10, crosshair; } /* Lucide rotate-cw */
+.rot[data-dir="nw"] { left: -20px; top: -20px; }
+.rot[data-dir="ne"] { left: calc(100% + 4px); top: -20px; }
+.rot[data-dir="sw"] { left: -20px; top: calc(100% + 4px); }
+.rot[data-dir="se"] { left: calc(100% + 4px); top: calc(100% + 4px); }
+.frame.editing .rot, .frame.passive .rot { display: none; }
 .handle[data-dir="nw"] { left: 0; top: 0; cursor: nwse-resize; }
 .handle[data-dir="n"]  { left: 50%; top: 0; cursor: ns-resize; }
 .handle[data-dir="ne"] { left: 100%; top: 0; cursor: nesw-resize; }

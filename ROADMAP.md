@@ -101,7 +101,9 @@ Steps:
 - Clip content: done early (2026-11-20, a checkbox in Layout).
 
 ### 8. Effects, fills and strokes
+- **Done 2026-11-24 (8a–8d).**
 - **Colour picker (2026-11-24, the user: the browser's white picker looked sloppy):** `picker()` in panel.js, at the top of every `colorPop` (below the fill type tabs): saturation/brightness square, hue and opacity bars, eyedropper, hex and opacity; `toHsva`/`hsvToRgb`; the canvas background passes `{ alpha: false }`; "Custom…" (the native `<input type=color>`) is gone. `tests/picker.mjs`.
+- **8d done 2026-11-24** (`rotOf`/`setRot`/`flip`/`rotRow` in panel.js, `panel.rotate`; main.js `.rot` zones outside the corners with a Lucide rotate-cw cursor; `util.js` `box()` measures rotated/flipped elements unrotated (`ownRect`), so W/H/X/Y and labels show the layer's own size; `tests/item8.mjs` 48 checks; `item4.mjs` pans before its zoomed gap drag (the taller panel covered it)). The selection frame is still drawn around the tilted footprint (Figma draws it rotated).
 - **8c done 2026-11-24** (the Stroke style dropdown in panel.js, through `strokeSet('style')`: only the stroke's own sides; outside strokes keep it; other code styles (double…) show by name). Figma's custom dash lengths: CSS can't.
 - **8b done 2026-11-24** (`bgModel`/`bgWrite`, `li` (the open layer), `layerRow`/`dragRow`, `solidLayer`/`solidOf` (a solid fill above others = a one-colour gradient), `solidRow` in panel.js; `tests/item8.mjs` 30 checks; `c3b` still passes).
 - **8a done 2026-11-24** (`fxModel`/`fxWrite`/`fxRow` in panel.js: the rows rebuild when the list's shape changes and their fields are taken out of the panel's `fields` into `fxFields`; hidden effects kept per element with the CSS they were hidden against; `tests/item8.mjs`).

@@ -108,9 +108,10 @@ async function open(url, ready) {
 
   // Zoomed in: screen pixels are halved into CSS pixels.
   await p.keyboard.press('Meta+Equal'); await wait(120);
+  await p.mouse.move(400, 400); await p.mouse.wheel(120, 0); await wait(120); // pan left: zoomed in, the row's gap sits under the properties panel
   const zoom = parseInt(await h.R(() => document.querySelector('edit-mode-root').shadowRoot.querySelector('.zoom-btn').textContent), 10) / 100;
   const s2 = await h.rect('.signup');
-  await p.mouse.move(s2.x + 30, s2.y + s2.h / 2); await wait();
+  await p.mouse.move(Math.max(s2.x, 10) + 30, s2.y + s2.h / 2); await wait();
   gap = await h.zone('gap:0');
   await h.drag(gap, 40, 0);
   const want = `${Math.round(8 + 40 / zoom)}px`;

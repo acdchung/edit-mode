@@ -1089,6 +1089,40 @@ export function createPanel(ctx) {
     limitRow.hidden = !shown.some(Boolean);
   }
 
+  // Rotation and flip (8d; Figma's row under X / Y): CSS's own `rotate` and `scale`
+  // properties, so a transform the code already has is left alone. The field reads
+  // like Figma's (positive = counter-clockwise); CSS turns clockwise, so it's negated.
+  const rotOf = (cs) => { const m = /(-?[\d.]+)deg/.exec(cs.rotate || ''); return m ? +m[1] : 0; };
+  const scaleOf = (cs) => { const v = (cs.scale && cs.scale !== 'none' ? cs.scale : '1 1').split(/\s+/).map(Number); return [v[0], v[1] ?? v[0]]; };
+  function setRot(cssDeg) {
+    let d = ((cssDeg % 360) + 540) % 360 - 180; // −180…180
+    d = Math.round(d * 100) / 100;
+    if (changes.has(sel(), state.scope, 'rotate')) changes.revert(sel(), state.scope, 'rotate');
+    if (rotOf(getComputedStyle(sel())) !== d) apply('rotate', d ? `${d}deg` : '0deg');
+  }
+  function flip(axis) {
+    const [x, y] = scaleOf(getComputedStyle(sel()));
+    const [nx, ny] = axis === 'h' ? [-x, y] : [x, -y];
+    if (changes.has(sel(), state.scope, 'scale')) changes.revert(sel(), state.scope, 'scale');
+    const [cx, cy] = scaleOf(getComputedStyle(sel()));
+    if (cx !== nx || cy !== ny) apply('scale', nx === 1 && ny === 1 ? 'none' : `${nx} ${ny}`);
+  }
+  const rotField = numField({ prefix: ICON.rotate, title: 'Rotation', suffix: '°', min: -360,
+    read: (el, cs) => fmt(-rotOf(cs) || 0),
+    write: (t) => (isNumber(t) ? setRot(-t) : false) });
+  const rotBtn = (icon, title, fn) => {
+    const b = h('button', 'icon', ICON[icon]);
+    b.title = title;
+    b.setAttribute('aria-label', title);
+    b.addEventListener('click', () => act(null, fn));
+    return b;
+  };
+  const rotRow = h('div', 'crow');
+  rotRow.append(rotField,
+    rotBtn('rotate90', 'Rotate 90° right', () => setRot(rotOf(getComputedStyle(sel())) + 90)),
+    rotBtn('flipH', 'Flip horizontal', () => flip('h')),
+    rotBtn('flipV', 'Flip vertical', () => flip('v')));
+
   // X / Y (C4b): where something placed freely sits in its frame (top-level: on the canvas).
   const posRow = row('two',
     ...[['x', 'X'], ['y', 'Y']].map(([k, label]) => numField({
@@ -1144,6 +1178,7 @@ export function createPanel(ctx) {
     sizeRow,
     limitRow,
     posRow,
+    rotRow,
     gapRow,
     spacing('padding', 'padding', 0),
     spacing('margin', 'margin', -9999),
@@ -2453,6 +2488,9 @@ export function createPanel(ctx) {
     sizeModeOf: (el, axis) => sizeMode(el, axis), // for tests
     // Resize handles: set one element's size (CSS px), whatever is selected.
     sizeOf: (el, scope, axis, px) => withEl(el, () => setSize(axis, String(px)), scope),
+    // The rotate zones outside the corners (CSS degrees, clockwise).
+    rotationOf: (el) => rotOf(getComputedStyle(el)),
+    rotate: (el, scope, cssDeg) => withEl(el, () => setRot(cssDeg), scope),
     // Text and the resize handles (Figma): dragging a side of one-line text lets it wrap
     // (Auto height); double-clicking a side or the bottom fits it (Auto width / Auto height).
     textWrap: (el, scope) => withEl(el, () => wrapText(), scope),

@@ -9,9 +9,22 @@ export const view = { z: 1 };
 // An element's box in CSS pixels, unaffected by the canvas zoom. Use it for
 // sizes and distances; use getBoundingClientRect for drawing on screen.
 export function box(el) {
-  const r = el.getBoundingClientRect();
+  const r = ownRect(el);
   const z = view.z;
   return { left: r.left / z, top: r.top / z, right: r.right / z, bottom: r.bottom / z, width: r.width / z, height: r.height / z };
+}
+
+// Its rect as if it weren't rotated or flipped (8d): Figma's W/H/X/Y are the layer's own size,
+// not the tilted footprint. Only elements with their own rotate/scale pay for the swap.
+function ownRect(el) {
+  const cs = getComputedStyle(el);
+  if ((cs.rotate === 'none' || /^0deg$/.test(cs.rotate)) && cs.scale === 'none') return el.getBoundingClientRect();
+  const saved = ['rotate', 'scale'].map((p) => [p, el.style.getPropertyValue(p), el.style.getPropertyPriority(p)]);
+  for (const [p] of saved) el.style.setProperty(p, 'none', 'important');
+  const r = el.getBoundingClientRect();
+  for (const [p, v, prio] of saved) { if (v) el.style.setProperty(p, v, prio); else el.style.removeProperty(p); }
+  if (el.getAttribute('style') === '') el.removeAttribute('style');
+  return r;
 }
 
 export const fmt = (n) => String(Math.round(n * 10) / 10);

@@ -51,6 +51,7 @@ function init() {
       <div class="layer spacing"></div>
       <div class="sz-label" hidden></div>
       <div class="frame" hidden>
+        ${['nw', 'ne', 'sw', 'se'].map((d) => `<i class="rot" data-dir="${d}"></i>`).join('')}
         ${['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'].map((d) => `<i class="handle" data-dir="${d}"></i>`).join('')}
         <div class="size"></div>
       </div>
@@ -2606,6 +2607,43 @@ function init() {
   function canvasInk() {
     const [r, g, b] = (getComputedStyle(document.documentElement).backgroundColor.match(/[\d.]+/g) || [255, 255, 255]).map(Number);
     host.style.setProperty('--on-canvas', (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5 ? 'rgba(255, 255, 255, .6)' : 'rgba(0, 0, 0, .45)');
+  }
+
+  // ---------- Rotate (8d) ----------
+  // Just outside each corner handle (Figma): drag to rotate around the centre, ⇧ snaps to
+  // 15°. Several selected: each turns around its own centre by the same angle. One ⌘Z.
+  for (const zone of frame.querySelectorAll('.rot')) {
+    zone.addEventListener('pointerdown', (e) => {
+      const el = state.selected;
+      if (!el || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      zone.setPointerCapture(e.pointerId);
+      const els = state.multi.length > 1 ? state.multi.filter((k) => k.isConnected) : [el];
+      const scope = els.length > 1 ? 'one' : state.scope;
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const angle = (ev) => (Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180) / Math.PI;
+      const a0 = angle(e);
+      const starts = els.map((k) => [k, panel.rotationOf(k)]);
+      const group = `rotate:${Date.now()}`;
+      const move = (ev) => {
+        if (!(ev.buttons & 1)) return up();
+        const d = angle(ev) - a0;
+        changes.batch(group, () => {
+          for (const [k, r0] of starts) panel.rotate(k, scope, ev.shiftKey ? Math.round((r0 + d) / 15) * 15 : Math.round(r0 + d));
+        });
+      };
+      const up = () => {
+        zone.removeEventListener('pointermove', move);
+        zone.removeEventListener('pointerup', up);
+        zone.removeEventListener('pointercancel', up);
+        panel.refresh(true);
+      };
+      zone.addEventListener('pointermove', move);
+      zone.addEventListener('pointerup', up);
+      zone.addEventListener('pointercancel', up);
+    });
   }
 
   // ---------- Keyboard ----------
