@@ -47,7 +47,6 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 .hover, .frame, .box, .ghost, .insert { position: fixed; pointer-events: none; }
 .hover { border: 1px solid var(--accent); }
 .frame { border: 1px solid var(--accent); }
-.frame.editing { border-width: 2px; }
 .frame.editing .handle, .frame.editing .size { display: none; }
 .frame.moving, .multis.moving { opacity: .35; }
 .frame.group .size { transform: translate(-50%, 27px); } /* below the selected elements' own labels */

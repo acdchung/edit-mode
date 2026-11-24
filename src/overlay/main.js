@@ -2445,12 +2445,16 @@ function init() {
   // ---------- Text editing ----------
   const POINTER_EVENTS = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'dblclick'];
 
+  let textOutline = null; // the edited text's own inline outline, put back when editing ends
   function startText(el) {
     if (!changes.beginText(el)) return;
     state.editing = el;
     glass.hidden = true;
     frame.classList.add('editing');
     el.contentEditable = 'plaintext-only';
+    // No browser focus ring: the selection frame (1px, square) is the only outline, as in Figma.
+    textOutline = [el.style.getPropertyValue('outline'), el.style.getPropertyPriority('outline')];
+    el.style.setProperty('outline', 'none', 'important');
     el.focus();
     const range = document.createRange();
     range.selectNodeContents(el);
@@ -2465,6 +2469,9 @@ function init() {
     state.editing = null;
     for (const t of POINTER_EVENTS) window.removeEventListener(t, guardWhileEditing, true);
     el.removeAttribute('contenteditable');
+    if (textOutline?.[0]) el.style.setProperty('outline', ...textOutline); else el.style.removeProperty('outline');
+    if (el.getAttribute('style') === '') el.removeAttribute('style');
+    textOutline = null;
     getSelection().removeAllRanges();
     changes.endText();
     glass.hidden = !state.on;
