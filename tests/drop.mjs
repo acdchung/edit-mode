@@ -38,9 +38,13 @@ const home = await R(() => { const s = document.querySelector('[data-em-name="Pr
 const people = await rectOf('#root .people');
 const ui = (s) => document.querySelector('edit-mode-root').shadowRoot.querySelector(s);
 const mid = await drag(center(await rectOf('[data-em-name="Promo"]')), [people.x + people.w / 2, people.y + 6],
-  () => ({ line: !document.querySelector('edit-mode-root').shadowRoot.querySelector('.insert')?.hidden }));
+  () => {
+    const l = document.querySelector('edit-mode-root').shadowRoot.querySelector('.insert');
+    const r = l.getBoundingClientRect(), a = document.querySelector('#root .charts').getBoundingClientRect(), b = document.querySelector('#root .people').getBoundingClientRect();
+    return { line: !l.hidden, mid: r.top + r.height / 2, gap: (a.bottom + b.top) / 2 };
+  });
 let s = await R(() => { const n = document.querySelector('[data-em-name="Promo"]'); const cs = getComputedStyle(n); return { onPage: document.querySelector('#root').contains(n), next: n.nextElementSibling?.className, placed: n.hasAttribute('data-em-placed'), pos: cs.position, w: n.getBoundingClientRect().width / window.__editMode.state.view?.z || null, bg: cs.backgroundColor, font: getComputedStyle(n.firstElementChild).fontSize }; });
-check('dragged over the page, the insert line shows', mid?.line, JSON.stringify(mid));
+check('dragged over the page, the insert line shows, in the middle of the gap between the charts and the people card', mid?.line && Math.abs(mid.mid - mid.gap) < 1.5, JSON.stringify(mid));
 check('dropped on the page: it’s in the content column, before the people card', s.onPage && /^people/.test(s.next || ''), JSON.stringify(s));
 check('it joins the flow (no longer placed at x/y) and keeps its look', s.placed && s.pos === 'relative' && s.bg === 'rgb(255, 236, 200)' && s.font === '15px', JSON.stringify(s));
 const w = await R(() => { const n = document.querySelector('[data-em-name="Promo"]'); return [getComputedStyle(n).width, n.getAttribute('style')]; });

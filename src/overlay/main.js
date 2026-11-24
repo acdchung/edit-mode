@@ -940,9 +940,15 @@ function init() {
     const row = /flex/.test(pcs.display) && /^row/.test(pcs.flexDirection);
     const r = el.getBoundingClientRect();
     const first = row ? x < r.left + r.width / 2 : y < r.top + r.height / 2;
+    // In the middle of the gap to the neighbour on that side (Figma), else on the edge.
+    const nb = (first ? sibs[i - 1] : sibs[i + 1])?.getBoundingClientRect();
+    const near = nb && (row ? Math.abs(nb.top - r.top) < r.height / 2 : true);
+    const at = row
+      ? (first ? (near && nb.right <= r.left ? (nb.right + r.left) / 2 : r.left) : (near && nb.left >= r.right ? (r.right + nb.left) / 2 : r.right))
+      : (first ? (near && nb.bottom <= r.top ? (nb.bottom + r.top) / 2 : r.top) : (near && nb.top >= r.bottom ? (r.bottom + nb.top) / 2 : r.bottom));
     const line = row
-      ? { left: (first ? r.left : r.right) - 1, top: r.top, width: 3, height: r.height }
-      : { left: r.left, top: (first ? r.top : r.bottom) - 1, width: r.width, height: 3 };
+      ? { left: at - 1, top: r.top, width: 3, height: r.height }
+      : { left: r.left, top: at - 1, width: r.width, height: 3 };
     const after = first ? sibs[i - 1] ?? null : el;
     const before = first ? el : sibs[i + 1] ?? null;
     // Named as Layers shows it (invisible wrappers like <main> skipped); the code location stays the real parent.
