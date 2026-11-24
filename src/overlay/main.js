@@ -2598,6 +2598,22 @@ function init() {
   }
 
   // ---------- Keyboard ----------
+  // Figma's text shortcuts: ⌘B / ⌘I / ⌘U, ⇧⌘> / ⇧⌘< font size ±1 (⌥: ±10), ⌥⌘L / ⌥⌘T / ⌥⌘R align text.
+  // True when the key was one of them and there's text selected.
+  function textKey(e) {
+    if (!(e.metaKey || e.ctrlKey) || !state.selected) return false;
+    if (!e.shiftKey && !e.altKey) {
+      const kind = { KeyB: 'bold', KeyI: 'italic', KeyU: 'underline' }[e.code];
+      return kind ? panel.textKey(kind) : false;
+    }
+    if (e.shiftKey && (e.code === 'Period' || e.code === 'Comma')) return panel.textKey('size', (e.code === 'Period' ? 1 : -1) * (e.altKey ? 10 : 1));
+    if (e.altKey && !e.shiftKey) {
+      const align = { KeyL: 'left', KeyT: 'center', KeyR: 'right' }[e.code];
+      return align ? panel.textKey('align', align) : false;
+    }
+    return false;
+  }
+
   // Hold ⌥ to measure distances from the selection to what you hover.
   const trackAlt = (e) => { if (e.key === 'Alt') state.alt = e.type === 'keydown'; };
   window.addEventListener('keydown', trackAlt, true);
@@ -2636,6 +2652,7 @@ function init() {
     // Editing text (Figma): Enter is a new line; Esc or ⌘Enter finishes; other keys type.
     if (state.editing) {
       if (e.key === 'Escape' || (e.key === 'Enter' && mod)) { stop(); stopText(); }
+      else if (textKey(e)) stop(); // ⌘B, ⌘I… style the whole text layer
       else if (e.key === 'Enter') { stop(); document.execCommand('insertLineBreak'); }
       else if (e.key === ' ') { stop(); document.execCommand('insertText', false, ' '); } // buttons eat Space otherwise
       else e.stopImmediatePropagation();
@@ -2677,6 +2694,9 @@ function init() {
       return;
     }
     if (mod && e.code === 'KeyY') { stop(); changes.redo(); return; }
+    if (mod && e.shiftKey && !e.altKey && e.code === 'KeyH' && state.selected) { stop(); layers.toggleHiddenAll(selection()); return; } // ⇧⌘H (Figma)
+    if (mod && e.shiftKey && !e.altKey && e.code === 'KeyL' && state.selected) { stop(); layers.toggleLockAll(selection()); return; } // ⇧⌘L (Figma)
+    if (textKey(e)) { stop(); return; }
     if (mod && e.code === 'KeyG' && !e.shiftKey) { stop(); groupSelection(); return; }
     if (mod && e.code === 'KeyG' && e.shiftKey) { stop(); ungroupSelection(); return; } // ⇧⌘G (Figma)
     if (mod && /^Bracket(Left|Right)$/.test(e.code) && state.selected) { // ⌘] ⌘[ ⌥⌘] ⌥⌘[ (Figma), also blocks the browser's Back

@@ -440,6 +440,16 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     setOpen,
     get open() { return !el.hidden; },
     isLocked,
+    // ⇧⌘H / ⇧⌘L (Figma): like the eye and the lock, for the selection. Several: if every one is
+    // already hidden (locked), all show (unlock); otherwise all hide (lock). One ⌘Z for hiding.
+    toggleHiddenAll: (els) => {
+      const show = els.every(hiddenByUs);
+      changes.batch(`hide:${Date.now()}`, () => { for (const n of els) if (hiddenByUs(n) === show) toggleHidden(n); });
+    },
+    toggleLockAll: (els) => {
+      const unlock = els.every((n) => state.locked.has(n));
+      for (const n of els) if (state.locked.has(n) === unlock) toggleLock(n);
+    },
     rowFor: (n) => (rows.includes(rowOf.get(n)) ? rowOf.get(n).row : null), // for tests
   };
 }

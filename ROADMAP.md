@@ -108,8 +108,11 @@ Steps:
   - per-side: done early (2026-11-20, the sides menu next to Stroke weight)
   - dashed or dotted (`border-style`)
 - Rotation: a field, plus a rotate cursor just outside a corner handle (`transform: rotate`).
+- Flip horizontal / vertical as buttons next to rotation in the panel (Figma's row; the user, 2026-11-24: "i use flip as a control in the side panel"), not as ⇧H/⇧V shortcuts.
 
 ### 9. Figma shortcuts
+
+**Plan agreed with the user 2026-11-24:** 9a (done 2026-11-24: `toggleHiddenAll`/`toggleLockAll` in layers.js, `textKey` in main.js → `panel.textKey`; `tests/item9.mjs`) ⇧⌘H hide/show and ⇧⌘L lock (shortcuts for what Layers has); text shortcuts ⌘B bold, ⌘I italic, ⌘U underline, ⇧⌘> / ⇧⌘< font size ±1 (⌥: ±10), ⌥⌘L / ⌥⌘T / ⌥⌘R align text left/center/right. 9b ⌥⌘C / ⌥⌘V copy and paste style: fill, stroke, effects, corner radius, opacity and text style (font, size, weight, style, line height, letter spacing, alignment, decoration, case), not size or layout; onto several at once; one ⌘Z. Flip: skipped as a shortcut, goes in the panel with rotation (item 8).
 
 | Shortcut | Action |
 |---|---|

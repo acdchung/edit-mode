@@ -2101,6 +2101,29 @@ export function createPanel(ctx) {
       input.select();
     },
     menuOpen: () => !pop.hidden,
+    // Figma's text shortcuts on the selection (all of it must be text): bold, italic, underline,
+    // font size up/down, text alignment. Returns false when nothing selected has text.
+    textKey: (kind, arg) => {
+      if (!sel() || typography.hidden) return false;
+      act(null, () => {
+        const cs = getComputedStyle(sel());
+        if (kind === 'bold') {
+          const on = picked().every((x) => num(getComputedStyle(x).fontWeight) >= 600);
+          apply('font-weight', on ? '400' : '700');
+          nearestStyle();
+        } else if (kind === 'italic') {
+          const on = picked().every((x) => /italic|oblique/.test(getComputedStyle(x).fontStyle));
+          apply('font-style', on ? 'normal' : 'italic');
+          nearestStyle();
+        } else if (kind === 'underline') {
+          const on = picked().every((x) => /underline/.test(getComputedStyle(x).textDecorationLine));
+          apply('text-decoration-line', on ? 'none' : 'underline');
+        } else if (kind === 'size') apply('font-size', `${Math.max(1, Math.round(num(cs.fontSize)) + arg)}px`);
+        else if (kind === 'align') apply('text-align', arg);
+      });
+      refresh(true);
+      return true;
+    },
     closeMenu: closePop,
   };
 }
