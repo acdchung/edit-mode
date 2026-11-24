@@ -116,7 +116,7 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .toggle:focus-visible, .act:focus-visible, .pbtn:focus-visible, .icon:focus-visible, .seg button:focus-visible,
-.pick:focus-visible, .sw:focus-visible, .dd:focus-visible, .swatch:focus-visible, .pop-item:focus-visible, .btn:focus-visible
+.pick:focus-visible, .sw:focus-visible, .dd:focus-visible, .swatch:focus-visible, .pop-item:focus-visible
   { outline: 1.5px solid var(--accent); outline-offset: 1px; }
 
 .dialog { width: 400px; max-width: calc(100vw - 32px); padding: 16px; border-radius: 14px; pointer-events: auto; }
@@ -340,7 +340,21 @@ input::selection { background: rgba(13,153,255,.4); }
 /* ---------- Popover ---------- */
 .pop { position: fixed; z-index: 2; min-width: 150px; width: max-content; max-width: 240px; max-height: 300px; overflow-y: auto;
        padding: 4px; border-radius: 10px; pointer-events: auto; user-select: none; }
-.pop:has(.sw-grid) { width: 224px; padding: 10px; }
+.pop:has(.sw-grid), .pop.colors { width: 240px; padding: 10px; max-height: none; }
+/* The colour picker (dark, like the rest of the panel) */
+.cp { margin-bottom: 10px; }
+.cp-sv { position: relative; height: 164px; border-radius: 6px; cursor: crosshair; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); touch-action: none; }
+.cp-tools { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.cp-bars { flex: 1; display: grid; gap: 8px; }
+.cp-bar { position: relative; height: 12px; border-radius: 6px; cursor: pointer; touch-action: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.cp-hue { background: linear-gradient(to right, #f00, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00); }
+.cp-alpha { background: repeating-conic-gradient(#777 0 25%, #555 0 50%) 0 0 / 8px 8px; }
+.cp-alpha-fill { position: absolute; inset: 0; border-radius: inherit; }
+.cp-knob { position: absolute; width: 12px; height: 12px; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none;
+           box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,.25), 0 1px 3px rgba(0,0,0,.4); }
+.cp-bar .cp-knob { top: 50%; }
+.cp-fields { margin-bottom: 2px; }
+.cp-fields .hex { padding-left: 10px; }
 .pop-title { color: var(--muted); font-size: 11px; margin: 0 0 6px; }
 .pop.details { width: 200px; padding: 10px; }
 .pop.fonts { width: 232px; max-height: none; overflow: hidden; padding: 8px; }
@@ -358,12 +372,6 @@ input::selection { background: rgba(13,153,255,.4); }
 .sw { all: unset; aspect-ratio: 1; border-radius: 5px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); transition: transform 120ms var(--ease); }
 @media (hover: hover) and (pointer: fine) { .sw:hover { transform: scale(1.1); } }
 .sw.on { outline: 1.5px solid var(--accent); outline-offset: 1.5px; }
-.pop-row { display: flex; gap: 6px; }
-.btn { all: unset; cursor: pointer; height: 26px; padding: 0 10px; border-radius: 6px; background: var(--field); font-size: 11.5px;
-       font-weight: 500; position: relative; display: inline-flex; align-items: center; }
-.btn:hover { background: var(--field-hover); }
-.icon-btn { padding: 0 7px; }
-.native-color { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; padding: 0; }
 .pop-item { all: unset; display: block; box-sizing: border-box; width: 100%; padding: 5px 8px; border-radius: 6px; cursor: pointer;
             font-size: 12px; font-variant-numeric: tabular-nums; }
 .pop-item:hover { background: var(--field-hover); }
@@ -441,11 +449,11 @@ input::selection { background: rgba(13,153,255,.4); }
 .pill { overflow: hidden; }
 
 /* Press feedback: everything clickable gives a little (menu items don't, like native menus). */
-.toggle, .act, .pbtn, .btn, .tools button, .mbtn, .dd {
+.toggle, .act, .pbtn, .tools button, .mbtn, .dd {
   transition: background-color 120ms ease, color 120ms ease, transform 160ms var(--ease); }
 .icon, .pick, .lbtn, .seg button, .swatch {
   transition: background-color 120ms ease, color 120ms ease, transform 160ms var(--ease); }
-.toggle:active, .act:active:not(:disabled), .pbtn:active, .btn:active, .tools button:active, .mbtn:active, .dd:active { transform: scale(.97); }
+.toggle:active, .act:active:not(:disabled), .pbtn:active, .tools button:active, .mbtn:active, .dd:active { transform: scale(.97); }
 .icon:active, .pick:active, .lbtn:active, .seg button:active, .swatch:active { transform: scale(.95); }
 .zmenu button:focus-visible, .mbtn:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 1px; }
 

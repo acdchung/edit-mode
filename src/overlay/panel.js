@@ -30,6 +30,23 @@ const STYLE_PROPS = ['background-color', 'background-image', 'background-size', 
 const TEXT_PROPS = ['font-family', 'font-size', 'font-weight', 'font-style', 'line-height', 'letter-spacing', 'text-align',
   'text-decoration-line', 'text-transform', 'color'];
 const hasText = (el) => isText(el) || [...el.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim());
+// Any CSS colour → hue (0–360), saturation, value (0–1) and alpha (the colour picker's model).
+const colorCtx = document.createElement('canvas').getContext('2d');
+function toHsva(c) {
+  colorCtx.fillStyle = '#000';
+  colorCtx.fillStyle = c || '#000';
+  const v = colorCtx.fillStyle; // "#rrggbb" or "rgba(r, g, b, a)"
+  const m = /^#(..)(..)(..)$/.exec(v);
+  const [r, g, b, a = 1] = m ? [...m.slice(1).map((x) => parseInt(x, 16)), 1] : v.match(/[\d.]+/g).map(Number);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: (h * 60 + 360) % 360, s: max ? d / max : 0, v: max / 255, a };
+}
+function hsvToRgb(h, s, v) {
+  const f = (n) => { const k = (n + h / 60) % 6; return Math.round(255 * (v - v * s * Math.max(0, Math.min(k, 4 - k, 1)))); };
+  return [f(5), f(3), f(1)];
+}
 const DEFAULT_FILL = '#FFFFFF';
 const DEFAULT_SHADOW = '0px 4px 4px 0px rgba(0, 0, 0, 0.25)';
 const SIDES = ['top', 'right', 'bottom', 'left'];
@@ -273,10 +290,10 @@ export function createPanel(ctx) {
     });
   }
 
-  function colorPop(anchor, current, onPick, head) {
+  function colorPop(anchor, current, onPick, head, opts = {}) {
     const t = ctx.tokens();
     openPop(anchor, (box) => {
-      head?.(box);
+      box.classList.add('colors');
       const grid = (title, items) => {
         if (!items.length) return;
         box.append(h('div', 'pop-title', title));
@@ -290,36 +307,117 @@ export function createPanel(ctx) {
         }
         box.append(g);
       };
+      head?.(box); // the fill type tabs, above the picker
+      picker(box, current, onPick, opts);
       grid('Variables', t.colorVars.map((v) => ({ rgb: v.rgb, value: v.value, title: `${v.name}  ${parseColor(v.rgb)?.hex ?? ''}` })));
       grid('On this page', t.colors.map((c) => ({ rgb: c, value: c, title: parseColor(c)?.hex ?? c })));
 
-      const row = h('div', 'pop-row');
-      const custom = h('label', 'btn', 'Custom…');
-      const picker = h('input');
-      picker.type = 'color';
-      picker.className = 'native-color';
-      const parsed = parseColor(current);
-      if (parsed) picker.value = parsed.hex.toLowerCase();
-      picker.addEventListener('input', () => onPick(picker.value, 'picker'));
-      custom.append(picker);
-      row.append(custom);
-      if ('EyeDropper' in window) {
-        const drop = h('button', 'btn icon-btn', ICON.drop);
-        drop.title = 'Pick a color from the screen';
-        drop.addEventListener('click', async () => {
-          closePop();
-          try {
-            const { sRGBHex } = await new window.EyeDropper().open();
-            onPick(sRGBHex);
-          } catch {} // cancelled
-        });
-        row.append(drop);
-      }
-      box.append(row);
     });
   }
 
-  // ---------- Field builders ----------
+  // The colour picker at the top of every colour menu (Figma's): a saturation /
+  // brightness square, hue and opacity sliders, the eyedropper, hex and opacity.
+  // Drawn by Edit Mode (the browser's own picker can't match the dark UI).
+  // Dragging edits live; `onPick(value, 'picker')` lets the caller keep one undo step.
+  function picker(box, current, onPick, { alpha = true } = {}) {
+    let { h: hue, s: sat, v: val, a } = toHsva(current);
+    const cp = h('div', 'cp');
+    const sv = h('div', 'cp-sv');
+    const svKnob = h('i', 'cp-knob');
+    sv.append(svKnob);
+    const hueBar = h('div', 'cp-bar cp-hue');
+    const hueKnob = h('i', 'cp-knob');
+    hueBar.append(hueKnob);
+    const alphaBar = h('div', 'cp-bar cp-alpha');
+    const alphaFill = h('div', 'cp-alpha-fill');
+    const alphaKnob = h('i', 'cp-knob');
+    alphaBar.append(alphaFill, alphaKnob);
+    const bars = h('div', 'cp-bars');
+    bars.append(hueBar);
+    if (alpha) bars.append(alphaBar);
+    const tools = h('div', 'cp-tools');
+    if ('EyeDropper' in window) {
+      const drop = h('button', 'icon', ICON.drop);
+      drop.title = 'Pick a color from the screen';
+      drop.setAttribute('aria-label', 'Pick a color from the screen');
+      drop.addEventListener('click', async () => {
+        try {
+          const { sRGBHex } = await new window.EyeDropper().open();
+          ({ h: hue, s: sat, v: val } = toHsva(sRGBHex));
+          paint(); emit();
+        } catch {} // cancelled
+      });
+      tools.append(drop);
+    }
+    tools.append(bars);
+    const fields = h('div', 'field color cp-fields');
+    const hexIn = h('input', 'hex');
+    hexIn.spellcheck = false;
+    hexIn.setAttribute('aria-label', 'Hex');
+    fields.append(hexIn);
+    let alphaIn;
+    if (alpha) {
+      alphaIn = h('input', 'alpha');
+      alphaIn.setAttribute('aria-label', 'Opacity');
+      fields.append(h('span', 'divider'), alphaIn, h('span', 'sfx', '%'));
+    }
+    cp.append(sv, tools, fields);
+    box.append(cp);
+
+    const rgb = () => hsvToRgb(hue, sat, val);
+    const hex = () => '#' + rgb().map((x) => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const value = () => (a < 1 ? `rgba(${rgb().join(', ')}, ${Math.round(a * 100) / 100})` : hex());
+    function paint() {
+      const pure = `rgb(${hsvToRgb(hue, 1, 1).join(', ')})`;
+      sv.style.background = `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${pure})`;
+      svKnob.style.left = `${sat * 100}%`;
+      svKnob.style.top = `${(1 - val) * 100}%`;
+      svKnob.style.background = hex();
+      hueKnob.style.left = `${(hue / 360) * 100}%`;
+      hueKnob.style.background = pure;
+      alphaFill.style.background = `linear-gradient(to right, transparent, ${hex()})`;
+      alphaKnob.style.left = `${a * 100}%`;
+      if (shadow.activeElement !== hexIn) hexIn.value = hex().slice(1);
+      if (alphaIn && shadow.activeElement !== alphaIn) alphaIn.value = Math.round(a * 100);
+    }
+    const emit = () => onPick(value(), 'picker');
+    const drag = (el, fn) => el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      const at = (ev) => {
+        const r = el.getBoundingClientRect();
+        fn(Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height)));
+        paint(); emit();
+      };
+      at(e);
+      const up = () => { el.removeEventListener('pointermove', at); el.removeEventListener('pointerup', up); };
+      el.addEventListener('pointermove', at);
+      el.addEventListener('pointerup', up);
+    });
+    drag(sv, (x, y) => { sat = x; val = 1 - y; });
+    drag(hueBar, (x) => { hue = x * 360; });
+    drag(alphaBar, (x) => { a = Math.round(x * 100) / 100; });
+    const keys = (input, commit) => {
+      input.addEventListener('focus', () => input.select());
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); else if (e.key === 'Escape') { paint(); input.blur(); } });
+      input.addEventListener('change', commit);
+    };
+    keys(hexIn, () => {
+      const c = colorFromText(hexIn.value);
+      fields.classList.toggle('bad', !c);
+      if (!c) return;
+      ({ h: hue, s: sat, v: val } = toHsva(c));
+      paint(); emit();
+    });
+    if (alphaIn) keys(alphaIn, () => {
+      if (!isNumber(alphaIn.value.trim())) return paint();
+      a = Math.min(100, Math.max(0, +alphaIn.value)) / 100;
+      paint(); emit();
+    });
+    paint();
+  }
+
+  // ---------- Field builders ----------  // ---------- Field builders ----------
   const cap = (text) => h('div', 'cap', text);
 
   // Number-ish field: ↑/↓ nudge (Shift = 10), Enter commits, Esc reverts,
@@ -2095,7 +2193,7 @@ export function createPanel(ctx) {
     bgWrap.classList.remove('bad');
   };
   const setBg = (c) => { ctx.setCanvasBackground(c); paintBg(); };
-  bgSw.addEventListener('click', () => colorPop(bgSw, ctx.canvasBackground(), (v) => setBg(parseColor(v)?.hex || v)));
+  bgSw.addEventListener('click', () => colorPop(bgSw, ctx.canvasBackground(), (v) => setBg(parseColor(v)?.hex || v), null, { alpha: false }));
   bgHex.addEventListener('focus', () => bgHex.select());
   bgHex.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') bgHex.blur();
