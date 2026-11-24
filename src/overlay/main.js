@@ -15,6 +15,7 @@ import { ICON, KEY as GLYPH } from './icons.js';
 import { IMAGE_FIT, isImageFile, uploadImage } from './assets.js';
 import { frameBox, placeBox } from './constraints.js';
 import { createSnapper } from './snap.js';
+import { loadedByCode, notLoaded } from './fonts.js';
 import { buildHtml, compareCanvas, componentName, designName, linkDesign, newDesigns, relinkCanvas, rememberLinks } from './compare.js';
 
 if (!window.__editModeOverlay) {
@@ -726,7 +727,16 @@ function init() {
     return s.length > 40 ? s.slice(0, 39) + '…' : s;
   };
   const PIN = { h: { start: 'left', end: 'right', both: 'left and right', center: 'centered', scale: 'scaling' }, v: { start: 'top', end: 'bottom', both: 'top and bottom', center: 'centered', scale: 'scaling' } };
-  function describeChange(c) {
+  // A font the project doesn't load (picked from this computer): it only shows where it's installed (6e).
+  const fontNotLoaded = (c) => c.kind === 'style' && c.property === 'font-family' && !loadedByCode(c.value || c.to);
+  const describeChange = (c) => describeOne(c) + (fontNotLoaded(c) ? ' · installed on your computer only' : '');
+  // What Claude is told about such fonts, on the change (or the new design) that uses them.
+  function markFonts(c) {
+    if (fontNotLoaded(c)) return { ...c, fontNotLoaded: true };
+    const fonts = c.kind === 'build' ? notLoaded(c.html) : [];
+    return fonts.length ? { ...c, fontsNotLoaded: fonts } : c;
+  }
+  function describeOne(c) {
     if (c.fromCanvas != null) {
       const who = c.element + (c.scope === 'all' ? ` (all ${c.count})` : c.count > 1 ? ' (just this one)' : '');
       const spot = c.after ? `after ${c.after.element}` : c.before ? `before ${c.before.element}` : 'first';
@@ -982,7 +992,7 @@ function init() {
 
   async function push() {
     if (conflicting()) return;
-    const list = [...changes.list(), ...canvasToSend(), ...buildsToSend()];
+    const list = [...changes.list(), ...canvasToSend(), ...buildsToSend()].map(markFonts);
     if (!list.length) return;
     if (list.some((c) => c.fromCanvas != null)) store.set(KEY.relink, '1'); // the code moves under the copies: link them again on the next load
     // New designs being built: after the push, a placed one is linked to its new code, a component goes back to Skip.

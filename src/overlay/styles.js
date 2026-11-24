@@ -338,6 +338,12 @@ input::selection { background: rgba(13,153,255,.4); }
 .pop:has(.sw-grid) { width: 224px; padding: 10px; }
 .pop-title { color: var(--muted); font-size: 11px; margin: 0 0 6px; }
 .pop.details { width: 200px; padding: 10px; }
+.pop.fonts { width: 232px; max-height: none; overflow: hidden; padding: 8px; }
+.pop.fonts .field { margin-bottom: 6px; }
+.font-list { height: 280px; overflow-y: auto; margin: 0 -4px; padding: 0 4px; } /* a fixed height, so the menu doesn't jump as the list fills */
+.font-list .pop-title { margin: 8px 0 4px 8px; }
+.font-list .pop-title:first-child { margin-top: 2px; }
+.font-list .pop-empty { white-space: normal; }
 .pop.details .seg { margin-bottom: 10px; }
 .pop.details .checkrow { height: 24px; }
 .pop.details .lines { display: grid; grid-template-columns: 1fr 64px; align-items: center; gap: 8px; margin-top: 4px; }

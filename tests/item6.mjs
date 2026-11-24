@@ -6,6 +6,10 @@ const check = (name, ok, detail = '') => results.push(`${ok ? 'PASS' : 'FAIL'}  
 const p = await b.newPage({ viewport: { width: 1280, height: 1000 } });
 const errors = []; p.on('pageerror', e => errors.push(e.message)); p.on('dialog', d => d.accept());
 await p.addInitScript(() => { try { localStorage.setItem('edit-mode:layers', '0'); } catch {} });
+// Fonts on this computer (6e): a fixed list stands in for Chrome's (its permission prompt can't be answered in a test).
+await p.addInitScript(() => { window.queryLocalFonts = async () => [['Avenir Next', 'Regular'], ['Avenir Next', 'Demi Bold'], ['Avenir Next', 'Demi Bold Italic'], ['Menlo', 'Regular'], ['.SF NS', 'Regular']].map(([family, style]) => ({ family, style, fullName: `${family} ${style}`, postscriptName: family })); });
+const pushed = [];
+await p.route('**/@edit-mode/push', (route) => { pushed.push(JSON.parse(route.request().postData())); route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"test: not sent"}' }); });
 await p.goto('http://localhost:5390'); await p.waitForSelector('.cta-primary');
 const html = () => p.$eval('#root', e => e.innerHTML.replace(/ style=""/g, ''));
 const start = await html();
@@ -130,8 +134,8 @@ const ml = p.locator(R('input[aria-label="Max lines"]'));
 await ml.fill('2'); await ml.press('Enter'); await p.waitForTimeout(80);
 c = await cs();
 check('Max lines 2: two lines', c.clamp === '2' && Math.abs(c.h - 2 * oneLine) < 4, JSON.stringify(c));
-const pushed = await p.evaluate(() => window.__editMode.changes.list().filter(c => c.kind === 'style').map(c => c.property));
-check('Push lists them as style changes', ['text-decoration-line', 'text-transform', '-webkit-line-clamp'].every(x => pushed.includes(x)), pushed.join(','));
+const styled = await p.evaluate(() => window.__editMode.changes.list().filter(c => c.kind === 'style').map(c => c.property));
+check('Push lists them as style changes', ['text-decoration-line', 'text-transform', '-webkit-line-clamp'].every(x => styled.includes(x)), styled.join(','));
 await p.locator(R('.pop.details .checkrow')).click(); await p.waitForTimeout(80);
 check('unticking Truncate removes it', (await cs()).clamp === 'none' && !(await inline('display')), JSON.stringify(await cs()));
 await p.keyboard.press('Escape');
@@ -144,6 +148,41 @@ await p.evaluate(() => document.querySelector('.lines').remove());
   await p.keyboard.press('KeyT'); await p.mouse.click(...c2); await p.keyboard.type('Hi'); await p.keyboard.press('Escape'); await p.waitForTimeout(80);
   check('new text is Auto width', (await mode()) === 'auto-width', `${await mode()} ${await p.evaluate(() => { const s = window.__editMode.state.selected; return s.outerHTML.slice(0, 200); })}`);
   check('⌘Z removes it', await undoAll(start)); }
+
+// 6e. Fonts: the page's first, then this computer's; a font's own styles; Push marks fonts the code doesn't load.
+{ await pick('.hero-title'); await p.waitForTimeout(60);
+  await btn('Fonts').click(); await p.waitForTimeout(150);
+  const groups = () => p.evaluate(() => { const l = document.querySelector('edit-mode-root').shadowRoot.querySelector('.pop.fonts .font-list'); const out = []; for (const n of l.children) n.classList.contains('pop-title') ? out.push([n.textContent]) : out.at(-1)?.push(n.textContent); return out; });
+  let g = await groups();
+  check('font list: the page first, then this computer (hidden system fonts left out)', g[0]?.[0] === 'On this page' && g[0].length > 1 && g[1]?.[0] === 'On your computer' && g[1].includes('Avenir Next') && g[1].includes('Menlo') && !g.flat().includes('.SF NS'), JSON.stringify(g));
+  check('the search field has focus', await p.evaluate(() => document.querySelector('edit-mode-root').shadowRoot.activeElement?.getAttribute('aria-label')) === 'Search fonts');
+  await p.keyboard.type('aven'); await p.waitForTimeout(60);
+  g = await groups();
+  check('search filters', JSON.stringify(g) === JSON.stringify([['On your computer', 'Avenir Next']]), JSON.stringify(g));
+  await p.keyboard.press('Enter'); await p.waitForTimeout(100);
+  check('Enter picks it', (await p.$eval('.hero-title', e => getComputedStyle(e).fontFamily)).startsWith('"Avenir Next"'), await p.$eval('.hero-title', e => getComputedStyle(e).fontFamily));
+  check('a Bold title moves to the nearest style the font has (Demi Bold)', (await p.$eval('.hero-title', e => getComputedStyle(e).fontWeight)) === '600');
+  await btn('Font weight').click(); await p.waitForTimeout(100);
+  const items = await p.locator(R('.pop .pop-item')).allTextContents();
+  check("the style menu lists the font's own styles", items.join('|') === 'Regular|Demi Bold|Demi Bold Italic', items.join('|'));
+  await p.locator(R('.pop .pop-item'), { hasText: 'Demi Bold Italic' }).click(); await p.waitForTimeout(80);
+  const st = await p.$eval('.hero-title', e => { const c = getComputedStyle(e); return c.fontWeight + ' ' + c.fontStyle; });
+  check('Demi Bold Italic → weight 600, italic', st === '600 italic', st);
+  await p.keyboard.press('Meta+Enter'); await p.waitForTimeout(250);
+  const rows = await p.locator(R('.dialog .list li')).allTextContents();
+  check('the Push list says the font is installed on this computer only', rows.some(r => /Font.*Avenir Next.*installed on your computer only/i.test(r)), rows.join(' / '));
+  check('…and only for the font', rows.filter(r => /installed on your computer only/.test(r)).length === 1, rows.join(' / '));
+  await p.locator(R('.dialog .pbtn.primary')).click(); await p.waitForTimeout(400);
+  const sent = pushed.at(-1)?.changes || [];
+  check('Push tells Claude (fontNotLoaded)', sent.some(c => c.property === 'font-family' && c.fontNotLoaded === true) && !sent.some(c => c.property !== 'font-family' && c.fontNotLoaded), JSON.stringify(sent.map(c => [c.property, c.fontNotLoaded])));
+  await p.keyboard.press('Escape'); await p.waitForTimeout(100);
+  // A font the page loads is not marked; other fonts get the nine weights, each also italic.
+  await pick('.cta-primary'); await p.waitForTimeout(60);
+  await btn('Font weight').click(); await p.waitForTimeout(100);
+  const gen = await p.locator(R('.pop .pop-item')).allTextContents();
+  check('a font not on this computer: nine weights, each also italic', gen.length === 18 && gen.includes('Bold Italic') && gen.includes('Italic'), gen.join('|'));
+  await p.keyboard.press('Escape');
+  check('⌘Z restores the page', await undoAll(start)); }
 
 // A <br /> written in the code (COPY=<sample copy dir>: edits its Hero.jsx, then restores it).
 if (process.env.COPY) {

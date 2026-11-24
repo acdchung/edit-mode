@@ -9,6 +9,7 @@ import {
   ATTR, box, colorFromText, describe, family, fmt, isNumber, num, onCanvas, parseColor, parseSrc, placedOf, resolveColor, sameSource,
 } from './util.js';
 import { isText } from './changes.js';
+import { firstFamily, loadLocal, localFamilies, localStatus, localStyles } from './fonts.js';
 import { ICON, KEY } from './icons.js';
 import { IMAGE_FIT, fitOf, pickImage, uploadImage } from './assets.js';
 import { CONSTRAINT_OPTIONS, constraintOf, frameBox, isPlaced, placeBox } from './constraints.js';
@@ -328,15 +329,18 @@ export function createPanel(ctx) {
     input.setAttribute('aria-label', def.title);
     wrap.append(input);
     if (def.suffix) wrap.append(h('span', 'sfx', def.suffix));
-    if (def.picks) {
+    if (def.picks || def.pickPop) {
       const pickBtn = h('button', 'pick', ICON.chevron);
       pickBtn.title = def.pickTitle || 'Values used on this page';
-      pickBtn.addEventListener('click', () =>
-        listPop(pickBtn, def.picks().map((v) => [v, v]), input.value, (v) => {
-          input.value = v;
-          commit(null);
-          refreshField(true);
-        }));
+      pickBtn.setAttribute('aria-label', def.pickTitle || `${def.title} suggestions`);
+      const set = (v) => {
+        input.value = v;
+        commit(null);
+        refreshField(true);
+      };
+      pickBtn.addEventListener('click', () => (def.pickPop
+        ? def.pickPop(pickBtn, input.value, set)
+        : listPop(pickBtn, def.picks().map((v) => [v, v]), input.value, set)));
       wrap.append(pickBtn);
     }
     let modeTag;
@@ -1132,6 +1136,85 @@ export function createPanel(ctx) {
       radiusCell),
     radiusFour);
 
+  // Font styles (Figma): a font from this computer lists its own styles
+  // ("Medium Italic"); any other font gets the nine weights, each also italic.
+  // A value is "weight|normal" or "weight|italic".
+  const styleKey = (cs) => `${cs.fontWeight}|${/italic|oblique/.test(cs.fontStyle) ? 'italic' : 'normal'}`;
+  const styleName = (key) => {
+    const [w, st] = key.split('|');
+    const name = (WEIGHTS.find(([x]) => x === w) || [w, w])[1];
+    return st === 'italic' ? (name === 'Regular' ? 'Italic' : `${name} Italic`) : name;
+  };
+  function styleOptions(cs) {
+    const own = localStyles(firstFamily(cs.fontFamily));
+    const opts = own
+      ? own.map((x) => [`${x.weight}|${x.italic ? 'italic' : 'normal'}`, x.name])
+      : WEIGHTS.flatMap(([w]) => [`${w}|normal`, `${w}|italic`]).map((k) => [k, styleName(k)]);
+    const now = styleKey(cs);
+    return opts.some(([v]) => v === now) ? opts : [...opts, [now, styleName(now)]];
+  }
+
+  // A font from this computer without the current style: its nearest style (Figma), same italic first.
+  function nearestStyle() {
+    const cs = getComputedStyle(sel());
+    const own = localStyles(firstFamily(cs.fontFamily));
+    if (!own || own.some((x) => `${x.weight}|${x.italic ? 'italic' : 'normal'}` === styleKey(cs))) return;
+    const italic = styleKey(cs).endsWith('italic');
+    const best = [...own].sort((a, b) => (a.italic !== italic) - (b.italic !== italic) || Math.abs(a.weight - num(cs.fontWeight)) - Math.abs(b.weight - num(cs.fontWeight)))[0];
+    apply('font-weight', String(best.weight));
+    apply('font-style', best.italic ? 'italic' : 'normal');
+  }
+
+  // The font list (Figma's font picker): search, the page's fonts first, then
+  // this computer's (Chrome asks once for permission; the click opening the
+  // list is what lets it ask). Enter picks the first match.
+  function fontPop(anchor, current, onPick) {
+    openPop(anchor, (box) => {
+      box.classList.add('fonts');
+      const field = h('label', 'field');
+      const search = h('input');
+      search.placeholder = 'Search fonts';
+      search.spellcheck = false;
+      search.setAttribute('aria-label', 'Search fonts');
+      field.append(search);
+      const list = h('div', 'font-list');
+      box.append(field, list);
+      const page = ctx.tokens().fonts;
+      const render = () => {
+        const q = search.value.trim().toLowerCase();
+        const match = (f) => !q || f.toLowerCase().includes(q);
+        list.replaceChildren();
+        const group = (title, fams) => {
+          if (!fams.length) return;
+          list.append(h('div', 'pop-title', title));
+          for (const f of fams) {
+            const b = h('button', 'pop-item' + (f === current ? ' on' : ''));
+            b.textContent = f;
+            b.addEventListener('click', () => { closePop(); onPick(f); });
+            list.append(b);
+          }
+        };
+        group('On this page', page.filter(match));
+        const st = localStatus();
+        if (st === 'ready') group('On your computer', localFamilies().filter((f) => !page.includes(f) && match(f)));
+        else if (st === 'loading') list.append(h('div', 'pop-title', 'On your computer'), h('div', 'pop-empty', 'Loading…'));
+        else if (st === 'denied') list.append(h('div', 'pop-title', 'On your computer'),
+          h('div', 'pop-empty', 'Chrome didn\'t allow access to your fonts. Allow Fonts in the site settings (left of the address), then reopen this list.'));
+        if (!list.querySelector('.pop-item') && q) list.append(h('div', 'pop-empty', 'No fonts match'));
+      };
+      search.addEventListener('input', render);
+      search.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); list.querySelector('.pop-item')?.click(); }
+        else if (e.key === 'Escape') { e.preventDefault(); closePop(); }
+      });
+      if (localStatus() !== 'ready' && localStatus() !== 'unsupported') {
+        loadLocal().then(() => { if (box.contains(list)) render(); });
+      }
+      render();
+      requestAnimationFrame(() => search.focus());
+    });
+  }
+
   // Text resizing (Figma): Auto width = one line that hugs; Auto height = a set
   // (or filling) width that wraps, as tall as its text; Fixed size = both set.
   const noWrap = (cs) => cs.textWrapMode === 'nowrap' || /nowrap|^pre$/.test(cs.whiteSpace);
@@ -1250,19 +1333,24 @@ export function createPanel(ctx) {
   // Text
   const typography = section('Text',
     row('one',
-      numField({ title: 'Font', picks: () => ctx.tokens().fonts,
+      numField({ title: 'Font', pickPop: fontPop, pickTitle: 'Fonts',
         read: (el, cs) => cs.fontFamily.split(',')[0].replace(/["']/g, '').trim(),
         write: (t) => {
           const rest = getComputedStyle(sel()).fontFamily.split(',').slice(1).join(',').trim();
           const value = t.includes(',') ? t : `"${t.replace(/["']/g, '')}"${rest ? ', ' + rest : ''}`;
           if (!CSS.supports('font-family', value)) return false;
           apply('font-family', value);
+          nearestStyle();
         } })),
     row('two',
       dropdown({ title: 'Font weight',
-        options: (el, cs) => (WEIGHTS.some(([w]) => w === cs.fontWeight) ? WEIGHTS : [...WEIGHTS, [cs.fontWeight, cs.fontWeight]]),
-        read: (el, cs) => cs.fontWeight,
-        write: (v) => apply('font-weight', v) }),
+        options: (el, cs) => styleOptions(cs),
+        read: (el, cs) => styleKey(cs),
+        write: (v) => {
+          const [w, style] = v.split('|');
+          apply('font-weight', w);
+          apply('font-style', style);
+        } }),
       numField({ title: 'Font size', picks: () => ctx.tokens().fontSizes, min: 1,
         read: pxRead('font-size'), write: pxWriter('font-size', { min: 1 }) })),
     row('two',
