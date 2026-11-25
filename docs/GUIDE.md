@@ -11,7 +11,7 @@ Everything Edit Mode does, in detail. For a quick start, see the [README](../REA
 | Double-click | Go one level deeper. On selected text, edit it |
 | ⌘-click | Select the deepest element directly (hold ⌘ to preview it on hover) |
 | Esc / Enter | Select parent / first child (Enter on text starts editing it). Esc past the top level deselects |
-| While editing text | Enter starts a new line (a line break, `<br />` in the code); Esc, ⌘Enter or a click outside finishes. Text that already has line breaks in the code can be edited too |
+| While editing text | Enter starts a new line (a line break, `<br />` in the code); Esc, ⌘Enter or a click outside finishes. Text that already has line breaks in the code can be edited too, and so can text with styled words inside (a bold name, a link, a tag) or an icon: the styling stays, the icon can't be typed away, and pasting adds words only |
 | ⌫ / Delete | Delete element |
 | Arrows / Shift + arrows | Nudge 1px / 10px (margin); inside auto layout, move earlier/later. With several selected, all of them (as a block in auto layout) |
 | ⌘Z / ⌘⇧Z | Undo / redo |

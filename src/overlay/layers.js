@@ -6,7 +6,7 @@
 // (Figma lists the topmost layer first; on a web page that's usually last).
 
 import { NOT_LAYER, canvasArea, describe, friendlyName, layerView, onCanvas, visualKids, visualParent } from './util.js';
-import { isText, textOf } from './changes.js';
+import { isRich, isText, textOf } from './changes.js';
 import { ICON } from './icons.js';
 
 const INDENT = 14;
@@ -86,7 +86,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
   // Children in the Figma view: wrappers you can't see are opened up (util.js › passThrough).
   function kidsOf(n, underHidden) {
     return visualKids(n, (k) => {
-      if (k === host || NOT_LAYER.test(k.tagName) || k.closest('svg') !== k && k.closest('svg')) return false;
+      if (k === host || k.dataset?.emGone != null || NOT_LAYER.test(k.tagName) || k.closest('svg') !== k && k.closest('svg')) return false;
       if (k.getClientRects().length || hiddenByUs(k)) return true;
       return underHidden && getComputedStyle(k).display !== 'none';
     });
@@ -101,7 +101,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     if (kind) return kind; // drawn on the canvas
     const tag = n.tagName.toLowerCase();
     if (n.dataset.emNew && !n.children.length && !isText(n)) return n.style.borderRadius === '50%' ? 'Ellipse' : 'Rectangle';
-    const text = isText(n) ? textOf(n).replace(/\s+/g, ' ').trim() : '';
+    const text = isText(n) ? textOf(n).replace(/\s+/g, ' ').trim() : isRich(n) ? n.textContent.replace(/\s+/g, ' ').trim() : '';
     if (text) return text.length > 40 ? text.slice(0, 40) + '…' : text;
     if (tag === 'img') return n.alt || 'Image';
     if (n.dataset.emNew) return 'Frame';
@@ -119,7 +119,7 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     if (n.dataset.emKind === 'group') return ICON.group;
     if (tag === 'svg') return ICON.vector;
     if (/^(img|picture|video)$/.test(tag)) return ICON.image;
-    if (isText(n)) return ICON.text;
+    if (isText(n) || isRich(n)) return ICON.text;
     if (n.dataset.emNew && !n.children.length) return n.style.borderRadius === '50%' ? ICON.ellipse : ICON.rect;
     const cs = getComputedStyle(n);
     if (/flex/.test(cs.display)) return cs.flexDirection.startsWith('column') ? ICON.stackCol : ICON.stackRow;

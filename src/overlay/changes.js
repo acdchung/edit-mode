@@ -13,6 +13,7 @@
 import { ATTR, describe, family, familyKey, friendlyName, sameSource, visualKids, visualParent } from './util.js';
 
 export const TEXT = '#text';
+export const RICH = '#rich'; // a rich text layer's markup (10a)
 export const POS = '#pos'; // position in the DOM: [parent, nextSibling]
 const SIZE = /^(width|height|flex-basis|(min|max)-(width|height))$/;
 const PLACE = /^(left|right|top|bottom|translate)$/; // canvas positions under constraints (constraints.js)
@@ -77,6 +78,116 @@ function typed(el) {
   return s;
 }
 
+// ---------- Rich text (10a): words with styled bits inside ----------
+// A text layer with words of its own next to inline styled elements (bold, links, a
+// tag) and icons (svg, img), like `<span class="who">Priya</span> approved the run`.
+// While editing, the app's own nodes are set aside (elements hidden, text emptied) and
+// you type into a copy; afterwards the words go back into the app's nodes when the
+// structure is the same, or the copy stays on top of the hidden originals (React's
+// nodes are never removed, so it can still update them). Its value is inline markup;
+// icons are `<em-keep n="0"></em-keep>` (left as they are in the code).
+const INLINE = /^(STRONG|B|EM|I|U|S|DEL|INS|A|SPAN|CODE|MARK|SMALL|SUB|SUP|ABBR|Q|CITE|TIME|DATA|KBD|LABEL)$/;
+const ATOM = /^(SVG|IMG|svg)$/;
+const KEEP = 'EM-KEEP';
+function richOk(n) {
+  for (const k of n.childNodes) {
+    if (k.nodeType === 3 || k.nodeType === 8 || isBr(k)) continue;
+    if (k.nodeType !== 1) return false;
+    if (k.dataset?.emGone != null || rich.get(n)?.added?.has(k)) continue;
+    if (ATOM.test(k.nodeName)) continue;
+    if (!INLINE.test(k.nodeName) || !richOk(k)) return false;
+  }
+  return true;
+}
+export const isRich = (el) => !isText(el) && !!el.childNodes.length && richOk(el) &&
+  [...el.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim()) && [...el.children].some((k) => !isBr(k));
+const rich = new WeakMap(); // el → { nodes: its own child nodes, texts: Map(text node → value), atoms: [svg…], baseHtml, added: Set }
+const escapeText = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const escapeAttr = (t) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+function keepRich(el) {
+  if (rich.has(el)) return rich.get(el);
+  const texts = new Map();
+  const walk = (n) => { for (const k of n.childNodes) { if (k.nodeType === 3) texts.set(k, k.nodeValue); else if (k.nodeType === 1 && !ATOM.test(k.nodeName)) walk(k); } };
+  walk(el);
+  const atoms = [...el.querySelectorAll('svg, img')].filter((a) => !a.parentElement.closest('svg'));
+  const r = { nodes: [...el.childNodes], texts, atoms, added: new Set(), gone: [] };
+  rich.set(el, r);
+  r.baseHtml = richOf(el);
+  return r;
+}
+// The markup of what shows (hidden originals left out).
+export function richOf(el) {
+  const r = rich.get(el);
+  const ser = (n) => [...n.childNodes].map((k) => {
+    if (k.nodeType === 3) return escapeText(k.nodeValue);
+    if (k.nodeType !== 1) return '';
+    if (k.dataset.emGone != null) return '';
+    if (isBr(k)) return unused(k) ? '' : '<br>';
+    if (ATOM.test(k.nodeName)) { const i = (r?.atoms || []).indexOf(k._emAtom || k); return `<em-keep n="${i < 0 ? 0 : i}"></em-keep>`; }
+    const tag = k.nodeName.toLowerCase();
+    const attrs = ['class', 'href', 'style'].map((a) => {
+      let v = k.getAttribute(a);
+      if (a === 'style' && v) v = v.split(';').filter((d) => d.trim() && !/^\s*display\s*:\s*none/.test(d) && !/^\s*outline/.test(d)).join(';').trim();
+      return v ? ` ${a}="${escapeAttr(v)}"` : '';
+    }).join('');
+    return `<${tag}${attrs}>${ser(k)}</${tag}>`;
+  }).join('');
+  return ser(el);
+}
+// Same elements in the same places (only the words differ)?
+const shapeOf = (html) => html.replace(/>[^<]*</g, '><').replace(/^[^<]*/, '').replace(/[^>]*$/, '');
+function parseRich(el, html) {
+  const r = rich.get(el);
+  const t = document.createElement('template');
+  t.innerHTML = html;
+  for (const k of [...t.content.querySelectorAll('*')]) {
+    if (k.nodeName === KEEP) { const a = r.atoms[+k.getAttribute('n')]; if (a) { const c = a.cloneNode(true); c._emAtom = a; k.replaceWith(c); } else k.remove(); continue; }
+    if (k.nodeName === 'BR' || INLINE.test(k.nodeName)) { for (const at of [...k.attributes]) if (!/^(class|href|style)$/.test(at.name)) k.removeAttribute(at.name); continue; }
+    if (k.closest('svg, img')) continue;
+    k.replaceWith(...k.childNodes); // anything else: its words only
+  }
+  return [...t.content.childNodes];
+}
+function restoreRich(el) {
+  const r = rich.get(el);
+  for (const n of r.added) n.remove();
+  r.added.clear();
+  for (const n of r.nodes) if (n.nodeType === 1 && n.dataset.emGone != null) { delete n.dataset.emGone; n.style.removeProperty('display'); if (n.getAttribute('style') === '') n.removeAttribute('style'); }
+  for (const [n, v] of r.texts) n.nodeValue = v;
+  if (r.nodes.some((n) => n.parentNode !== el)) el.replaceChildren(...r.nodes);
+}
+// Show `html` in the element (see above).
+export function setRich(el, html) {
+  const r = keepRich(el);
+  restoreRich(el);
+  if (html === r.baseHtml) return;
+  if (shapeOf(html) === shapeOf(r.baseHtml)) { // only words changed: into the app's own text nodes, in order
+    const words = [];
+    const t = document.createElement('template');
+    t.innerHTML = html;
+    const walk = (n) => { for (const k of n.childNodes) { if (k.nodeType === 3) words.push(k.nodeValue); else if (k.nodeType === 1 && k.nodeName !== KEEP) walk(k); } };
+    walk(t.content);
+    const own = [...r.texts.keys()];
+    if (words.length === own.length) { own.forEach((n, i) => { n.nodeValue = words[i]; }); return; }
+  }
+  coverRich(el, html);
+}
+function coverRich(el, html) {
+  const r = rich.get(el);
+  for (const n of r.nodes) {
+    if (n.nodeType === 3) n.nodeValue = '';
+    else if (n.nodeType === 1) { n.dataset.emGone = ''; n.style.setProperty('display', 'none', 'important'); }
+  }
+  for (const n of parseRich(el, html)) { r.added.add(n); el.append(n); }
+}
+// Editing starts: type into a copy (the app's nodes set aside).
+export function editRich(el) {
+  const html = richOf(el);
+  keepRich(el);
+  restoreRich(el);
+  coverRich(el, html);
+}
+
 export function createChanges(onChange, { getSelection = () => [], setSelection = () => {}, pageRoot = () => null, onCanvas = () => false } = {}) {
   let entries = new Map(); // logical key → entry (what Claude will be told)
   const original = new Map(); // el → Map(prop → first-ever value), for discardAll
@@ -92,7 +203,9 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
 
   // ---------- low level ----------
   const read = (el, prop) =>
-    prop === TEXT
+    prop === RICH
+      ? richOf(el)
+      : prop === TEXT
       ? textOf(el)
       : prop === POS
         ? [el.parentNode, el.nextSibling]
@@ -109,6 +222,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
       if (base.has(el) || isText(el)) setText(el, value);
       return;
     }
+    if (prop === RICH) { setRich(el, value); return; }
     if (value[0]) el.style.setProperty(prop, value[0], value[1]);
     else el.style.removeProperty(prop);
     if (el.getAttribute('style') === '') el.removeAttribute('style');
@@ -329,7 +443,15 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
   // Text editing happens in the DOM (contenteditable); bracket it with these.
   let textEdit = null;
   function beginText(el) {
-    if (!base.has(el) && !isText(el)) return false;
+    if (!base.has(el) && !isText(el)) {
+      if (!rich.has(el) && !isRich(el)) return false;
+      keepRich(el);
+      const st = step();
+      touch(st, el, RICH);
+      textEdit = { el, before: richOf(el), rich: true };
+      editRich(el); // type into a copy
+      return true;
+    }
     keepNodes(el);
     const st = step();
     touch(st, el, TEXT);
@@ -339,7 +461,25 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
   function endText() {
     if (!textEdit) return;
     const { el, before } = textEdit;
+    const isRichEdit = textEdit.rich;
     textEdit = null;
+    if (isRichEdit) {
+      let html = richOf(el).replace(/<br>$/, ''); // the browser's trailing <br>
+      // Icons can't be typed away (typing over everything selected would take them): put them back.
+      const r = rich.get(el);
+      r.atoms.forEach((a, n) => {
+        const tag = `<em-keep n="${n}"></em-keep>`;
+        if (html.includes(tag)) return;
+        html = r.baseHtml.trim().startsWith(tag) ? `${tag}${html}` : `${html}${tag}`;
+      });
+      setRich(el, html);
+      const t = targets(el, 'one');
+      const key = `${t.key}|${RICH}`;
+      const from = entries.get(key)?.from ?? before;
+      put(key, html === from ? null : { kind: 'text', rich: true, ...meta(el, t), from, to: html });
+      onChange();
+      return;
+    }
     // contenteditable may split/replace nodes; put React's own nodes back with the new lines.
     const text = typed(el).replace(/\n$/, ''); // the browser's trailing <br> after a last line break
     setText(el, text);
@@ -430,7 +570,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
           move(el, c.scope, c.to, ps[c.parent.index ?? 0] || el.parentElement);
         }
         else if (c.kind === 'text' && beginText(el)) {
-          setText(el, c.to);
+          if (c.rich) setRich(el, c.to); else setText(el, c.to);
           endText();
         }
       }

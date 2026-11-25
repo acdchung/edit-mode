@@ -5,7 +5,8 @@
 import { STYLES } from './styles.js';
 import { ATTR, CANVAS_ATTR, NOT_LAYER, box, canvasArea, describe, family, friendlyName, num, onCanvas, parseColor, passThrough, placedDesigns, placedOf, PLACED_ATTR, sameSource, view, visualKids, visualParent } from './util.js';
 import { createCanvas } from './canvas.js';
-import { createChanges, isText } from './changes.js';
+import { createChanges, isRich, isText } from './changes.js';
+const editable = (el) => isText(el) || isRich(el); // a text layer: plain, or with styled words inside (10a)
 import { collectTokens } from './tokens.js';
 import { createPanel } from './panel.js';
 import { createLayers } from './layers.js';
@@ -774,7 +775,7 @@ function init() {
       const moved = c.parent && c.fromParent && (c.parent.source !== c.fromParent.source || c.parent.index !== c.fromParent.index);
       return moved ? `Move ${who} into ${c.parent.element}, ${where}` : `Move ${who}: position ${c.from + 1} → ${c.to + 1}, ${where}`;
     }
-    if (c.kind === 'text') { const t = (v) => pretty(v).replace(/\n/g, ' ↵ '); return `Text of ${who}: “${t(c.from)}” → “${t(c.to)}”`; }
+    if (c.kind === 'text') { const words = (v) => (c.rich ? v.replace(/<br>/g, '\n').replace(/<em-keep[^>]*><\/em-keep>/g, '◆').replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : v); const t = (v) => pretty(words(v)).replace(/\n/g, ' ↵ '); return `Text of ${who}: “${t(c.from)}” → “${t(c.to)}”`; }
     return `${propName(c.property)} of ${who}: ${pretty(c.from)} → ${pretty(c.to)}`;
   }
 
@@ -1241,7 +1242,7 @@ function init() {
     glass.setPointerCapture(e.pointerId);
     if (state.tool === 'text') {
       const onText = deepHit(e.clientX, e.clientY);
-      if (onText && isText(onText)) { // like Figma: the Text tool edits text you click on
+      if (onText && editable(onText)) { // like Figma: the Text tool edits text you click on
         setTool('select');
         select(onText);
         startText(onText);
@@ -1746,7 +1747,7 @@ function init() {
     if (!sel) return;
     const inner = hitInside(sel, x, y);
     if (inner) select(inner);
-    else if (isText(sel)) startText(sel);
+    else if (editable(sel)) startText(sel);
   }
   glass.addEventListener('dblclick', (e) => drill(e.clientX, e.clientY));
 
@@ -2463,12 +2464,22 @@ function init() {
   const POINTER_EVENTS = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'dblclick'];
 
   let textOutline = null; // the edited text's own inline outline, put back when editing ends
+  // Pasting into rich text: words only (not another page's markup).
+  function plainPaste(e) {
+    e.preventDefault();
+    document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+  }
   function startText(el) {
     if (!changes.beginText(el)) return;
     state.editing = el;
     glass.hidden = true;
     frame.classList.add('editing');
-    el.contentEditable = 'plaintext-only';
+    const richText = !isText(el);
+    el.contentEditable = richText ? 'true' : 'plaintext-only'; // rich: its bold words and links stay
+    if (richText) {
+      for (const a of el.querySelectorAll('svg, img')) a.setAttribute('contenteditable', 'false'); // icons can't be typed over
+      el.addEventListener('paste', plainPaste);
+    }
     // No browser focus ring: the selection frame (1px, square) is the only outline, as in Figma.
     textOutline = [el.style.getPropertyValue('outline'), el.style.getPropertyPriority('outline')];
     el.style.setProperty('outline', 'none', 'important');
@@ -2486,6 +2497,9 @@ function init() {
     state.editing = null;
     for (const t of POINTER_EVENTS) window.removeEventListener(t, guardWhileEditing, true);
     el.removeAttribute('contenteditable');
+    for (const a of el.querySelectorAll('[contenteditable]')) a.removeAttribute('contenteditable');
+    el.removeEventListener('paste', plainPaste);
+    if (document.activeElement === el) el.blur(); // a link or button would keep a focus ring after editing
     if (textOutline?.[0]) el.style.setProperty('outline', ...textOutline); else el.style.removeProperty('outline');
     if (el.getAttribute('style') === '') el.removeAttribute('style');
     textOutline = null;
@@ -2810,7 +2824,7 @@ function init() {
     if (sel && !mod) {
       if (e.key === 'Enter' && !onControl) {
         stop();
-        if (isText(sel)) startText(sel);
+        if (editable(sel)) startText(sel);
         else if (sel.firstElementChild) {
           const first = visualKids(sel, (k) => k !== host && k.getClientRects().length > 0)[0] || sel.firstElementChild;
           select(pickable(first) || sel);

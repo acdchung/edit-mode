@@ -134,6 +134,10 @@ Steps:
 | ⇧⌘G | Ungroup: unwrap the frame, keeping its children where they were |
 | ⌥⇧A | Remove auto layout |
 
+### 10. Mixed-style text (agreed with the user 2026-11-24: all three steps; icons inside stay; "All like this" applies the structure to every row)
+- **10a done 2026-11-24: edit text with styled words inside** (`isRich`/`richOf`/`setRich`/`editRich` in changes.js: an element with words of its own next to inline elements (strong, a, span…) and icons (svg, img); you type into a copy while the app's nodes are set aside; afterwards the words go back into the app's own text nodes when the structure is the same, otherwise the copy stays on top of the hidden originals (`data-em-gone`), never removing React's nodes; icons are `<em-keep n>` and come back if typed away; paste is words only; Push: `kind: "text", rich: true` with inline markup, apply-edits rule 5; `tests/item10.mjs` (`COPY=` sample copy), and the demo hero pill by hand). Not yet: canvas copies compare rich text (compare.js still only plain text).
+- **10b next:** ⌘B / ⌘I / ⌘U / ⇧⌘X / ⌘K on selected words while typing (also in plain text). **10c:** the Text section on selected words (a span with a class).
+
 ## Later (agreed with the user, 2026-11-18)
 
 ### Breakpoint frames: a full canvas (option C)
