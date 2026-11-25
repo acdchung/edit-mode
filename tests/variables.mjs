@@ -7,7 +7,7 @@ const out = process.env.OUT; // optional: a folder for screenshots
 if (process.env.COPY) rmSync(process.env.COPY + '/.editmode/variables.json', { force: true });
 const b = await chromium.launch({ channel: 'chrome' });
 const ctx = await b.newContext({ viewport: { width: 1280, height: 1000 }, deviceScaleFactor: 2 });
-await ctx.addInitScript(() => { try { localStorage.setItem('edit-mode:layers', '0'); } catch {} });
+await ctx.addInitScript(() => { try { localStorage.setItem('edit-mode:layers', '0'); if (!sessionStorage.getItem('t')) { localStorage.removeItem('edit-mode:recent-colors'); localStorage.removeItem('edit-mode:color-tab'); sessionStorage.setItem('t', '1'); } } catch {} });
 const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
 const pushed = [];
 await p.route('**/@edit-mode/push', (route) => { pushed.push(JSON.parse(route.request().postData())); route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"test: not sent"}' }); });
@@ -23,6 +23,10 @@ const shot = async (name) => { if (!out) return; const bb = await p.locator('edi
 
 await p.goto('http://localhost:5390'); await p.waitForSelector('.card');
 await p.keyboard.press('Alt+KeyE'); await p.waitForTimeout(600);
+const more = () => R(`(() => { const b = ${root}.querySelector('section.vars .sc-more'); return b && !b.hidden ? b.textContent : null; })()`);
+const r3 = await rows();
+check('the list starts with 3, then "See all 4"', r3.length === 3 && (await more()) === 'See all 4', `${r3.join(' ')} | ${await more()}`);
+await clickAt(p.locator('edit-mode-root section.vars .sc-more'));
 const r0 = await rows();
 check('nothing selected: the app\'s color variables are listed', ['ink', 'muted', 'accent', 'surface'].every((n) => r0.some((r) => r.startsWith(n + '='))), r0.join(' '));
 check('…not its non-colors (--radius)', !r0.some((r) => r.startsWith('radius=')));
@@ -45,11 +49,28 @@ await p.keyboard.down('Meta'); await p.mouse.click(r[0], r[1]); await p.keyboard
 await p.keyboard.press('Escape'); await p.waitForTimeout(300); // the card
 await clickAt(p.locator('edit-mode-root section:has(h4:text-is("Fill")) .sh .add'));
 await clickAt(p.locator('edit-mode-root section:has(h4:text-is("Fill")) .crow .swatch').last());
-const sw = p.locator('edit-mode-root .pop .sw[title^="--brand-primary"]');
+const tabsNow = await R(`[...${root}.querySelectorAll('.pop .cp-tabs button')].map((b) => b.textContent + (b.classList.contains('on') ? '*' : '')).join(' ')`);
+check('the color menu has Variables and Recent tabs, Variables open', tabsNow === 'Variables* Recent', tabsNow);
+const items = await R(`[...${root}.querySelectorAll('.pop .var-item')].map((b) => b.querySelector('.vn').textContent + ' ' + b.querySelector('.vh').textContent)`);
+check('one variable per row, with its name and hex', items.includes('ink 1B1D1F') && items.includes('brand-primary 5B5BD6'), items.join(' | '));
+if (out) { const bb = await p.locator('edit-mode-root .pop').boundingBox(); await p.screenshot({ path: `${out}/menu-vars.png`, clip: { x: bb.x - 4, y: bb.y - 4, width: bb.width + 8, height: bb.height + 8 } }); }
+const sw = p.locator('edit-mode-root .pop .var-item[title="--brand-primary"]');
 check('the new variable is in the color menu', await sw.count() === 1);
 await clickAt(sw);
 const bg = await R(() => document.querySelector('.card').style.getPropertyValue('background-color'));
 check('picking it fills the card with var(--brand-primary)', bg === 'var(--brand-primary)', bg);
+// Recent: a color picked from the page's colors shows up there next time
+await clickAt(p.locator('edit-mode-root section:has(h4:text-is("Fill")) .crow .swatch').last());
+await clickAt(p.locator('edit-mode-root .pop .cp-tabs button', { hasText: 'Recent' }));
+const pageSw = p.locator('edit-mode-root .pop .sw-grid .sw').first();
+const pageColor = await pageSw.evaluate((e) => e.title);
+if (out) { const bb = await p.locator('edit-mode-root .pop').boundingBox(); await p.screenshot({ path: `${out}/menu-recent.png`, clip: { x: bb.x - 4, y: bb.y - 4, width: bb.width + 8, height: bb.height + 8 } }); }
+await clickAt(pageSw);
+await clickAt(p.locator('edit-mode-root section:has(h4:text-is("Fill")) .crow .swatch').last());
+const rec = await R(`(() => { const t = [...${root}.querySelectorAll('.pop .pop-title')].map((x) => x.textContent); const g = ${root}.querySelector('.pop .sw-grid .sw'); return { tab: ${root}.querySelector('.pop .cp-tabs .on')?.textContent, titles: t.join(','), first: g?.title }; })()`);
+check('the menu reopens on Recent, with the picked color first under "Recent"', rec.tab === 'Recent' && rec.titles.startsWith('Recent') && rec.first === pageColor, JSON.stringify(rec) + ' picked ' + pageColor);
+await clickAt(p.locator('edit-mode-root .pop .cp-tabs button', { hasText: 'Variables' }));
+await clickAt(p.locator('edit-mode-root .pop .var-item[title="--brand-primary"]'));
 
 // In use: its name is locked and it can't be deleted
 await p.keyboard.press('Escape'); await R(() => window.__editMode.select(null)); await p.waitForTimeout(300);
@@ -85,6 +106,7 @@ await p.keyboard.press('Escape');
 // Saved: a reload keeps them
 await p.reload(); await p.waitForSelector('.card'); await p.waitForTimeout(800);
 await R(() => window.__editMode.select(null)); await p.waitForTimeout(300);
+await clickAt(p.locator('edit-mode-root section.vars .sc-more'));
 const after = await rows();
 check('after a reload, the new and the changed variables are still there', after.includes('brand-primary=FF00AA') && after.includes('accent=00AA55'), after.join(' '));
 

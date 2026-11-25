@@ -393,6 +393,16 @@ input::selection { background: rgba(13,153,255,.4); }
 .pop.details .lines { display: grid; grid-template-columns: 1fr 64px; align-items: center; gap: 8px; margin-top: 4px; }
 .seg button:disabled { opacity: .35; cursor: default; }
 .seg button:disabled:hover { color: var(--muted); }
+.cp-tabs { margin: 12px 0 8px; }
+.cp-pane { height: 168px; overflow-y: auto; margin: 0 -10px -10px; padding: 0 10px 10px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.15) transparent; }
+.cp-pane .pop-empty { padding: 8px 2px; color: var(--dim); font-size: 11px; }
+.var-list { display: flex; flex-direction: column; gap: 1px; }
+.var-item { all: unset; display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 6px; border-radius: 5px; cursor: pointer; color: var(--text); font-size: 12px; }
+.var-item:hover { background: var(--field); }
+.var-item.on { background: var(--accent-soft); }
+.var-item .sw-dot { flex: none; width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
+.var-item .vn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.var-item .vh { flex: none; color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
 .sw-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin-bottom: 10px; }
 .sw { all: unset; aspect-ratio: 1; border-radius: 5px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); transition: transform 120ms var(--ease); }
 @media (hover: hover) and (pointer: fine) { .sw:hover { transform: scale(1.1); } }

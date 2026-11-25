@@ -261,6 +261,7 @@ export function createPanel(ctx) {
 
   function openPop(anchor, build) {
     if (!pop.hidden && popAnchor === anchor) return closePop();
+    if (!pop.hidden) closePop(); // another menu was open: let it finish first
     pop.className = 'pop glassy'; // a builder may add its own class (Type details)
     pop.replaceChildren();
     build(pop);
@@ -274,9 +275,13 @@ export function createPanel(ctx) {
     pop.style.top = (above ? Math.max(8, r.top - 4 - ph) : r.bottom + 4) + 'px';
     pop.style.transformOrigin = `${above ? 'bottom' : 'top'} right`; // grows out of its field
   }
+  let onPopClose = null; // a menu's own clean-up (the color menu remembers what was picked)
   function closePop() {
+    const done = onPopClose;
+    onPopClose = null;
     pop.hidden = true;
     popAnchor = null;
+    done?.();
   }
   shadow.addEventListener('pointerdown', (e) => {
     if (pop.hidden) return;
@@ -302,29 +307,78 @@ export function createPanel(ctx) {
     });
   }
 
+  // Under the picker: two tabs (the user's ask, 2026-11-25). Variables: one per row with its
+  // name and hex, scrolling (Figma's library list). Recent: colors picked lately (per browser),
+  // then the colors on this page. The last tab used is remembered.
+  const RECENT_KEY = 'edit-mode:recent-colors';
+  const TAB_KEY = 'edit-mode:color-tab';
+  const MAX_RECENT = 16;
+  const ls = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+  const recentColors = () => { try { return JSON.parse(ls.get(RECENT_KEY)) || []; } catch { return []; } };
+  function rememberColor(c) {
+    const rgb = resolveColor(c);
+    if (!rgb || /^var\(/.test(c) || isClear(rgb)) return;
+    ls.set(RECENT_KEY, JSON.stringify([rgb, ...recentColors().filter((x) => x !== rgb)].slice(0, MAX_RECENT)));
+  }
   function colorPop(anchor, current, onPick, head, opts = {}) {
     const t = ctx.tokens();
+    let last = null; // what this menu set, remembered as a recent color when it closes
+    const pick = (v, from) => { last = v; onPick(v, from); };
     openPop(anchor, (box) => {
       box.classList.add('colors');
-      const grid = (title, items) => {
-        if (!items.length) return;
-        box.append(h('div', 'pop-title', title));
-        const g = h('div', 'sw-grid');
-        for (const it of items) {
-          const b = h('button', 'sw' + (it.rgb === current ? ' on' : ''));
-          b.style.background = it.rgb;
-          b.title = it.title;
-          b.addEventListener('click', () => { closePop(); onPick(it.value); });
-          g.append(b);
-        }
-        box.append(g);
-      };
       head?.(box); // the fill type tabs, above the picker
-      picker(box, current, onPick, opts);
-      grid('Variables', t.colorVars.map((v) => ({ rgb: v.rgb, value: v.value, title: `${v.name}  ${parseColor(v.rgb)?.hex ?? ''}` })));
-      grid('On this page', t.colors.map((c) => ({ rgb: c, value: c, title: parseColor(c)?.hex ?? c })));
-
+      picker(box, current, pick, opts);
+      const vars = t.colorVars;
+      const tabs = h('div', 'seg cp-tabs');
+      const panes = h('div', 'cp-pane');
+      const show = (tab) => {
+        ls.set(TAB_KEY, tab);
+        for (const b of tabs.children) b.classList.toggle('on', b.dataset.tab === tab);
+        panes.replaceChildren();
+        if (tab === 'vars') {
+          if (!vars.length) panes.append(h('div', 'pop-empty', 'No color variables yet'));
+          const list = h('div', 'var-list');
+          for (const v of vars) {
+            const b = h('button', 'var-item' + (v.rgb === current ? ' on' : ''));
+            const sw = h('i', 'sw-dot');
+            sw.style.background = v.rgb;
+            b.append(sw, h('span', 'vn', v.name.replace(/^--/, '')), h('span', 'vh', (parseColor(v.rgb)?.hex || '').replace(/^#/, '').toUpperCase()));
+            b.title = v.name;
+            b.addEventListener('click', () => { pick(v.value); closePop(); });
+            list.append(b);
+          }
+          panes.append(list);
+          list.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+          return;
+        }
+        const grid = (title, items) => {
+          if (!items.length) return;
+          panes.append(h('div', 'pop-title', title));
+          const g = h('div', 'sw-grid');
+          for (const c of items) {
+            const b = h('button', 'sw' + (c === current ? ' on' : ''));
+            b.style.background = c;
+            b.title = (parseColor(c)?.hex || c).toUpperCase();
+            b.addEventListener('click', () => { pick(c); closePop(); });
+            g.append(b);
+          }
+          panes.append(g);
+        };
+        const recent = recentColors();
+        if (!recent.length && !t.colors.length) panes.append(h('div', 'pop-empty', 'Colors you pick show up here'));
+        grid('Recent', recent);
+        grid('On this page', t.colors.filter((c) => !recent.includes(c)));
+      };
+      for (const [tab, label] of [['vars', 'Variables'], ['recent', 'Recent']]) {
+        const b = h('button', '', label);
+        b.dataset.tab = tab;
+        b.addEventListener('click', () => show(tab));
+        tabs.append(b);
+      }
+      box.append(tabs, panes);
+      show(ls.get(TAB_KEY) === 'recent' || !vars.length ? 'recent' : 'vars');
     });
+    onPopClose = () => { if (last) rememberColor(last); };
   }
 
   // The colour picker at the top of every colour menu (Figma's): a saturation /
@@ -2537,7 +2591,11 @@ export function createPanel(ctx) {
   const varsAdd = h('button', 'icon add', ICON.plus);
   varsAdd.title = 'Add a color variable';
   varsAdd.setAttribute('aria-label', 'Add a color variable');
-  const varsSec = section('Variables', varsList);
+  const VARS_MAX = 3;
+  let varsAll = false; // "See all" opened
+  const varsMore = h('button', 'sc-more');
+  varsMore.addEventListener('click', () => { varsAll = !varsAll; renderVars(true); });
+  const varsSec = section('Variables', varsList, varsMore);
   varsSec.classList.add('vars');
   varsSec.head.append(varsAdd);
   let varRows = new Map(); // name → row parts
@@ -2598,7 +2656,10 @@ export function createPanel(ctx) {
     if (varsSec.hidden) return;
     const typing = [...varRows.values()].some((r) => [r.name, r.hex].includes(shadow.activeElement));
     if (typing && !force) return; // the field being typed in keeps its value and the focus
-    const list = vars.list();
+    const all = vars.list();
+    const list = varsAll ? all : all.slice(0, VARS_MAX);
+    varsMore.hidden = all.length <= VARS_MAX;
+    varsMore.textContent = varsAll ? 'Show less' : `See all ${all.length}`;
     const sig = list.map((v) => v.name).join('|');
     if (sig !== varSig) { // a variable added, renamed or removed: rows again (values alone update in place)
       varSig = sig;
@@ -2608,10 +2669,11 @@ export function createPanel(ctx) {
       varsList.replaceChildren(...[...next.values()].map((r) => r.row));
     }
     for (const v of list) { const r = varRows.get(v.name); r.v = v; paintVar(r, force); }
-    varsSec.classList.toggle('empty', !list.length);
+    varsSec.classList.toggle('empty', !all.length);
   }
   varsAdd.addEventListener('click', () => {
     const name = vars.add();
+    varsAll = true; // the new one is last: show it
     renderVars(true);
     const r = varRows.get(name);
     r?.row.scrollIntoView({ block: 'nearest' });
