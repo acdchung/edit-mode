@@ -5,7 +5,7 @@
 import { STYLES } from './styles.js';
 import { ATTR, CANVAS_ATTR, NOT_LAYER, box, canvasArea, describe, family, friendlyName, num, onCanvas, parseColor, passThrough, placedDesigns, placedOf, PLACED_ATTR, sameSource, view, visualKids, visualParent } from './util.js';
 import { createCanvas } from './canvas.js';
-import { createChanges, isRich, isText } from './changes.js';
+import { createChanges, editsRich, isRich, isText } from './changes.js';
 const editable = (el) => isText(el) || isRich(el); // a text layer: plain, or with styled words inside (10a)
 import { collectTokens } from './tokens.js';
 import { createPanel } from './panel.js';
@@ -2464,6 +2464,84 @@ function init() {
   const POINTER_EVENTS = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'dblclick'];
 
   let textOutline = null; // the edited text's own inline outline, put back when editing ends
+  // ---------- Formatting selected words (10b) ----------
+  // ⌘B / ⌘I / ⌘U / ⇧⌘X toggle bold / italic / underline / strikethrough on the selected
+  // words; ⌘K links them. Plain text turns rich on the first one (changes.textToRich).
+  const FORMAT = { KeyB: 'bold', KeyI: 'italic', KeyU: 'underline' };
+  const wordsSelected = (el) => { const s = getSelection(); return s.rangeCount && !s.isCollapsed && el.contains(s.getRangeAt(0).commonAncestorContainer); };
+  // Character offsets of the selection inside el (line breaks count as one), and back.
+  function offsets(el) {
+    const r = getSelection().getRangeAt(0);
+    const at = (node, off) => { const pre = document.createRange(); pre.selectNodeContents(el); pre.setEnd(node, off); const f = pre.cloneContents(); return (f.textContent || '').length + f.querySelectorAll('br').length; };
+    return [at(r.startContainer, r.startOffset), at(r.endContainer, r.endOffset)];
+  }
+  function setOffsets(el, a, b) {
+    const spots = [];
+    let n = 0;
+    const walk = (p) => { for (const k of p.childNodes) { if (k.nodeType === 3) { spots.push([k, n, n + k.nodeValue.length]); n += k.nodeValue.length; } else if (k.nodeName === 'BR') n += 1; else if (k.nodeType === 1 && getComputedStyle(k).display !== 'none') walk(k); } };
+    walk(el);
+    const find = (x) => { const s = spots.find(([, s0, s1]) => x >= s0 && x <= s1) || spots.at(-1); return s ? [s[0], Math.min(x - s[1], s[0].nodeValue.length)] : [el, 0]; };
+    const r = document.createRange();
+    r.setStart(...find(a)); r.setEnd(...find(b));
+    getSelection().removeAllRanges(); getSelection().addRange(r);
+  }
+  function formatKey(e) {
+    const el = state.editing;
+    const cmd = e.shiftKey ? (e.code === 'KeyX' ? 'strikeThrough' : null) : e.code === 'KeyK' ? 'link' : FORMAT[e.code];
+    if (!cmd || !el || !wordsSelected(el)) return false;
+    const [a, b] = offsets(el);
+    const all = (() => { const r = document.createRange(); r.selectNodeContents(el); const f = r.cloneContents(); return (f.textContent || '').length + f.querySelectorAll('br').length; })();
+    if (cmd !== 'link' && a === 0 && b >= all) return false; // all of it selected: the whole layer (font-weight…), as in Figma
+    if (el.contentEditable === 'plaintext-only') {
+      if (!changes.textToRich(el)) return false;
+      el.contentEditable = 'true';
+      setOffsets(el, a, b);
+    }
+    document.execCommand('styleWithCSS', false, false);
+    if (cmd === 'link') openLink(el);
+    else document.execCommand(cmd);
+    return true;
+  }
+  // ⌘K: a small field under the selection; Enter links (an empty field unlinks), Esc cancels.
+  const linkBox = h('div', 'linkbox glassy');
+  const linkInput = h('input');
+  linkInput.placeholder = 'Paste or type a link';
+  linkInput.setAttribute('aria-label', 'Link');
+  linkInput.spellcheck = false;
+  linkBox.append(linkInput);
+  linkBox.hidden = true;
+  ui.append(linkBox);
+  let linkRange = null;
+  function openLink(el) {
+    linkRange = getSelection().getRangeAt(0).cloneRange();
+    const r = linkRange.getBoundingClientRect();
+    const node = linkRange.commonAncestorContainer;
+    const a = (node.nodeType === 1 ? node : node.parentElement).closest('a');
+    linkInput.value = a && el.contains(a) ? a.getAttribute('href') || '' : '';
+    linkBox.hidden = false;
+    linkBox.style.left = `${Math.max(8, Math.min(r.left, innerWidth - 268))}px`;
+    linkBox.style.top = `${Math.min(r.bottom + 6, innerHeight - 44)}px`;
+    linkInput.focus();
+    linkInput.select();
+  }
+  function closeLink(apply) {
+    if (linkBox.hidden) return;
+    linkBox.hidden = true;
+    const el = state.editing;
+    if (!el) return;
+    el.focus();
+    getSelection().removeAllRanges();
+    getSelection().addRange(linkRange);
+    if (!apply) return;
+    const url = linkInput.value.trim();
+    document.execCommand(url ? 'createLink' : 'unlink', false, url || undefined);
+  }
+  linkInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); closeLink(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeLink(false); }
+  });
+  linkInput.addEventListener('blur', () => setTimeout(() => closeLink(false)));
+
   // Pasting into rich text: words only (not another page's markup).
   function plainPaste(e) {
     e.preventDefault();
@@ -2474,7 +2552,7 @@ function init() {
     state.editing = el;
     glass.hidden = true;
     frame.classList.add('editing');
-    const richText = !isText(el);
+    const richText = editsRich(el);
     el.contentEditable = richText ? 'true' : 'plaintext-only'; // rich: its bold words and links stay
     if (richText) {
       for (const a of el.querySelectorAll('svg, img')) a.setAttribute('contenteditable', 'false'); // icons can't be typed over
@@ -2499,12 +2577,13 @@ function init() {
     el.removeAttribute('contenteditable');
     for (const a of el.querySelectorAll('[contenteditable]')) a.removeAttribute('contenteditable');
     el.removeEventListener('paste', plainPaste);
+    linkBox.hidden = true;
     if (document.activeElement === el) el.blur(); // a link or button would keep a focus ring after editing
     if (textOutline?.[0]) el.style.setProperty('outline', ...textOutline); else el.style.removeProperty('outline');
     if (el.getAttribute('style') === '') el.removeAttribute('style');
     textOutline = null;
     getSelection().removeAllRanges();
-    changes.endText();
+    changes.endText(state.scope); // rich text + "All like this": a structure change goes to every instance
     glass.hidden = !state.on;
     frame.classList.remove('editing');
     if (el.dataset.emNew && !el.textContent.trim()) { // empty new text: gone, like Figma
@@ -2519,6 +2598,7 @@ function init() {
   function guardWhileEditing(e) {
     const path = e.composedPath();
     if (path.includes(host)) {
+      if (path.includes(linkBox)) return; // the link field keeps you editing
       if (e.type === 'pointerdown') stopText();
       return;
     }
@@ -2714,8 +2794,10 @@ function init() {
 
     // Editing text (Figma): Enter is a new line; Esc or ⌘Enter finishes; other keys type.
     if (state.editing) {
+      if (inOverlay && typing) return; // the link field (⌘K) handles its own keys
       if (e.key === 'Escape' || (e.key === 'Enter' && mod)) { stop(); stopText(); }
-      else if (textKey(e)) stop(); // ⌘B, ⌘I… style the whole text layer
+      else if (mod && !e.altKey && formatKey(e)) stop(); // selected words: bold, italic, underline, strikethrough, link
+      else if (textKey(e)) stop(); // no selection: ⌘B, ⌘I… style the whole text layer
       else if (e.key === 'Enter') { stop(); document.execCommand('insertLineBreak'); }
       else if (e.key === ' ') { stop(); document.execCommand('insertText', false, ' '); } // buttons eat Space otherwise
       else e.stopImmediatePropagation();

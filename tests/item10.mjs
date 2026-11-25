@@ -9,7 +9,7 @@ const orig = fs.readFileSync(file, 'utf8');
 const b = await chromium.launch({ channel: 'chrome' });
 try {
   fs.writeFileSync(file, orig
-    .replace('Hand-picked multi-pitch routes with local guides.', 'Hand-picked <strong className="em-bold">multi-pitch</strong> routes with <a href="#guides">local guides</a>.')
+    .replace('Hand-picked multi-pitch routes with local guides.</p>', 'Hand-picked <strong className="em-bold">multi-pitch</strong> routes with <a href="#guides">local guides</a>.</p>\n      <p className="hero-note">Plain words to format</p>')
     .replace(/Get started\s*<\/button>/, 'Get started <svg className="cta-icon" width="12" height="12" viewBox="0 0 24 24"><path d="M5 12h14" stroke="currentColor" strokeWidth="3" /></svg></button>'));
   await new Promise((r) => setTimeout(r, 700));
   const p = await b.newPage({ viewport: { width: 1280, height: 1000 } });
@@ -74,6 +74,58 @@ try {
   // Layers: no stray rows for the hidden originals.
   await p.evaluate(() => localStorage.setItem('edit-mode:layers', '1'));
   check('⌘Z restores the page exactly', await (async () => { for (let i = 0; i < 8 && (await html()) !== start; i++) await key('Meta+z'); return (await html()) === start; })());
+  // 10b. Formatting selected words while typing.
+  const selectWords = async (fromStart, n) => { await key(fromStart ? 'Meta+ArrowLeft' : 'Meta+ArrowRight'); if (fromStart) await key('Meta+ArrowUp'); for (let i = 0; i < n; i++) await key(fromStart ? 'Alt+Shift+ArrowRight' : 'Alt+Shift+ArrowLeft'); };
+  const titleNode = await p.evaluateHandle(() => document.querySelector('.hero-note').firstChild);
+  await pick('.hero-note'); await key('Enter');
+  await selectWords(true, 1);
+  await key('Meta+KeyB');
+  check('⌘B on a selected word in plain text: bold, still typing', await editing() && await p.$eval('.hero-note', e => e.querySelector('b, strong')?.textContent) === 'Plain', await p.$eval('.hero-note', e => e.innerHTML));
+  await key('Escape');
+  t = await texts();
+  check('Push: one change, the plain words → the word in <strong>', t.length === 1 && t[0].rich && t[0].from === 'Plain words to format' && t[0].to === '<strong>Plain</strong> words to format', JSON.stringify(t.map(x => [x.from, x.to])));
+  check("React's own text node is still there (hidden behind the copy)", await titleNode.evaluate(n => n.parentNode === document.querySelector('.hero-note')));
+  await pick('.hero-note'); await key('Enter');
+  await selectWords(true, 1);
+  await key('Meta+KeyB');
+  await key('Escape');
+  check('⌘B again on the bold word: back to plain, no change left', (await texts()).length === 0 && !(await p.$eval('.hero-note', e => [...e.querySelectorAll('b, strong')].some(x => x.dataset.emGone == null))), JSON.stringify((await texts()).map(x => x.to)));
+  await key('Meta+z'); await key('Meta+z');
+  check('⌘Z twice: the page exactly as it was', (await html()) === start);
+  // Italic, underline, strikethrough on the mixed body.
+  await pick('.hero-body'); await key('Enter');
+  await selectWords(false, 2);
+  await key('Meta+KeyI'); await key('Meta+KeyU'); await key('Meta+Shift+KeyX');
+  await key('Escape');
+  t = await texts();
+  check('⌘I / ⌘U / ⇧⌘X: em, u and s around the words', /<em>|<u>|<s>/.test(t[0]?.to || '') && /<em>/.test(t[0].to) && /<u>/.test(t[0].to) && /<s>/.test(t[0].to), t[0]?.to);
+  await key('Meta+z');
+  // ⌘K: a link on the selected words.
+  await pick('.hero-title'); await key('Enter');
+  await selectWords(false, 1);
+  await key('Meta+KeyK');
+  const box = p.locator('edit-mode-root .linkbox input');
+  check('⌘K opens the link field', await box.isVisible());
+  await box.fill('https://example.com/weekend'); await box.press('Enter'); await p.waitForTimeout(80);
+  check('Enter links the words, and you keep typing', await editing() && await p.$eval('.hero-title', e => e.querySelector('a')?.getAttribute('href')) === 'https://example.com/weekend');
+  await key('Escape');
+  t = await texts();
+  check('Push gets the link', /<a href="https:\/\/example.com\/weekend">weekend<\/a>$/.test(t[0]?.to || ''), t[0]?.to);
+  await key('Meta+z');
+  check('⌘Z restores', (await html()) === start);
+  // No selection: ⌘B still styles the whole layer.
+  await pick('.hero-title'); await key('Enter'); await key('Meta+ArrowRight');
+  await key('Meta+KeyB'); await key('Escape');
+  check('caret only: ⌘B styles the whole layer (no words wrapped)', (await p.$eval('.hero-title', e => getComputedStyle(e).fontWeight)) === '400' && (await texts()).length === 0);
+  await key('Meta+z');
+  // "All like this": bolding the first word of one card title goes to every card in Push.
+  await pick('main .card .card-title');
+  await p.locator('edit-mode-root .scope button', { hasText: 'All like this' }).click(); await p.waitForTimeout(60);
+  await key('Enter'); await selectWords(true, 1); await key('Meta+KeyB'); await key('Escape');
+  t = await texts();
+  check('All like this: the bold goes to every instance in Push', t.length === 1 && t[0].scope === 'all' && t[0].count === 3, JSON.stringify(t.map(x => [x.scope, x.count, x.to])));
+  await p.locator('edit-mode-root .scope button', { hasText: 'This one' }).click();
+  check('⌘Z all the way back', await (async () => { for (let i = 0; i < 8 && (await html()) !== start; i++) await key('Meta+z'); return (await html()) === start; })());
   check('no page errors', !errors.length, errors.join(' | '));
 } finally {
   fs.writeFileSync(file, orig);

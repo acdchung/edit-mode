@@ -292,6 +292,9 @@ h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--text); }
 .pre.txt.long { width: 40px; } /* Min W, Max H */
 .pop-sep { height: 1px; margin: 4px 0; background: var(--hair); }
 .fx-list:empty { display: none; }
+.linkbox { position: fixed; z-index: 3; width: 260px; padding: 6px; border-radius: 10px; pointer-events: auto; }
+.linkbox[hidden] { display: none; }
+.linkbox input { height: 28px; padding: 0 8px; border-radius: 6px; background: var(--field); }
 .layers-list { position: relative; }
 .layers-list > .grad { margin-bottom: 8px; }
 .flrow > .dd.kind { flex: 1; min-width: 0; }

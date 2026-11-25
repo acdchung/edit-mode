@@ -86,7 +86,7 @@ function typed(el) {
 // structure is the same, or the copy stays on top of the hidden originals (React's
 // nodes are never removed, so it can still update them). Its value is inline markup;
 // icons are `<em-keep n="0"></em-keep>` (left as they are in the code).
-const INLINE = /^(STRONG|B|EM|I|U|S|DEL|INS|A|SPAN|CODE|MARK|SMALL|SUB|SUP|ABBR|Q|CITE|TIME|DATA|KBD|LABEL)$/;
+const INLINE = /^(STRONG|B|EM|I|U|S|STRIKE|DEL|INS|A|SPAN|CODE|MARK|SMALL|SUB|SUP|ABBR|Q|CITE|TIME|DATA|KBD|LABEL)$/;
 const ATOM = /^(SVG|IMG|svg)$/;
 const KEEP = 'EM-KEEP';
 function richOk(n) {
@@ -101,6 +101,8 @@ function richOk(n) {
 }
 export const isRich = (el) => !isText(el) && !!el.childNodes.length && richOk(el) &&
   [...el.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim()) && [...el.children].some((k) => !isBr(k));
+// Is this text edited as rich text (styled words kept)? Once formatted, a plain text stays rich.
+export const editsRich = (el) => rich.has(el) || (!isText(el) && isRich(el));
 const rich = new WeakMap(); // el → { nodes: its own child nodes, texts: Map(text node → value), atoms: [svg…], baseHtml, added: Set }
 const escapeText = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const escapeAttr = (t) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
@@ -124,7 +126,7 @@ export function richOf(el) {
     if (k.dataset.emGone != null) return '';
     if (isBr(k)) return unused(k) ? '' : '<br>';
     if (ATOM.test(k.nodeName)) { const i = (r?.atoms || []).indexOf(k._emAtom || k); return `<em-keep n="${i < 0 ? 0 : i}"></em-keep>`; }
-    const tag = k.nodeName.toLowerCase();
+    const tag = { b: 'strong', i: 'em', strike: 's' }[k.nodeName.toLowerCase()] || k.nodeName.toLowerCase(); // the browser's bold/italic/strike → semantic tags
     const attrs = ['class', 'href', 'style'].map((a) => {
       let v = k.getAttribute(a);
       if (a === 'style' && v) v = v.split(';').filter((d) => d.trim() && !/^\s*display\s*:\s*none/.test(d) && !/^\s*outline/.test(d)).join(';').trim();
@@ -150,7 +152,7 @@ function parseRich(el, html) {
 }
 function restoreRich(el) {
   const r = rich.get(el);
-  for (const n of r.added) n.remove();
+  for (const n of [...el.childNodes]) if (!r.nodes.includes(n)) n.remove(); // the copy, and whatever the browser made while editing (a <b>…)
   r.added.clear();
   for (const n of r.nodes) if (n.nodeType === 1 && n.dataset.emGone != null) { delete n.dataset.emGone; n.style.removeProperty('display'); if (n.getAttribute('style') === '') n.removeAttribute('style'); }
   for (const [n, v] of r.texts) n.nodeValue = v;
@@ -443,7 +445,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
   // Text editing happens in the DOM (contenteditable); bracket it with these.
   let textEdit = null;
   function beginText(el) {
-    if (!base.has(el) && !isText(el)) {
+    if (rich.has(el) || (!isText(el) && !base.has(el))) {
       if (!rich.has(el) && !isRich(el)) return false;
       keepRich(el);
       const st = step();
@@ -458,10 +460,11 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
     textEdit = { el, before: textOf(el) };
     return true;
   }
-  function endText() {
+  function endText(scope = 'one') {
     if (!textEdit) return;
     const { el, before } = textEdit;
     const isRichEdit = textEdit.rich;
+    const earlier = textEdit.from; // a plain change of this session that this rich one replaces
     textEdit = null;
     if (isRichEdit) {
       let html = richOf(el).replace(/<br>$/, ''); // the browser's trailing <br>
@@ -473,10 +476,15 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
         html = r.baseHtml.trim().startsWith(tag) ? `${tag}${html}` : `${html}${tag}`;
       });
       setRich(el, html);
-      const t = targets(el, 'one');
-      const key = `${t.key}|${RICH}`;
-      const from = entries.get(key)?.from ?? before;
-      put(key, html === from ? null : { kind: 'text', rich: true, ...meta(el, t), from, to: html });
+      // "All like this" and the structure changed (which words are bold, linked…): every instance
+      // gets it in the code (each keeps its own words); the page previews this one.
+      const one = targets(el, 'one');
+      const prev = entries.get(`${one.key}|${RICH}`) || entries.get(`${targets(el, 'all').key}|${RICH}`);
+      const from = prev?.from ?? earlier ?? before;
+      const t = scope === 'all' && shapeOf(html) !== shapeOf(from) ? targets(el, 'all') : one;
+      entries.delete(`${one.key}|${RICH}`);
+      entries.delete(`${targets(el, 'all').key}|${RICH}`);
+      put(`${t.key}|${RICH}`, html === from ? null : { kind: 'text', rich: true, ...meta(el, t), from, to: html });
       onChange();
       return;
     }
@@ -488,6 +496,26 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
     const from = entries.get(key)?.from ?? before;
     put(key, text === from ? null : { kind: 'text', ...meta(el, t), from, to: text });
     onChange();
+  }
+
+  // Formatting words in plain text (10b): this edit becomes a rich one, mid-typing. React's
+  // nodes go back to how they were when editing started, then the words typed so far
+  // become the copy you go on editing. One change for Push (an earlier plain change of
+  // this session is folded in).
+  function textToRich(el) {
+    if (!textEdit || textEdit.rich || textEdit.el !== el) return false;
+    const now = typed(el).replace(/\n$/, '');
+    setText(el, textEdit.before);
+    const key = `${targets(el, 'one').key}|${TEXT}`;
+    const earlier = entries.get(key)?.from;
+    entries.delete(key);
+    keepRich(el);
+    touch(step(), el, RICH);
+    const asHtml = (t) => escapeText(t).replace(/\n/g, '<br>');
+    textEdit = { el, before: richOf(el), rich: true, from: earlier != null ? asHtml(earlier) : undefined };
+    restoreRich(el);
+    coverRich(el, asHtml(now));
+    return true;
   }
 
   // ---------- history ----------
@@ -597,7 +625,7 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
 
   return {
     insert, group: groupEls,
-    set, move, revert, has, remove, beginText, endText, undo, redo, discardAll, batch, reapply,
+    set, move, revert, has, remove, beginText, endText, textToRich, undo, redo, discardAll, batch, reapply,
     get count() { return list().length; },
     list,
   };
