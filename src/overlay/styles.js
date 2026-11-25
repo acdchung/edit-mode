@@ -380,7 +380,8 @@ input::selection { background: rgba(13,153,255,.4); }
            box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,.25), 0 1px 3px rgba(0,0,0,.4); }
 .cp-bar .cp-knob { top: 50%; }
 .cp-fields { margin-bottom: 2px; }
-.cp-fields .hex { padding-left: 10px; }
+.cp-fields .hex { padding-left: 8px; }
+.cp-preview { cursor: default; }
 .pop-title { color: var(--muted); font-size: 11px; margin: 0 0 6px; }
 .pop.details { width: 200px; padding: 10px; }
 .pop.fonts { width: 232px; max-height: none; overflow: hidden; padding: 8px; }

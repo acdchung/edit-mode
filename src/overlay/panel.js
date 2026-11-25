@@ -417,10 +417,11 @@ export function createPanel(ctx) {
     }
     tools.append(bars);
     const fields = h('div', 'field color cp-fields');
+    const preview = h('span', 'swatch cp-preview', '<i></i>'); // the color being picked, opacity included
     const hexIn = h('input', 'hex');
     hexIn.spellcheck = false;
     hexIn.setAttribute('aria-label', 'Hex');
-    fields.append(hexIn);
+    fields.append(preview, hexIn);
     let alphaIn;
     if (alpha) {
       alphaIn = h('input', 'alpha');
@@ -443,6 +444,7 @@ export function createPanel(ctx) {
       hueKnob.style.background = pure;
       alphaFill.style.background = `linear-gradient(to right, transparent, ${hex()})`;
       alphaKnob.style.left = `${a * 100}%`;
+      preview.firstChild.style.background = value();
       if (shadow.activeElement !== hexIn) hexIn.value = hex().slice(1);
       if (alphaIn && shadow.activeElement !== alphaIn) alphaIn.value = Math.round(a * 100);
     }
