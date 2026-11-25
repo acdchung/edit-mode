@@ -7,6 +7,7 @@ Batch folder: {{BATCH}}
   - `kind`: `style`, `text`, `delete`, `move`, `insert` or `group` (`place` from the canvas, rule 10; `build` for a new design, rule 11; `variable` for a color variable, rule 14)
   - `element`: tag and classes, e.g. `button.btn.cta-primary`
   - `source`: `file:line:col` of the JSX tag that renders the element
+  - `inside` (when `source` is null): the element is rendered by a library component (an icon, for example), so it has no JSX line of its own. `inside` is the nearest element from the project's code that contains it: its `element` (tag and classes), `source`, and `index` among the `count` elements rendered from that line. Use it to tell which instance the change is for, and style the library element through it (e.g. `.issue--warning .issue-icon`). Several entries changing the same thing in instances that share a class (all the `issue--warning` items) mean that class.
   - `scope`: `all` = the element's whole `family`; `one` = only this element (for code elements, the instance at `index` (0-based) among the `count` rendered from that line)
   - `family` (with `scope: "all"`): a JSX `file:line:col`, or `new #N` for something the designer added. The family is every element rendered from that line, plus every copy of them made in this batch (`copyOf` = the family). Copies get the same styling as the originals.
   - `property`, `from`, `to`: CSS property and its computed value before and after

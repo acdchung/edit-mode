@@ -259,9 +259,20 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
     return { key: `one:${idOf(el)}`, els: [el], scope: 'one', index: all.indexOf(el), count: all.length };
   }
 
+  // An element a library renders (an icon component) has no source of its own: name the nearest
+  // element from the project's code around it, and which one it is, so Push can tell them apart.
+  const insideOf = (el) => {
+    if (el.getAttribute(ATTR)) return undefined;
+    const anc = el.parentElement?.closest(`[${ATTR}]`);
+    if (!anc) return undefined;
+    const source = anc.getAttribute(ATTR);
+    const all = [...document.querySelectorAll(`[${ATTR}="${CSS.escape(source)}"]`)].filter((x) => !onCanvas(x));
+    return { element: label(anc), source, index: all.indexOf(anc), count: all.length };
+  };
   const meta = (el, t) => ({
     element: label(el),
     source: el.getAttribute(ATTR),
+    inside: insideOf(el),
     newId: el.dataset?.emNew,
     insideNew: el.dataset?.emNew ? undefined : el.parentElement?.closest('[data-em-new]')?.dataset.emNew,
     copyOf: el.dataset?.emCopyOf,

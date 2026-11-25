@@ -17,7 +17,7 @@ import { ICON, KEY as GLYPH } from './icons.js';
 import { IMAGE_FIT, isImageFile, uploadImage } from './assets.js';
 import { frameBox, placeBox } from './constraints.js';
 import { createSnapper } from './snap.js';
-import { fontSource, loadedByCode, notLoaded, restoreFonts, UI_FONT } from './fonts.js';
+import { fontSource, loadGoogle, loadedByCode, notLoaded, restoreFonts, UI_FONT } from './fonts.js';
 import { buildHtml, compareCanvas, componentName, designName, linkDesign, newDesigns, relinkCanvas, rememberLinks } from './compare.js';
 
 if (!window.__editModeOverlay) {
@@ -347,6 +347,7 @@ function init() {
       panel.show(state.selected); // nothing selected: the canvas colour
       canvasInk();
       variables.load();
+      loadGoogle(); // so Push can tell Claude which fonts are free on Google Fonts, however they were picked
     } else {
       variables.hide(); // kept in .editmode/variables.json for next time
       design.unmount(); // saves the canvas first: discarding page edits must not touch it
@@ -1015,6 +1016,8 @@ function init() {
 
   async function push() {
     if (conflicting()) return;
+    // Which fonts are on Google Fonts (rule 4 loads those for everyone): the list must be in first.
+    await Promise.race([loadGoogle(), new Promise((r) => setTimeout(r, 4000))]); // offline: carry on without it
     const list = [...variables.pending(), ...changes.list(), ...canvasToSend(), ...buildsToSend()].map(markFonts); // variables first: the rest may use them
     if (!list.length) return;
     if (list.some((c) => c.fromCanvas != null)) store.set(KEY.relink, '1'); // the code moves under the copies: link them again on the next load
