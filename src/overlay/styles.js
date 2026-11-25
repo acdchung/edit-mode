@@ -252,21 +252,24 @@ kbd .i { width: 11px; height: 11px; flex: none; }
 
 .side { position: fixed; top: 12px; right: 12px; width: 252px; max-height: calc(100vh - 24px);
         display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; pointer-events: auto; user-select: none; }
-.ph { padding: 12px 12px 10px; border-bottom: 1px solid var(--hair); flex: none; }
+.ph { padding: 14px 12px 12px; border-bottom: 1px solid var(--hair); flex: none; }
 .ph-row { display: flex; align-items: center; gap: 2px; }
 .ph-name { flex: 1; min-width: 0; font: 500 12px/18px var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ph-meta { font: 11px/16px var(--sans); color: var(--muted); margin-top: 1px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
 .scope { margin-top: 10px; }
 
 .pb { overflow-y: auto; min-height: 0; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.15) transparent; }
-section { padding: 12px 12px 4px; border-top: 1px solid var(--hair); }
+section { padding: 16px 12px 8px; border-top: 1px solid var(--hair); } /* "Grouped" spacing, picked 2026-11-25 */
 section:first-child { border-top: 0; }
-section.empty { padding-bottom: 8px; }
-.sh { display: flex; align-items: center; justify-content: space-between; height: 24px; margin-bottom: 8px; }
+section.empty { padding: 8px 12px; } /* 40px tall */
+.sh { display: flex; align-items: center; justify-content: space-between; height: 24px; margin-bottom: 10px; }
 section.empty .sh { margin-bottom: 0; }
 h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--text); }
 .sub { display: flex; align-items: center; justify-content: space-between; height: 22px; margin: 0 0 6px; }
 .cap { color: var(--muted); font-size: 11.5px; }
+.sb > .cap { display: block; margin-bottom: 6px; } /* a label above a row (Canvas › Background) */
+/* Groups inside a section (Auto layout, Padding, Margin, Clip content) start 16px below the rows before them; rows within a group stay 8px apart */
+.sb > :is(.auto, .spacing, .checkrow):not(:first-child) { margin-top: 16px; }
 .row { display: grid; gap: 8px; margin-bottom: 8px; } /* 8px rhythm (the "Tight" density, picked 2026-11-19) */
 .row.two { grid-template-columns: 1fr 1fr; }
 .row.four { grid-template-columns: repeat(4, 1fr); gap: 4px; }

@@ -27,13 +27,15 @@ The user's taste, written down so it isn't re-corrected. These rules cover Edit 
 
 - **The properties panel stays dense:**
   - 252px wide (`.side`) with 28px fields (`.field`, `.dd`)
-  - 8px between rows (`.row`, `.crow`) and between a section header and its content (`.sh`)
+  - 8px between rows (`.row`, `.crow`); 10px between a section header and its content (`.sh`)
+  - **Grouped rhythm** (2026-11-25): a group inside a section (Auto layout, Padding, Margin, Clip content) starts 16px below the rows before it, so groups read apart while rows within a group stay 8px; a label above a row (`.sb > .cap`, e.g. Canvas › Background) gets 6px below it, like `.sub`; sections have 16px above their header, empty sections (Fill/Stroke/Effects with nothing added) are 40px tall; the panel header has 14px/12px padding
   - 4px between controls inside a row, never less
   - row actions (eye, ×) always visible, in fixed 24×28 slots (`.crow > .icon`)
   - fix crowding with rhythm and alignment, never by widening the panel, making fields taller or hiding actions until hover
 
   Why: it's a tool used all day, like Figma; having everything visible on screen beats breathing room.
   <!-- 2026-11-19: "the spacing in the adjustments especially in the 'fill' section is really tight" → picked "Tight" over "Grouped"/"Airy" in a /prototype round: "I think tight is fine"; why confirmed: "rule 2 is fine" -->
+  <!-- 2026-11-25: after the Geist switch, "we need spacing pass. especially for [the Canvas panel], this is way too tight" → picked "Grouped" over "Current"/"Airy" in a side-by-side of the real panel (fields, row gaps and width unchanged) -->
   Checked by `tests/polish1.mjs` › "panel density".
 
 ## Interaction
