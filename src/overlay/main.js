@@ -3,11 +3,12 @@
 // and its CSS can't touch the app.
 
 import { STYLES } from './styles.js';
-import { ATTR, CANVAS_ATTR, NOT_LAYER, box, canvasArea, describe, family, friendlyName, num, onCanvas, parseColor, passThrough, placedDesigns, placedOf, PLACED_ATTR, sameSource, view, visualKids, visualParent } from './util.js';
+import { ATTR, CANVAS_ATTR, NOT_LAYER, box, canvasArea, describe, family, friendlyName, num, onCanvas, parseColor, passThrough, resolveColor, placedDesigns, placedOf, PLACED_ATTR, sameSource, view, visualKids, visualParent } from './util.js';
 import { createCanvas } from './canvas.js';
 import { createChanges, editsRich, isRich, isText } from './changes.js';
 const editable = (el) => isText(el) || isRich(el); // a text layer: plain, or with styled words inside (10a)
 import { collectTokens } from './tokens.js';
+import { createVariables } from './variables.js';
 import { createPanel } from './panel.js';
 import { createLayers } from './layers.js';
 import { createSpacing } from './spacing.js';
@@ -143,7 +144,10 @@ function init() {
       else if (state.selected && !state.selected.getClientRects().length) select(pickable(state.selected.parentElement));
     },
   });
+  // Color variables (the app's, plus ones added or changed here): shown on the page while Edit Mode is on.
+  const variables = createVariables({ onChange: () => { state.tokens = null; renderPill(); panel.varsChanged(); } });
   const panel = createPanel({
+    variables,
     canvasBackground: () => canvas.background(),
     setCanvasBackground: (c) => { canvas.setBackground(c); canvasInk(); },
     defaultCanvasBackground: () => canvas.defaultBackground,
@@ -342,7 +346,9 @@ function init() {
       loop();
       panel.show(state.selected); // nothing selected: the canvas colour
       canvasInk();
+      variables.load();
     } else {
+      variables.hide(); // kept in .editmode/variables.json for next time
       design.unmount(); // saves the canvas first: discarding page edits must not touch it
       changes.discardAll();
       closeZoomMenu();
@@ -425,7 +431,7 @@ function init() {
   // its own can be pushed. One already built as a component counts again only
   // when it's set to be built again.
   const countDesigns = () => { state.designCount = state.on ? newDesigns().filter((n) => !n.dataset.emBuilt || buildMode(n) !== 'skip').length + placedDesigns().length : 0; };
-  const pendingCount = () => changes.count + canvasCount() + state.designCount;
+  const pendingCount = () => changes.count + canvasCount() + state.designCount + variables.count();
 
   function renderPill() {
     const n = pendingCount();
@@ -513,10 +519,11 @@ function init() {
     clearTimeout(diffTimer);
     try { state.canvasDiff = compareNow(); } catch (err) { console.error(err); state.canvasDiff = []; }
     const list = changes.list();
-    if (!list.length && !state.canvasDiff.length && !newDesigns().length && !placedDesigns().length) return;
+    const vars = variables.pending();
+    if (!list.length && !vars.length && !state.canvasDiff.length && !newDesigns().length && !placedDesigns().length) return;
     const d = h('div', 'dialog glassy');
     const title = h('h3');
-    const setTitle = () => { const n = list.length + canvasCount() + buildsToSend().length; title.textContent = n ? `Push ${n} change${n === 1 ? '' : 's'} to code` : 'Push to code'; }; // 0: only new designs, none picked yet
+    const setTitle = () => { const n = vars.length + list.length + canvasCount() + buildsToSend().length; title.textContent = n ? `Push ${n} change${n === 1 ? '' : 's'} to code` : 'Push to code'; }; // 0: only new designs, none picked yet
     setTitle();
     d.append(title);
     d.append(Object.assign(h('p'), { textContent: 'Claude will update your source to match. You can undo afterwards.' }));
@@ -534,8 +541,14 @@ function init() {
       wrap.append(ul, more);
       return wrap;
     };
-    const plainRow = (c) => { const li = h('li'); li.textContent = li.title = describeChange(c); return li; };
+    const plainRow = (c) => { const li = h('li'); li.textContent = li.title = c.text ?? describeChange(c); return li; };
+    const hexOf = (v) => parseColor(resolveColor(v))?.hex.toUpperCase() ?? v;
+    const describeVar = (v) => v.added ? `New variable ${v.name}  ${hexOf(v.value)}` : `${v.name}  ${hexOf(v.from)} → ${hexOf(v.value)}`;
     const blocks = [];
+    if (vars.length) {
+      blocks.push(h('h4', 'sec', 'Variables'));
+      blocks.push(listBlock(vars, (v) => plainRow({ text: describeVar(v) })));
+    }
     if (list.length) {
       if (state.canvasDiff.length) blocks.push(h('h4', 'sec', 'On the page'));
       blocks.push(listBlock(list, plainRow));
@@ -652,7 +665,7 @@ function init() {
     function gate() {
       const clash = conflicting();
       hint.textContent = clash ? `Untick ${clash[0]} or ${clash[1]}: they change the same thing differently` : '';
-      a.ok.disabled = !!clash || !(list.length + canvasCount() + buildsToSend().length);
+      a.ok.disabled = !!clash || !(vars.length + list.length + canvasCount() + buildsToSend().length);
     }
     gate();
     const conv = h('div', 'conv');
@@ -1002,7 +1015,7 @@ function init() {
 
   async function push() {
     if (conflicting()) return;
-    const list = [...changes.list(), ...canvasToSend(), ...buildsToSend()].map(markFonts);
+    const list = [...variables.pending(), ...changes.list(), ...canvasToSend(), ...buildsToSend()].map(markFonts); // variables first: the rest may use them
     if (!list.length) return;
     if (list.some((c) => c.fromCanvas != null)) store.set(KEY.relink, '1'); // the code moves under the copies: link them again on the next load
     // New designs being built: after the push, a placed one is linked to its new code, a component goes back to Skip.
@@ -1075,7 +1088,7 @@ function init() {
       const res = await fetch('/@edit-mode/undo', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Undo failed');
-      store.set(KEY.reapply, JSON.stringify(data.changes.filter((c) => c.fromCanvas == null))); // canvas rows: the copies still have them
+      store.set(KEY.reapply, JSON.stringify(data.changes.filter((c) => c.fromCanvas == null && c.kind !== 'variable'))); // canvas rows: the copies still have them
       store.set(KEY.onPage, data.onPage?.length ? JSON.stringify(data.onPage) : null); // designs that sat on the page go back there
       store.set(KEY.on, '1');
       store.set(KEY.relink, '1');

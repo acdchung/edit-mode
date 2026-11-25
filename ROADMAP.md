@@ -144,8 +144,8 @@ Steps:
 ### Selection colors: done (2026-11-25)
 The user's request: "a Selection Colors section when selecting an element that shows you a list of all colors in the element so you can change them without having to deep click into all of the individual pieces". Agreed: fills, text, strokes and icons; no shadows, no gradients for now; several selected → all of them combined; shown only when the selection covers more than one layer. `tests/selcolors.mjs`.
 
-### Next, proposed 2026-11-25: your own color variables (plan with the user before building)
-"It would be great to be able to add more variable colors, so users can have somewhat of a DS within this tool to help with creating realistic prototypes/screens." Note: CLAUDE.md said variables were out of scope; the user now wants color variables.
+### Color variables: done (2026-11-25)
+"It would be great to be able to add more variable colors, so users can have somewhat of a DS within this tool to help with creating realistic prototypes/screens." Agreed ("go with your picks"): colors only; no light/dark modes; a flat list (no groups yet); the app's own variables can be changed too. `variables.js` (overlay), `readVars`/`writeVars` + Push/Undo hand-off in runner.js, the Variables section in panel.js, `kind: "variable"` (apply-edits rule 14). `tests/variables.mjs` (sample copy, `COPY=`), `tests/varsrunner.mjs` (no browser). Later, if wanted: groups (`gray/100`), number variables (spacing, radius), modes, ⌘Z for variable edits, renaming a variable that's in use.
 
 ## Choose next (as of 2026-11-25; ask the user)
 Items 1–10 are done. Options, with my suggestion first:

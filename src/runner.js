@@ -124,6 +124,11 @@ export function createRunner({ root, publicDir = join(root, 'public'), claudePat
       const record = { id, ...result, files: [...changed, ...created], changed, created, images: images.copied, at: Date.now() };
       writeJSON(join(batchDir, 'result.json'), { ...record, after: Object.fromEntries([...changed, ...created].map((f) => [f, after[f]])) });
       writeJSON(statePath, { last: record });
+      // Variables in this batch are in the code now: keep them with the batch (Undo brings them back).
+      if (result.ok && payload.changes.some((c) => c.kind === 'variable') && existsSync(varsPath)) {
+        writeFileSync(join(batchDir, 'variables.json'), readFileSync(varsPath));
+        rmSync(varsPath);
+      }
       log(result.ok ? `Claude finished: ${result.summary}` : `Claude failed: ${result.error}`);
     });
     return { id };
@@ -209,9 +214,25 @@ export function createRunner({ root, publicDir = join(root, 'public'), claudePat
       const abs = join(root, f);
       if (existsSync(abs)) { rmSync(abs); restored.push(f); }
     }
+    const vars = join(batchDir, 'variables.json');
+    if (existsSync(vars)) { // pending again, as before the push (along with any made since)
+      const was = readJSON(vars, { set: {}, added: [] });
+      const now = readVars();
+      writeVars({ set: { ...was.set, ...now.set }, added: [...new Set([...was.added, ...now.added])] });
+    }
     writeJSON(statePath, { last: { ...last, undone: true } });
     log(`undid ${last.id}: restored ${restored.length} file(s)` + (skipped.length ? `, skipped ${skipped.join(', ')}` : ''));
     return { changes: readJSON(join(batchDir, 'changes.json'), []), onPage: readJSON(join(batchDir, 'on-page.json'), []), restored, skipped };
+  }
+
+  // Color variables added or changed in Edit Mode (overlay: variables.js), waiting for Push.
+  const varsPath = join(dir, 'variables.json');
+  const readVars = () => readJSON(varsPath, { set: {}, added: [] });
+  function writeVars(data) {
+    if (typeof data?.set !== 'object' || !Array.isArray(data?.added)) throw new Error('Variables: expected { set, added }.');
+    ensureDir();
+    writeJSON(varsPath, { set: data.set, added: data.added });
+    return { ok: true };
   }
 
   // The design canvas beside the page (overlay: design.js), saved as its HTML.
@@ -268,5 +289,5 @@ export function createRunner({ root, publicDir = join(root, 'public'), claudePat
     return existsSync(path) ? { bytes: readFileSync(path), type: IMAGE_TYPES[extname(file).slice(1)] } : null;
   }
 
-  return { push, undo, status, draftConventions, readCanvas, writeCanvas, saveAsset, readAsset, isRunning: () => !!running };
+  return { push, undo, status, draftConventions, readCanvas, writeCanvas, readVars, writeVars, saveAsset, readAsset, isRunning: () => !!running };
 }

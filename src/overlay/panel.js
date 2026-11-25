@@ -2529,7 +2529,96 @@ export function createPanel(ctx) {
   });
   bgReset.addEventListener('click', () => setBg(null));
 
-  column.append(header, body, footer, canvasSec);
+  // Color variables (nothing selected, like Figma's local variables): the app's own and the
+  // ones added here. + adds one; a new one can be renamed or deleted until something uses it;
+  // changing one of the app's shows × to go back to the code's value. Push writes them to :root.
+  const vars = ctx.variables;
+  const varsList = h('div', 'vars-list');
+  const varsAdd = h('button', 'icon add', ICON.plus);
+  varsAdd.title = 'Add a color variable';
+  varsAdd.setAttribute('aria-label', 'Add a color variable');
+  const varsSec = section('Variables', varsList);
+  varsSec.classList.add('vars');
+  varsSec.head.append(varsAdd);
+  let varRows = new Map(); // name → row parts
+  let varSig = '';
+  const hexText = (rgb) => (parseColor(rgb)?.hex || rgb).replace(/^#/, '').toUpperCase();
+  function varRow(v) {
+    const row = h('div', 'crow');
+    const wrap = h('div', 'field color');
+    const sw = h('button', 'swatch', '<i></i>');
+    sw.title = 'Pick a color';
+    const name = h('input', 'vname');
+    name.spellcheck = false;
+    name.setAttribute('aria-label', 'Variable name');
+    const hex = h('input', 'hex vhex');
+    hex.spellcheck = false;
+    hex.setAttribute('aria-label', `${v.name} color`);
+    wrap.append(sw, name, h('span', 'divider'), hex);
+    const x = h('button', 'icon', ICON.x);
+    row.append(wrap, x);
+    const r = { row, wrap, sw, name, hex, x, v };
+    sw.addEventListener('click', () => colorPop(sw, r.v.rgb, (c) => vars.setValue(r.v.name, c)));
+    name.addEventListener('focus', () => name.select());
+    hex.addEventListener('focus', () => hex.select());
+    for (const f of [name, hex]) f.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') f.blur();
+      else if (e.key === 'Escape') { paintVar(r, true); f.blur(); }
+    });
+    name.addEventListener('change', () => {
+      const to = vars.rename(r.v.name, name.value);
+      wrap.classList.toggle('bad', !to);
+      if (!to) name.title = 'That name is taken';
+    });
+    name.addEventListener('blur', () => renderVars(true));
+    hex.addEventListener('change', () => {
+      const c = colorFromText(hex.value);
+      wrap.classList.toggle('bad', !c);
+      if (c) vars.setValue(r.v.name, parseColor(c)?.a < 1 ? c : parseColor(c)?.hex || c);
+    });
+    hex.addEventListener('blur', () => renderVars(true));
+    x.addEventListener('click', () => { if (vars.remove(r.v.name)) renderVars(true); });
+    return r;
+  }
+  function paintVar(r, force) {
+    const { v } = r;
+    r.sw.firstChild.style.background = v.rgb;
+    const editable = v.state === 'new' && !vars.inUse(v.name);
+    r.name.readOnly = !editable;
+    r.name.title = v.state === 'new' && !editable ? 'In use: its name can’t change' : v.name;
+    if (force || shadow.activeElement !== r.name) r.name.value = v.name.replace(/^--/, '');
+    if (force || shadow.activeElement !== r.hex) r.hex.value = hexText(v.rgb);
+    r.wrap.classList.remove('bad');
+    // The row action: delete a new one (unless used), or put a changed one back to the code's value.
+    r.x.style.visibility = v.state === 'code' || (v.state === 'new' && vars.inUse(v.name)) ? 'hidden' : '';
+    r.x.title = v.state === 'new' ? 'Delete variable' : 'Back to the code’s value';
+    r.x.setAttribute('aria-label', r.x.title);
+  }
+  function renderVars(force) {
+    if (varsSec.hidden) return;
+    const typing = [...varRows.values()].some((r) => [r.name, r.hex].includes(shadow.activeElement));
+    if (typing && !force) return; // the field being typed in keeps its value and the focus
+    const list = vars.list();
+    const sig = list.map((v) => v.name).join('|');
+    if (sig !== varSig) { // a variable added, renamed or removed: rows again (values alone update in place)
+      varSig = sig;
+      const next = new Map();
+      for (const v of list) next.set(v.name, varRows.get(v.name) || varRow(v));
+      varRows = next;
+      varsList.replaceChildren(...[...next.values()].map((r) => r.row));
+    }
+    for (const v of list) { const r = varRows.get(v.name); r.v = v; paintVar(r, force); }
+    varsSec.classList.toggle('empty', !list.length);
+  }
+  varsAdd.addEventListener('click', () => {
+    const name = vars.add();
+    renderVars(true);
+    const r = varRows.get(name);
+    r?.row.scrollIntoView({ block: 'nearest' });
+    r?.name.focus();
+  });
+
+  column.append(header, body, footer, canvasSec, varsSec);
   column.hidden = true;
 
   // ---------- Public ----------
@@ -2538,7 +2627,7 @@ export function createPanel(ctx) {
     if (el !== shownEl) { li = 0; layerSig = null; shownEl = el; } // a new selection starts at its top fill
     multi.hidden = !many() || !!range;
     header.hidden = body.hidden = footer.hidden = !el;
-    canvasSec.hidden = !!el;
+    canvasSec.hidden = varsSec.hidden = !!el;
     if (range && el) {
       column.hidden = false;
       const words = range.text().replace(/\s+/g, ' ').trim();
@@ -2561,7 +2650,7 @@ export function createPanel(ctx) {
       return;
     }
     column.hidden = !el && !state.on; // appears instantly; with nothing selected (Edit Mode on) it shows the canvas colour
-    if (!el) return paintBg();
+    if (!el) { renderVars(true); return paintBg(); }
 
     const own = el.getAttribute(ATTR);
     const tagged = own ? el : el.parentElement?.closest(`[${ATTR}]`);
@@ -2736,5 +2825,6 @@ export function createPanel(ctx) {
       return true;
     },
     closeMenu: closePop,
+    varsChanged: () => renderVars(false),
   };
 }

@@ -4,7 +4,7 @@ The edits only exist as a browser preview. Your job is to make the real source c
 Batch folder: {{BATCH}}
 
 - `{{BATCH}}/changes.json`: every edit, in order. Fields:
-  - `kind`: `style`, `text`, `delete`, `move`, `insert` or `group` (`place` from the canvas, rule 10; `build` for a new design, rule 11)
+  - `kind`: `style`, `text`, `delete`, `move`, `insert` or `group` (`place` from the canvas, rule 10; `build` for a new design, rule 11; `variable` for a color variable, rule 14)
   - `element`: tag and classes, e.g. `button.btn.cta-primary`
   - `source`: `file:line:col` of the JSX tag that renders the element
   - `scope`: `all` = the element's whole `family`; `one` = only this element (for code elements, the instance at `index` (0-based) among the `count` rendered from that line)
@@ -49,6 +49,10 @@ Rules:
    - `mode: "place"`: put it on the page at `placement`: inside `placement.parent`, between `placement.after` and `placement.before` (refs like other changes; `page: true` = the page's top level, where the sections are). If it's a self-contained piece (a card, a section, anything that could repeat), make it a component named `component` and render it there; if it's a few simple elements, write them inline. Say which in your summary.
    - `onPage: true`: the designer moved the design onto the live page and saw it there; `placement` is exactly where it sat. `placement.after`/`before` can be another new design built in this same batch (`design: true`, named by `name`): keep them in that order. `!important` in its inline styles only came from the browser preview: never write `!important`.
    - `placement.replaces`: page elements next to it that the designer deleted or hid in this batch to put the design in their place (it replaces them). Remove them from the code (also when the batch hides them with `display: none`: that hide was only to make room) and build the design where they were.
-12. Only edit the files the changes point to, the files that style those elements, and (for `build`) the new component's files (including token files, if `EDITMODE.md` says new values belong there). Never edit `EDITMODE.md` itself. If something wider seems needed, don't do it; mention it in your summary.
+12. Only edit the files the changes point to, the files that style those elements, and (for `build`) the new component's files (including token files, if `EDITMODE.md` says new values belong there), and, for `variable` changes, where the project's variables are defined. Never edit `EDITMODE.md` itself. If something wider seems needed, don't do it; mention it in your summary.
 13. Don't run shell commands and don't install anything.
-14. When finished, reply with one or two short sentences for a designer: what you changed, and anything you couldn't do. No code, no file paths unless something needs their attention.
+14. `kind: "variable"`: a color variable (a CSS custom property) the designer added or changed. These come first in the list: later changes may use them as `var(--name)`.
+   - `added: true`: a new variable `name` with `value`. Add it where the project defines its other variables (the `:root` block in the main stylesheet, or the token file `EDITMODE.md` names), next to similar ones. With no `:root` yet, add one at the top of the global stylesheet.
+   - Otherwise the designer changed an existing variable from `from` to `value`: change it where it's defined, so everything using it follows. Don't touch the places that use it.
+   - Keep the name exactly as given and the value as given (hex, or `rgba(…)` for a translucent one). Never replace a new variable with a similar existing one (rule 4 doesn't apply to these): the designer made it on purpose.
+15. When finished, reply with one or two short sentences for a designer: what you changed, and anything you couldn't do. No code, no file paths unless something needs their attention.

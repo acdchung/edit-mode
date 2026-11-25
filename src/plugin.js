@@ -117,6 +117,8 @@ export default function editMode(options = {}) {
       }
       if (name === 'undo' && req.method === 'POST') return send(200, runner.undo());
       if (name === 'draft-conventions' && req.method === 'POST') return send(200, runner.draftConventions());
+      if (name === 'variables' && req.method === 'GET') return send(200, runner.readVars());
+      if (name === 'variables' && req.method === 'PUT') return send(200, runner.writeVars(JSON.parse(await readBody(req))));
       if (name === 'canvas' && req.method === 'GET') return send(200, runner.readCanvas());
       if (name === 'canvas' && req.method === 'PUT') return send(200, runner.writeCanvas(JSON.parse(await readBody(req))));
       if (name === 'assets' && req.method === 'POST') {

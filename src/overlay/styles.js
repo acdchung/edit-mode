@@ -335,6 +335,10 @@ input::selection { background: rgba(13,153,255,.4); }
 .crow > .icon { width: 24px; height: 28px; } /* row actions (eye, ×): fixed slots, as tall as the field */
 .crow > .field, .crow > .f { flex: 1; }
 /* Selection colors: how many places use the color, in the row-action slot; "See all" under the list */
+.vars-list { max-height: calc(100vh - 260px); overflow-y: auto; margin: 0 -12px; padding: 0 12px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.15) transparent; }
+.field .vname { flex: 1; min-width: 0; padding-left: 8px; text-overflow: ellipsis; }
+.field .vname[readonly] { cursor: default; }
+.field .vhex { flex: none; width: 62px; padding-left: 8px; }
 .sc-n { flex: none; width: 24px; text-align: center; color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
 .sc-more { all: unset; display: block; margin: 0 0 8px; color: var(--muted); font-size: 11px; cursor: pointer; }
 .sc-more:hover { color: var(--text); }

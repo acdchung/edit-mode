@@ -6,7 +6,7 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
 
 - **Status: roadmap items 1–10 are all done**, plus the canvas (C1–C5), Push from the canvas (B3a–d), designs dragged into the page, and the 2026-11-23/24 work: text (line breaks, resizing, vertical align, Type details with truncate), fonts (this computer + Google Fonts), shortcuts (hide/lock, text shortcuts, copy/paste properties), min/max size, the effects list, stacked fills, stroke style, rotation + flip, mixed-style text (editing text with styled words or icons inside, formatting selected words, the Text section on selected words), a dark colour picker in every colour menu, the canvas background colour (the panel with nothing selected), and fields that keep the focus through Shift+↑/↓. The last full QA loop (2026-11-24, all 43 suites) passed, and everything is committed and pushed.
 - **2026-11-25: UI font is now Geist (+0.01em), header off the code font** (DESIGN.md › Typography). The plugin serves the font, so a dev server started before this commit shows the old system font until it's restarted. Then the "Grouped" spacing pass (DESIGN.md › Spacing). The user's servers (5288, 5291) were restarted with `nohup` that day (logs in that session's scratchpad).
-- **2026-11-25 also: Selection colors** (ROADMAP › "Selection colors"). **Next: the user's own color variables** (ROADMAP › "your own color variables"): a plan was proposed; build after the user answers.
+- **2026-11-25 also: Selection colors and color variables** (ROADMAP › "Selection colors", "Color variables"). Color variables are now in scope (the user's call); components still aren't. Plugin/runner changed that day: the user's servers need a restart for the variables to save.
 - **Then: ask the user which "Later" item to do** (ROADMAP › Later): breakpoint frames (suggested: desktop / tablet / phone side by side; the biggest change left, plan it with the user before building), Preview in page (B3e), a version switcher for designs dropped onto the page, image Crop. Small known gaps: changes to mixed-style text on a canvas copy aren't compared for Push yet (compare.js handles plain text only); the selection frame of a rotated layer is drawn around its tilted footprint.
 - **Working agreements with the user** (also in memory):
   - **New items:** check what exists, propose numbered steps with a recommendation per question, and wait for answers before building.
@@ -59,7 +59,7 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
 
 ## Who and what
 
-- The user is a designer, not an engineer, so explain anything they need to run. They want Figma's **canvas** behavior on a live localhost page. Components and variables are out of scope.
+- The user is a designer, not an engineer, so explain anything they need to run. They want Figma's **canvas** behavior on a live localhost page. Components are out of scope; color variables are in (2026-11-25).
 - Edit Mode is a Vite plugin (React + plain CSS). The user edits the running page, edits are batched in the browser, and **Push** writes a batch to `.editmode/` and runs the `claude` CLI to rewrite the source. **Undo** restores the files that pass changed.
 - Don't add Edit Mode to the user's own projects until they ask. `sample-app/` is the test bed.
 
@@ -95,7 +95,7 @@ Read this file first, then DESIGN.md (the user's design rules), ROADMAP.md (what
 - `src/plugin.js`: the Vite plugin, dev only (`apply: 'serve'`, `enforce: 'pre'`).
   - `transform` tags JSX via `tag-source.js`
   - `transformIndexHtml` injects `/@edit-mode/main.js`
-  - middleware: `/@edit-mode/{freeze,status,push,undo,canvas}`, `assets` (POST an image → `.editmode/assets/<sha1-12>.<ext>`; GET `assets/<file>` serves it) plus the overlay files
+  - middleware: `/@edit-mode/{freeze,status,push,undo,canvas,variables}`, `assets` (POST an image → `.editmode/assets/<sha1-12>.<ext>`; GET `assets/<file>` serves it) plus the overlay files
   - `handleHotUpdate` returns `[]` while frozen (edit mode pings every 2s, 75s window) or while Claude runs; on unfreeze it sends a full reload if updates are pending
 - `src/tag-source.js`: adds `data-src="rel/path:line:col"` after every lowercase JSX tag name (@babel/parser + magic-string, with sourcemaps).
 - `src/runner.js`:
