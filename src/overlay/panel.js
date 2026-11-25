@@ -6,7 +6,7 @@
 // `changes.set(...)`, which previews the edit as an inline style.
 
 import {
-  ATTR, box, colorFromText, describe, family, fmt, isNumber, num, onCanvas, parseColor, parseSrc, placedOf, resolveColor, sameSource,
+  ATTR, NOT_LAYER, box, colorFromText, describe, family, fmt, isNumber, num, onCanvas, parseColor, parseSrc, placedOf, resolveColor, sameSource,
 } from './util.js';
 import { isText } from './changes.js';
 import { firstFamily, googleFamilies, googleReady, googleStyles, loadGoogle, loadLocal, localFamilies, localStatus, localStyles, useFont } from './fonts.js';
@@ -2347,8 +2347,152 @@ export function createPanel(ctx) {
     }
   });
 
+  // Selection colors (Figma's): every solid color used inside the selection (fills, text,
+  // strokes, icons; not shadows or gradients), one row per color. Editing a row changes every
+  // place that uses it, as one undo step. Shown when the selection covers more than one layer.
+  const SC_MAX = 8;
+  const SC_SCAN = 2000; // elements: enough for a whole page, bounded for huge ones
+  let scAll = false; // "See all" opened
+  const scList = h('div', 'sc-list');
+  const scMore = h('button', 'sc-more');
+  scMore.addEventListener('click', () => { scAll = !scAll; refreshSc(true); });
+  const selColors = section('Selection colors', scList, scMore);
+  const colorKey = (c) => { const p = parseColor(c); return p ? `${p.hex}|${Math.round(alphaOf(c) * 100)}` : null; };
+  function scUses() {
+    const roots = picked();
+    const els = [];
+    for (const r of roots) {
+      els.push(r);
+      for (const d of r.querySelectorAll('*')) { if (els.length >= SC_SCAN) break; els.push(d); }
+    }
+    const uses = [];
+    const add = (el, kind, c) => { if (c && !isClear(c) && colorKey(c)) uses.push({ el, kind, c }); };
+    for (const el of new Set(els)) {
+      if (NOT_LAYER.test(el.tagName) || el.closest('edit-mode-root')) continue;
+      if (el instanceof SVGElement && el.tagName.toLowerCase() !== 'svg') continue; // an icon counts once, at its <svg>
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none') continue;
+      if (el.tagName.toLowerCase() === 'svg') {
+        const shape = el.querySelector('path, circle, rect, line, polyline, polygon, ellipse') || el;
+        const ss = getComputedStyle(shape);
+        // currentColor icons (Lucide and most sets): their color is the svg's text color
+        const pick = (v) => (v !== 'none' && !/^url/.test(v) ? v : null);
+        const st = pick(ss.stroke), fi = pick(ss.fill);
+        if (st && st === cs.color || fi && fi === cs.color) add(el, 'color', cs.color);
+        if (st && st !== cs.color) add(el, 'stroke', st);
+        if (fi && fi !== cs.color) add(el, 'fill', fi);
+        continue;
+      }
+      add(el, 'background-color', cs.backgroundColor);
+      if (hasText(el) || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) add(el, 'color', cs.color);
+      const st = strokeOf(cs);
+      if (st) add(el, 'stroke-css', st.color);
+    }
+    const groups = new Map();
+    for (const u of uses) {
+      const k = colorKey(u.c);
+      if (!groups.has(k)) groups.set(k, { key: k, color: u.c, uses: [] });
+      groups.get(k).uses.push(u);
+    }
+    return [...groups.values()].sort((a, b) => b.uses.length - a.uses.length);
+  }
+  // Change every use in one group to `value` (a color, or a function of the old one).
+  function scWrite(uses, value, group) {
+    const scope = many() ? 'one' : state.scope;
+    const r = changes.batch(group, () => {
+      for (const u of uses) {
+        if (!u.el.isConnected) continue;
+        withEl(u.el, () => {
+          const v = typeof value === 'function' ? value(u.c) : value;
+          if (u.kind === 'stroke-css') strokeSet('color', v, strokeOf(getComputedStyle(u.el)));
+          else apply(u.kind, v);
+        }, scope);
+      }
+    });
+    ctx.onEdit();
+    return r;
+  }
+  const scRows = [];
+  function scRow() {
+    const id = ++fieldSeq;
+    const row = h('div', 'crow');
+    const wrap = h('div', 'field color');
+    const sw = h('button', 'swatch', '<i></i>');
+    sw.title = 'Pick a color';
+    const hex = h('input', 'hex');
+    hex.spellcheck = false;
+    hex.setAttribute('aria-label', 'Selection color');
+    const alpha = h('input', 'alpha');
+    alpha.setAttribute('aria-label', 'Selection color opacity');
+    const count = h('span', 'sc-n');
+    wrap.append(sw, hex, h('span', 'divider'), alpha, h('span', 'sfx', '%'));
+    row.append(wrap, count);
+    const r = { row, group: null };
+    let pg = 0;
+    sw.addEventListener('pointerdown', () => pg++);
+    sw.addEventListener('click', () => {
+      const uses = r.group.uses; // the same places all through a picker drag, even as their color changes
+      colorPop(sw, r.group.color, (v, from) => scWrite(uses, v, from === 'picker' ? `sc${id}:picker:${pg}` : null));
+    });
+    let held = null; // the places being edited while a field has the focus
+    hex.addEventListener('focus', () => { held = r.group.uses; hex.select(); });
+    hex.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') hex.blur();
+      else if (e.key === 'Escape') { paint(r, true); hex.blur(); }
+    });
+    hex.addEventListener('change', () => {
+      const v = colorFromText(hex.value);
+      wrap.classList.toggle('bad', !v);
+      if (v) scWrite(held || r.group.uses, alphaOf(v) < 1 ? v : (old) => withAlpha(v, alphaOf(old)));
+    });
+    hex.addEventListener('blur', () => { held = null; });
+    let ag = null;
+    alpha.addEventListener('focus', () => { held = r.group.uses; ag = `sc${id}:a:${Date.now()}`; alpha.select(); });
+    alpha.addEventListener('blur', () => { held = null; refreshSc(true); });
+    alpha.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') alpha.blur();
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        alpha.value = Math.min(100, Math.max(0, num(alpha.value) + (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 10 : 1)));
+        alpha.dispatchEvent(new Event('input'));
+      }
+    });
+    alpha.addEventListener('input', () => {
+      if (!isNumber(alpha.value.trim())) return;
+      if (+alpha.value > 100) alpha.value = '100';
+      const a = Math.min(100, Math.max(0, +alpha.value)) / 100;
+      scWrite(held || r.group.uses, (old) => withAlpha(old, a), ag);
+    });
+    Object.assign(r, { sw, hex, alpha, wrap, count });
+    return r;
+  }
+  function paint(r, force) {
+    const c = r.group.color;
+    r.sw.firstChild.style.background = c;
+    if (force || shadow.activeElement !== r.hex) r.hex.value = (parseColor(c)?.hex || c).replace(/^#/, '');
+    if (force || shadow.activeElement !== r.alpha) r.alpha.value = Math.round(alphaOf(c) * 100);
+    r.count.textContent = r.group.uses.length;
+    r.count.title = `Used in ${r.group.uses.length} place${r.group.uses.length === 1 ? '' : 's'}`;
+    r.wrap.classList.remove('bad');
+  }
+  // One layer that holds nothing else has no "selection colors": Fill and Stroke already show them.
+  const scApplies = () => !range && (many() || picked().some((x) => x.firstElementChild && !(x.tagName.toLowerCase() === 'svg')));
+  function refreshSc(force) {
+    if (selColors.hidden) return;
+    const editing = scRows.some((r) => r.row.isConnected && [r.hex, r.alpha].includes(shadow.activeElement));
+    if (editing && !force) return; // don't reshuffle the rows under the field being typed in
+    const groups = scUses();
+    selColors.hidden = !groups.length;
+    const shown = scAll ? groups : groups.slice(0, SC_MAX);
+    while (scRows.length < shown.length) scRows.push(scRow());
+    scList.replaceChildren(...shown.map((g, i) => { scRows[i].group = g; paint(scRows[i], force); return scRows[i].row; }));
+    scMore.hidden = groups.length <= SC_MAX;
+    scMore.textContent = scAll ? 'Show less' : `See all ${groups.length}`;
+  }
+  fields.push(refreshSc);
+
   const body = h('div', 'pb');
-  body.append(alignRow, multi, layout, constraints, appearance, typography, fill, strokeSec, effects);
+  body.append(alignRow, multi, layout, constraints, appearance, typography, fill, strokeSec, effects, selColors);
   // Nothing selected: the canvas's own colour (Figma shows the page's Background here).
   // Edit Mode's, not the app's: remembered per browser, never pushed, no undo step.
   const bgWrap = h('div', 'field color');
@@ -2465,6 +2609,7 @@ export function createPanel(ctx) {
   // when any of them has one (an edit then reaches the ones that have it).
   function arrange(el) {
     for (const sec of [layout, appearance, fill, strokeSec, effects]) sec.hidden = !!range; // selected words: only Text
+    selColors.hidden = !scApplies(); // refreshSc hides it again when there are no colors
     textAlignRow.hidden = textBoxRow.hidden = !!range;
     if (range) { typography.hidden = false; constraints.hidden = true; return; }
     const cs = getComputedStyle(el);

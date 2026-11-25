@@ -334,6 +334,11 @@ input::selection { background: rgba(13,153,255,.4); }
 .crow { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
 .crow > .icon { width: 24px; height: 28px; } /* row actions (eye, ×): fixed slots, as tall as the field */
 .crow > .field, .crow > .f { flex: 1; }
+/* Selection colors: how many places use the color, in the row-action slot; "See all" under the list */
+.sc-n { flex: none; width: 24px; text-align: center; color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+.sc-more { all: unset; display: block; margin: 0 0 8px; color: var(--muted); font-size: 11px; cursor: pointer; }
+.sc-more:hover { color: var(--text); }
+.sc-more[hidden] { display: none; }
 .crow.off .field, .off .crow .field, .off .row { opacity: .4; }
 .color { padding-left: 8px; }
 .swatch { all: unset; flex: none; width: 14px; height: 14px; border-radius: 4px; cursor: pointer; overflow: hidden;
