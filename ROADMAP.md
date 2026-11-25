@@ -12,6 +12,8 @@ Figma is the reference for every behavior. Where a live web page can't work like
 
 ## Next up
 
+**Items 1–10 are done (2026-11-24). What to do next is the user's call: see "Choose next" further down.** The sections below are the history of how each part was planned and built.
+
 ### Update (agreed with the user, 2026-11-20, later the same day): the canvas is the main workspace
 The user's insight: working in two spaces by kind of edit is annoying and unintuitive; they'd duplicate the page onto the canvas and do everything there. Because copies remember their source, a tweak on the canvas copy pushes as exactly as a live edit, so nothing is lost in accuracy for tweaks; what the canvas can't show is the *real* page (hover, other screen sizes, live data), which Preview in page and Push cover. So: **the canvas is where you work; the live page is where you check** (quick live tweaks stay, but nothing new is planned there). Freely placed things push as absolute positioning with constraints (Figma's), not "fitted into a layout". The steps below are updated to match (C3, C4, B3).
 
@@ -138,6 +140,14 @@ Steps:
 - **Fix 2026-11-24 (the user):** an icon next to the text vanished while editing (the copy of the icon was made after the original was set aside, so it copied the hidden state); `parseRich` now makes icon copies visible; `item10.mjs` checks the icon while typing.
 - **10a done 2026-11-24: edit text with styled words inside** (`isRich`/`richOf`/`setRich`/`editRich` in changes.js: an element with words of its own next to inline elements (strong, a, span…) and icons (svg, img); you type into a copy while the app's nodes are set aside; afterwards the words go back into the app's own text nodes when the structure is the same, otherwise the copy stays on top of the hidden originals (`data-em-gone`), never removing React's nodes; icons are `<em-keep n>` and come back if typed away; paste is words only; Push: `kind: "text", rich: true` with inline markup, apply-edits rule 5; `tests/item10.mjs` (`COPY=` sample copy), and the demo hero pill by hand). Not yet: canvas copies compare rich text (compare.js still only plain text).
 - **10b done 2026-11-24** (main.js `formatKey`/`offsets`/`setOffsets`, the ⌘K `linkBox`; changes.js `textToRich` (plain → rich mid-typing, one Push change), `editsRich`, `endText(scope)`: "All like this" + a structure change → scope all; `restoreRich` clears everything that isn't the app's own nodes (the browser's own `<b>` included); all of the text selected → the whole layer, as in Figma; `tests/item10.mjs` 31 checks). **10c done 2026-11-24** (panel.js `range`/`rangeEls`: `picked()`, `apply` (raw inline styles on the copy) and `act` follow the selected words; `arrange` shows only Text without alignment/resizing/truncate; main.js `wordsInfo` (read: the elements holding the words; write: wraps them in a span, plain text turns rich first) and a `selectionchange` listener; clicks in the panel or its menus keep you typing; a bare span serialises as its words; `tests/item10.mjs` 41 checks). **Item 10 done.**
+
+## Choose next (as of 2026-11-25; ask the user)
+Items 1–10 are done. Options, with my suggestion first:
+1. **Breakpoint frames** (below): desktop / tablet / phone side by side. The biggest change left: plan it with the user before building.
+2. **B3e Preview in page:** the canvas version swapped into its real spot before Push (see B3 plan above).
+3. **A version switcher** for designs dropped onto the page (←/→ between versions; see "Drag designs into the page").
+4. **Image Crop mode** (the user rarely uses it).
+Small known gaps: mixed-style text changed on a canvas copy isn't compared for Push yet (compare.js handles plain text only); a rotated layer's selection frame is drawn around its tilted footprint, not rotated with it; with "All like this", a structure change to mixed text previews on the edited instance only.
 
 ## Later (agreed with the user, 2026-11-18)
 
