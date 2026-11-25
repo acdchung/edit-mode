@@ -1120,8 +1120,8 @@ export function createPanel(ctx) {
   const rotRow = h('div', 'crow');
   rotRow.append(rotField,
     rotBtn('rotate90', 'Rotate 90° right', () => setRot(rotOf(getComputedStyle(sel())) + 90)),
-    rotBtn('flipH', 'Flip horizontal', () => flip('h')),
-    rotBtn('flipV', 'Flip vertical', () => flip('v')));
+    rotBtn('flipV', 'Flip vertical', () => flip('v')),
+    rotBtn('flipH', 'Flip horizontal', () => flip('h')));
 
   // X / Y (C4b): where something placed freely sits in its frame (top-level: on the canvas).
   const posRow = row('two',
