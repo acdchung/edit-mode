@@ -16,11 +16,13 @@ import { ICON, KEY as GLYPH } from './icons.js';
 import { IMAGE_FIT, isImageFile, uploadImage } from './assets.js';
 import { frameBox, placeBox } from './constraints.js';
 import { createSnapper } from './snap.js';
-import { fontSource, loadedByCode, notLoaded, restoreFonts } from './fonts.js';
+import { fontSource, loadedByCode, notLoaded, restoreFonts, UI_FONT } from './fonts.js';
 import { buildHtml, compareCanvas, componentName, designName, linkDesign, newDesigns, relinkCanvas, rememberLinks } from './compare.js';
 
 if (!window.__editModeOverlay) {
   window.__editModeOverlay = true;
+  // Our UI font, under a private name so it can't clash with a Geist the app loads itself.
+  try { document.fonts.add(new FontFace(UI_FONT, 'url(/@edit-mode/fonts/Geist-Variable.woff2) format("woff2")', { weight: '100 900' })); } catch {}
   init();
 }
 

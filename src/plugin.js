@@ -134,6 +134,14 @@ export default function editMode(options = {}) {
       return send(400, { error: err.message });
     }
 
+    if (name === 'fonts/Geist-Variable.woff2') {
+      // The overlay's own UI font (SIL OFL, see overlay/fonts/Geist-OFL.txt), bundled so it works offline.
+      try {
+        res.setHeader('Content-Type', 'font/woff2');
+        res.setHeader('Cache-Control', 'max-age=86400');
+        return res.end(readFileSync(overlayDir + name));
+      } catch { return next(); }
+    }
     if (!/^[a-z-]+\.js$/.test(name)) return next();
     try {
       // Read on every request so overlay edits show up on refresh.

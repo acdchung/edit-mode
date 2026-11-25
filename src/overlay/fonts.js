@@ -17,6 +17,7 @@ export const firstFamily = (stack) => (stack || '').split(',')[0].replace(/["']/
 const families = (stack) => (stack || '').split(',').map((f) => f.replace(/["']/g, '').trim()).filter((f) => f && !GENERIC.test(f));
 
 // ---------- This computer ----------
+export const UI_FONT = 'Edit Mode Geist'; // the overlay's own font (main.js loads it)
 const localSupported = () => typeof window.queryLocalFonts === 'function';
 let ready = null; // the loaded list
 let local = null; // Promise<Map family → [{ name, weight, italic }]>
@@ -81,7 +82,7 @@ function codeFamilies() {
   }
   for (const face of document.fonts) {
     const f = face.family.replace(/["']/g, '').trim();
-    if (!injected.has(f)) inCode.add(f.toLowerCase()); // a Google font we loaded isn't the project's
+    if (!injected.has(f) && f !== UI_FONT) inCode.add(f.toLowerCase()); // a Google font we loaded (or our own UI font) isn't the project's
   }
   return inCode;
 }

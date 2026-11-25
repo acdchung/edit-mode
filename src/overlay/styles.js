@@ -12,16 +12,16 @@ export const STYLES = /* css */ `
   --muted: #b4b4bb;
   --dim: #8c8c94;
   --danger: #ff7a6b;
-  --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --sans: "Edit Mode Geist", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; /* bundled, loaded in main.js */
   --ease: cubic-bezier(0.23, 1, 0.32, 1); /* strong ease-out (Emil Kowalski) */
   --pad: rgba(151, 71, 255, 0.22); --pad-edge: rgba(151, 71, 255, 0.6); --pad-strong: #9747ff;
   --mar: rgba(255, 153, 0, 0.2); --mar-edge: rgba(255, 153, 0, 0.6);
   --lift: 0 0 0 0.5px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.05) inset, 0 12px 40px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.25);
 }
 * { box-sizing: border-box; }
-.ui { font: 12px/16px var(--sans);
+.ui { font: 12px/16px var(--sans); letter-spacing: 0.01em; /* Geist runs a touch tight at UI sizes (picked 2026-11-25) */
       color: var(--text); -webkit-font-smoothing: antialiased; }
+.ui input, .ui textarea, .ui select, .ui button { letter-spacing: inherit; } /* browsers reset it on controls */
 [hidden] { display: none !important; }
 button { font: inherit; color: inherit; }
 svg { display: block; }
@@ -254,8 +254,8 @@ kbd .i { width: 11px; height: 11px; flex: none; }
         display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; pointer-events: auto; user-select: none; }
 .ph { padding: 12px 12px 10px; border-bottom: 1px solid var(--hair); flex: none; }
 .ph-row { display: flex; align-items: center; gap: 2px; }
-.ph-name { flex: 1; min-width: 0; font: 500 12px/18px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ph-meta { font: 11px/16px var(--mono); color: var(--muted); margin-top: 1px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.ph-name { flex: 1; min-width: 0; font: 500 12px/18px var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ph-meta { font: 11px/16px var(--sans); color: var(--muted); margin-top: 1px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
 .scope { margin-top: 10px; }
 
 .pb { overflow-y: auto; min-height: 0; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.15) transparent; }

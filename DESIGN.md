@@ -15,7 +15,12 @@ The user's taste, written down so it isn't re-corrected. These rules cover Edit 
 
 ## Typography
 
-- **System sans (`--sans`) everywhere.** Use mono (`--mono`) only for the element name and the source meta in the panel header.
+- **Geist (`--sans`) everywhere, at +0.01em letter spacing, including the panel header.** No mono/code font anywhere in the UI.
+  - Geist is bundled (`src/overlay/fonts/Geist-Variable.woff2`, SIL OFL), served by the plugin at `/@edit-mode/fonts/` and loaded in `main.js` under the private name "Edit Mode Geist" so it can't clash with the app's own fonts (`fonts.js` ignores it when listing the project's fonts).
+  - Inputs and buttons inherit the spacing explicitly (browsers reset it on controls).
+
+  Why: SF Pro made the tool read like a generic Mac/AI app, and the code font in the header made it look like a developer inspector; Geist was picked over Inter and SF Pro in a side-by-side of the real panel, with the spacing opened up a touch.
+  <!-- 2026-11-25: "I feel like the font is throwing me off and making this tool feel AI and not premium" → "I like Geist best, but the letter spacing is a tinyyyyy bit tight" → picked +0.01em over 0/+0.02/+0.03; header: "i want to switch the top font off of the code/dev type look, but no friendly name needed" -->
 - **Icons are Lucide only**, generated into `icons.js`. Never draw custom SVGs or pull in another icon set.
 
 ## Spacing & layout
