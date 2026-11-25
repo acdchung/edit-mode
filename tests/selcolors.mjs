@@ -14,6 +14,15 @@ const sc = () => R(() => { const r = document.querySelector('edit-mode-root').sh
 const click = async (q, mods = []) => { const r = await p.$eval(q, e => { const r = e.getBoundingClientRect(); return [r.x + 6, r.y + 6]; }); for (const m of mods) await p.keyboard.down(m); await p.mouse.click(r[0], r[1]); for (const m of mods) await p.keyboard.up(m); await p.waitForTimeout(300); };
 await click('.card-thumb', ['Meta']); await p.keyboard.press('Escape'); await p.waitForTimeout(300); const sel = await R(() => window.__editMode.state.selected?.className);
 const rows = await sc(); check('a card lists its colors', rows && rows.length >= 2, `${sel}: ${rows}`);
+check('colors that are variables show the variable name, others their hex', ['muted×2', 'ink×1', 'surface×1', 'E6E2DA×1'].every((x) => rows.includes(x)), rows.join(' '));
+{
+  const f = p.locator('edit-mode-root section:has(h4:text-is("Selection colors")) .crow').first().locator('.hex');
+  const bb = await f.boundingBox(); await p.mouse.click(bb.x + 20, bb.y + bb.height / 2); await p.waitForTimeout(150);
+  const typing = await f.inputValue();
+  await p.keyboard.press('Escape'); await p.waitForTimeout(150);
+  const after = await f.inputValue();
+  check('clicking into a variable row shows its hex to type over; leaving shows the name again', typing === '6B7075' && after === 'muted', `${typing} → ${after}`);
+}
 const bb = await p.locator('edit-mode-root .side').boundingBox();
 if (out) await p.screenshot({ path: out + '/sc-card.png', clip: { x: bb.x - 4, y: bb.y - 4, width: bb.width + 8, height: bb.height + 8 } });
 // edit the text color used by the card's meta (muted) to red

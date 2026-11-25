@@ -2489,7 +2489,7 @@ export function createPanel(ctx) {
       colorPop(sw, r.group.color, (v, from) => scWrite(uses, v, from === 'picker' ? `sc${id}:picker:${pg}` : null));
     });
     let held = null; // the places being edited while a field has the focus
-    hex.addEventListener('focus', () => { held = r.group.uses; hex.select(); });
+    hex.addEventListener('focus', () => { held = r.group.uses; paint(r, true); hex.select(); });
     hex.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') hex.blur();
       else if (e.key === 'Escape') { paint(r, true); hex.blur(); }
@@ -2499,7 +2499,7 @@ export function createPanel(ctx) {
       wrap.classList.toggle('bad', !v);
       if (v) scWrite(held || r.group.uses, alphaOf(v) < 1 ? v : (old) => withAlpha(v, alphaOf(old)));
     });
-    hex.addEventListener('blur', () => { held = null; });
+    hex.addEventListener('blur', () => { held = null; paint(r, true); });
     let ag = null;
     alpha.addEventListener('focus', () => { held = r.group.uses; ag = `sc${id}:a:${Date.now()}`; alpha.select(); });
     alpha.addEventListener('blur', () => { held = null; refreshSc(true); });
@@ -2520,10 +2520,17 @@ export function createPanel(ctx) {
     Object.assign(r, { sw, hex, alpha, wrap, count });
     return r;
   }
+  // A color that's one of the variables reads as its name (hex while you type in it).
+  // Computed styles don't say where a color came from, so this matches by value.
   function paint(r, force) {
     const c = r.group.color;
+    const hexText = (parseColor(c)?.hex || c).replace(/^#/, '').toUpperCase();
     r.sw.firstChild.style.background = c;
-    if (force || shadow.activeElement !== r.hex) r.hex.value = (parseColor(c)?.hex || c).replace(/^#/, '');
+    const typing = shadow.activeElement === r.hex;
+    const showName = !!r.v && !typing;
+    r.hex.classList.toggle('is-var', showName);
+    r.hex.title = r.v ? `${r.v.name}  #${hexText}` : '';
+    if (force || !typing) r.hex.value = showName ? r.v.name.replace(/^--/, '') : hexText;
     if (force || shadow.activeElement !== r.alpha) r.alpha.value = Math.round(alphaOf(c) * 100);
     r.count.textContent = r.group.uses.length;
     r.count.title = `Used in ${r.group.uses.length} place${r.group.uses.length === 1 ? '' : 's'}`;
@@ -2536,10 +2543,13 @@ export function createPanel(ctx) {
     const editing = scRows.some((r) => r.row.isConnected && [r.hex, r.alpha].includes(shadow.activeElement));
     if (editing && !force) return; // don't reshuffle the rows under the field being typed in
     const groups = scUses();
+    const varOf = new Map();
+    for (const v of ctx.tokens().colorVars) { const k = colorKey(v.rgb); if (k && !varOf.has(k)) varOf.set(k, v); } // first in the code wins a tie
+    for (const g of groups) g.v = varOf.get(g.key) || null;
     selColors.hidden = !groups.length;
     const shown = scAll ? groups : groups.slice(0, SC_MAX);
     while (scRows.length < shown.length) scRows.push(scRow());
-    scList.replaceChildren(...shown.map((g, i) => { scRows[i].group = g; paint(scRows[i], force); return scRows[i].row; }));
+    scList.replaceChildren(...shown.map((g, i) => { scRows[i].group = g; scRows[i].v = g.v; paint(scRows[i], force); return scRows[i].row; }));
     scMore.hidden = groups.length <= SC_MAX;
     scMore.textContent = scAll ? 'Show less' : `See all ${groups.length}`;
   }

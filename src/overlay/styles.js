@@ -349,6 +349,7 @@ input::selection { background: rgba(13,153,255,.4); }
           background: repeating-conic-gradient(#bbb 0 25%, #fff 0 50%) 0 0 / 6px 6px; }
 .swatch i { display: block; width: 100%; height: 100%; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
 .color .hex { padding-left: 8px; text-transform: uppercase; }
+.color .hex.is-var { text-transform: none; text-overflow: ellipsis; }
 .divider { width: 1px; align-self: stretch; background: var(--hair); margin: 8px 0; }
 .color .alpha { flex: none; width: 34px; padding-left: 8px; }
 .color .sfx { padding: 0 7px 0 1px; }
