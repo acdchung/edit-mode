@@ -126,6 +126,46 @@ try {
   check('All like this: the bold goes to every instance in Push', t.length === 1 && t[0].scope === 'all' && t[0].count === 3, JSON.stringify(t.map(x => [x.scope, x.count, x.to])));
   await p.locator('edit-mode-root .scope button', { hasText: 'This one' }).click();
   check('⌘Z all the way back', await (async () => { for (let i = 0; i < 8 && (await html()) !== start; i++) await key('Meta+z'); return (await html()) === start; })());
+  // 10c. The Text section on selected words.
+  const R = (q) => `edit-mode-root ${q}`;
+  const panelState = () => p.evaluate(() => { const r = document.querySelector('edit-mode-root').shadowRoot; const vis = (n) => n && !n.hidden && !n.closest('[hidden]'); return { name: r.querySelector('.ph-name')?.textContent, sections: [...r.querySelectorAll('.side section')].filter(vis).map(s => s.querySelector('h4')?.textContent).filter(Boolean), align: vis(r.querySelector('button[aria-label="Align left"]')) }; });
+  const fld = (label) => p.locator(R(`input[aria-label="${label}"]`)).first();
+  await pick('.hero-body'); await key('Enter');
+  await selectWords(false, 2);
+  let ps = await panelState();
+  check('selecting some words: the panel shows them, Text only', ps.name === 'Selected words' && ps.sections.join() === 'Text' && !ps.align, JSON.stringify(ps));
+  await fld('Font size').fill('24'); await fld('Font size').press('Enter'); await p.waitForTimeout(80);
+  check('clicking into the panel keeps you editing', await editing());
+  await fld('Text color').fill('FF0000'); await fld('Text color').press('Enter'); await p.waitForTimeout(80);
+  const styled = await p.$eval('.hero-body', e => { const s = [...e.querySelectorAll('span')].find(x => x.style.fontSize); return s ? { text: s.textContent, size: getComputedStyle(s).fontSize, color: getComputedStyle(s).color } : null; });
+  check('size and colour change only those words', styled?.size === '24px' && styled.color === 'rgb(255, 0, 0)' && /guides/.test(styled.text) && (await p.$eval('.hero-body', e => getComputedStyle(e).fontSize)) !== '24px', JSON.stringify(styled));
+  check('the field reads the words', (await fld('Font size').inputValue()) === '24');
+  await key('Escape');
+  t = await texts();
+  check('Push: the words in a <span style>', /<span style="[^"]*font-size: 24px[^"]*color: rgb\(255, 0, 0\)[^"]*">/.test(t[0]?.to || '') || /<span style="[^"]*color: rgb\(255, 0, 0\)[^"]*font-size: 24px/.test(t[0]?.to || ''), t[0]?.to);
+  check('after editing, the panel is the layer again', (await panelState()).name !== 'Selected words');
+  await key('Meta+z');
+  check('⌘Z restores the page exactly', (await html()) === start);
+  // Mixed: bold and plain words selected.
+  await pick('.hero-body'); await key('Enter');
+  await key('Meta+ArrowLeft');
+  for (let i = 0; i < 8 && !/multi/.test(await p.evaluate(() => String(getSelection()))); i++) await key('Alt+Shift+ArrowRight'); // into the bold word
+  const wlabel = await p.locator(R('button[aria-label="Font weight"] .dd-label')).first().textContent();
+  check('bold and plain words selected: weight reads Mixed', wlabel === 'Mixed', `${wlabel} for “${await p.evaluate(() => String(getSelection()))}”`);
+  await key('Escape');
+  // Plain text: styling a word from the panel makes it rich (one change).
+  await pick('.hero-note'); await key('Enter'); await selectWords(true, 1);
+  await fld('Font size').fill('30'); await fld('Font size').press('Enter'); await p.waitForTimeout(80);
+  await key('Escape');
+  t = await texts();
+  check('plain text: one change, the word in a span', t.length === 1 && t[0].from === 'Plain words to format' && /^<span style="font-size: 30px;?">Plain<\/span> words to format$/.test(t[0].to), JSON.stringify(t.map(x => [x.from, x.to])));
+  check('⌘Z all the way back', await (async () => { for (let i = 0; i < 6 && (await html()) !== start; i++) await key('Meta+z'); return (await html()) === start; })());
+  if (process.env.SHOT) {
+    await pick('.hero-body'); await key('Enter'); await selectWords(false, 2);
+    await fld('Font size').fill('24'); await fld('Font size').press('Enter'); await p.waitForTimeout(80);
+    await p.screenshot({ path: process.env.SHOT, clip: { x: 0, y: 0, width: 1280, height: 600 } });
+    await key('Escape'); await key('Meta+z');
+  }
   check('no page errors', !errors.length, errors.join(' | '));
 } finally {
   fs.writeFileSync(file, orig);

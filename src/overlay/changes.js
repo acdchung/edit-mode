@@ -132,6 +132,7 @@ export function richOf(el) {
       if (a === 'style' && v) v = v.split(';').filter((d) => d.trim() && !/^\s*display\s*:\s*none/.test(d) && !/^\s*outline/.test(d)).join(';').trim();
       return v ? ` ${a}="${escapeAttr(v)}"` : '';
     }).join('');
+    if (tag === 'span' && !attrs) return ser(k); // a bare span (selected words never styled): just its words
     return `<${tag}${attrs}>${ser(k)}</${tag}>`;
   }).join('');
   return ser(el);

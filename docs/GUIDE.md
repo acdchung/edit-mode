@@ -37,6 +37,7 @@ Everything Edit Mode does, in detail. For a quick start, see the [README](../REA
 | ⌥⌘C / ⌥⌘V | Copy / paste properties (Figma): fill, stroke, effects, corner radius and opacity, plus the text style (font, size, weight, style, line height, letter spacing, alignment, decoration, case, color) when both have text. Not size or layout. Pastes onto everything selected; one ⌘Z |
 | ⇧⌘H / ⇧⌘L | Hide or show / lock or unlock the selection (like the eye and lock in Layers; with several, if all are hidden they all show, otherwise all hide) |
 | ⌘B / ⌘I / ⌘U, ⇧⌘X | Bold / italic / underline / strikethrough. While typing with some words selected: just those words (also in plain text; Push writes `<strong>`, `<em>`, `<u>`, `<s>`). With the layer selected, or all of its text: the whole layer |
+| Select words while typing, then the Text section | Styles just those words (font, weight, size, line height, letter spacing, colour, decoration, case); the panel shows **Selected words** and only the Text section, and reads **Mixed** where the words differ. Alignment, resizing and truncate stay the whole layer's. Push writes a `<span>` with the styles (Claude makes it a class) |
 | ⌘K (while typing) | Link the selected words: a small field opens under them; Enter links (an empty field removes the link), Esc cancels |
 | ⇧⌘> / ⇧⌘< | Font size up / down 1px (with ⌥: 10px) |
 | ⌥⌘L / ⌥⌘T / ⌥⌘R | Align text left / center / right |

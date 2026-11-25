@@ -187,7 +187,13 @@ function strokeOf(cs) {
 export function createPanel(ctx) {
   const { shadow, changes, state } = ctx;
   const sel = () => state.selected;
-  const apply = (prop, value) => changes.set(sel(), state.scope, prop, value);
+  // Words selected while typing (10c): the Text section reads and styles them. `range` comes
+  // from main.js: read() the elements holding the selected words, write() wraps them in a
+  // span first and returns it with the styled words inside. Those edits are part of the
+  // text change (raw inline styles on the copy being typed in), not changes of their own.
+  let range = null;
+  let rangeEls = null;
+  const apply = (prop, value) => (rangeEls ? sel().style.setProperty(prop, value) : changes.set(sel(), state.scope, prop, value));
 
   // Several elements selected: every field reads all of them ("Mixed" when
   // they differ) and every edit runs once per element, with sel() pointing at
@@ -195,7 +201,7 @@ export function createPanel(ctx) {
   // a color's opacity) keep each element's other values.
   const MIXED = 'Mixed';
   const many = () => state.multi.length > 1;
-  const picked = () => (many() ? state.multi.filter((x) => x.isConnected) : [sel()]);
+  const picked = () => rangeEls || range?.read() || (many() ? state.multi.filter((x) => x.isConnected) : [sel()]);
   function withEl(el, fn, scope = many() ? 'one' : state.scope) {
     const prev = [state.selected, state.scope];
     state.selected = el;
@@ -204,7 +210,7 @@ export function createPanel(ctx) {
   }
   let busy = false; // inside a multi edit: refresh once at the end, not after every element
   function each(fn) {
-    if (!many()) return fn();
+    if (!many() && !range) return fn();
     let ok;
     busy = true;
     try {
@@ -223,6 +229,12 @@ export function createPanel(ctx) {
     return first;
   }
   const act = (group, fn) => {
+    if (range) { // selected words: style them directly (they're part of the text being typed)
+      rangeEls = range.write();
+      try { each(fn); } finally { rangeEls = null; }
+      refresh(true);
+      return;
+    }
     const r = changes.batch(group, () => each(fn));
     ctx.onEdit();
     return r;
@@ -1485,6 +1497,7 @@ export function createPanel(ctx) {
     seg('Case', [['none', '–', 'As typed'], ['uppercase', 'AA', 'Uppercase'], ['lowercase', 'aa', 'Lowercase'], ['capitalize', 'Aa', 'Title case']],
       (el, cs) => (/^(uppercase|lowercase|capitalize)$/.test(cs.textTransform) ? cs.textTransform : 'none'),
       (v) => apply('text-transform', v));
+    if (range) return; // truncating is the whole layer's, not selected words'
     const now = common((el, cs) => (clamped(cs) ? cs.webkitLineClamp : 'off'));
     const check = h('label', 'checkrow');
     const box1 = h('input');
@@ -1582,6 +1595,7 @@ export function createPanel(ctx) {
     colorRow({ title: 'Text color', read: (el, cs) => cs.color, write: (v) => apply('color', v) }));
   typography.head.append(h('span', 'sh-acts'));
   typography.head.lastChild.append(detailsBtn);
+  const [, , , textAlignRow, textBoxRow] = typography.body.querySelectorAll(':scope > .row'); // paragraph-level: the whole layer, not selected words
 
   // Fill
   const fillHidden = () => {
@@ -2378,9 +2392,19 @@ export function createPanel(ctx) {
   function show(el) {
     closePop();
     if (el !== shownEl) { li = 0; layerSig = null; shownEl = el; } // a new selection starts at its top fill
-    multi.hidden = !many();
+    multi.hidden = !many() || !!range;
     header.hidden = body.hidden = footer.hidden = !el;
     canvasSec.hidden = !!el;
+    if (range && el) {
+      column.hidden = false;
+      const words = range.text().replace(/\s+/g, ' ').trim();
+      nameEl.textContent = nameEl.title = 'Selected words';
+      metaEl.textContent = `“${words.length > 28 ? words.slice(0, 28) + '…' : words}”`;
+      metaEl.title = words;
+      openBtn.hidden = copyBtn.hidden = scopeSeg.hidden = true;
+      refresh(true);
+      return;
+    }
     if (many() && el) {
       column.hidden = false;
       nameEl.textContent = `${state.multi.length} selected`;
@@ -2440,6 +2464,9 @@ export function createPanel(ctx) {
   // layout need every element to have them; Fill, Stroke and Effects show
   // when any of them has one (an edit then reaches the ones that have it).
   function arrange(el) {
+    for (const sec of [layout, appearance, fill, strokeSec, effects]) sec.hidden = !!range; // selected words: only Text
+    textAlignRow.hidden = textBoxRow.hidden = !!range;
+    if (range) { typography.hidden = false; constraints.hidden = true; return; }
     const cs = getComputedStyle(el);
     const els = picked();
     const all = (f) => els.every((x) => withEl(x, () => f(x, getComputedStyle(x))));
@@ -2509,6 +2536,14 @@ export function createPanel(ctx) {
       input.select();
     },
     menuOpen: () => !pop.hidden,
+    // Words selected while typing (10c): { read, write, text } from main.js, or null.
+    setRange: (r) => {
+      const was = !!range;
+      range = r;
+      if (!!r !== was) show(state.selected);
+      else if (r) { metaEl.textContent = `“${r.text().replace(/\s+/g, ' ').trim().slice(0, 28)}”`; refresh(true); }
+    },
+    inRange: () => !!range,
     // ⌥⌘C / ⌥⌘V (Figma's copy / paste properties): the look, not the size or layout.
     copyStyle: () => {
       const el = sel();

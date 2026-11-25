@@ -2542,6 +2542,64 @@ function init() {
   });
   linkInput.addEventListener('blur', () => setTimeout(() => closeLink(false)));
 
+  // ---------- Panel styles on selected words (10c) ----------
+  // While typing, selecting some of the words (not all) puts the panel in "selected words"
+  // mode: the Text section reads them and styles them. The first edit wraps them in a span
+  // (in the copy being typed in); edits style it and any styled words inside it.
+  let wordsRange = null;
+  let wordsSpan = null;
+  const allOf = (el) => { const r = document.createRange(); r.selectNodeContents(el); const f = r.cloneContents(); return (f.textContent || '').length + f.querySelectorAll('br').length; };
+  function holders(el, r) { // the elements holding the selected words
+    const root = r.commonAncestorContainer.nodeType === 1 ? r.commonAncestorContainer : r.commonAncestorContainer.parentNode;
+    const out = new Set();
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n; (n = w.nextNode());) if (n.nodeValue.trim() && r.intersectsNode(n) && el.contains(n) && n.parentElement) out.add(n.parentElement);
+    return [...out];
+  }
+  const wordsInfo = {
+    text: () => (wordsSpan?.isConnected ? wordsSpan.textContent : String(wordsRange || '')),
+    read: () => {
+      const el = state.editing;
+      if (wordsSpan?.isConnected) { const r = document.createRange(); r.selectNodeContents(wordsSpan); return [...new Set([wordsSpan, ...holders(el, r)])]; }
+      return holders(el, wordsRange);
+    },
+    write: () => {
+      if (!wordsSpan?.isConnected) {
+        if (state.editing.contentEditable === 'plaintext-only') { // plain text: rich from now on (as with ⌘B)
+          setSelectionTo(wordsRange);
+          const [a, b] = offsets(state.editing);
+          changes.textToRich(state.editing);
+          state.editing.contentEditable = 'true';
+          setOffsets(state.editing, a, b);
+          wordsRange = getSelection().getRangeAt(0).cloneRange();
+        }
+        const span = document.createElement('span');
+        span.append(wordsRange.extractContents());
+        wordsRange.insertNode(span);
+        wordsSpan = span;
+        wordsRange = document.createRange();
+        wordsRange.selectNodeContents(span);
+      }
+      return wordsInfo.read();
+    },
+  };
+  const setSelectionTo = (r) => { getSelection().removeAllRanges(); getSelection().addRange(r); };
+  document.addEventListener('selectionchange', () => {
+    const el = state.editing;
+    if (!el || document.activeElement !== el) return; // typing in a panel field: keep the words
+    const s = getSelection();
+    const r = s.rangeCount ? s.getRangeAt(0) : null;
+    const [a, b] = r && !s.isCollapsed && el.contains(r.commonAncestorContainer) ? offsets(el) : [0, 0];
+    if (r && b > a && !(a === 0 && b >= allOf(el))) {
+      if (wordsSpan && !(wordsSpan.contains(r.startContainer) && wordsSpan.contains(r.endContainer) && String(r) === wordsSpan.textContent)) wordsSpan = null;
+      wordsRange = r.cloneRange();
+      panel.setRange(wordsInfo);
+    } else if (panel.inRange()) {
+      wordsRange = wordsSpan = null;
+      panel.setRange(null);
+    }
+  });
+
   // Pasting into rich text: words only (not another page's markup).
   function plainPaste(e) {
     e.preventDefault();
@@ -2578,6 +2636,8 @@ function init() {
     for (const a of el.querySelectorAll('[contenteditable]')) a.removeAttribute('contenteditable');
     el.removeEventListener('paste', plainPaste);
     linkBox.hidden = true;
+    wordsRange = wordsSpan = null;
+    if (panel.inRange()) panel.setRange(null);
     if (document.activeElement === el) el.blur(); // a link or button would keep a focus ring after editing
     if (textOutline?.[0]) el.style.setProperty('outline', ...textOutline); else el.style.removeProperty('outline');
     if (el.getAttribute('style') === '') el.removeAttribute('style');
@@ -2599,6 +2659,7 @@ function init() {
     const path = e.composedPath();
     if (path.includes(host)) {
       if (path.includes(linkBox)) return; // the link field keeps you editing
+      if (panel.inRange() && (path.includes(panel.el) || path.includes(panel.pop))) return; // styling the selected words
       if (e.type === 'pointerdown') stopText();
       return;
     }
