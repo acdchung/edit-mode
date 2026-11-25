@@ -201,7 +201,8 @@ export function createLayers({ state, changes, host, pageRoot, select, selectAll
     for (const b of [lock, eye]) b.addEventListener('pointerdown', (e) => e.stopPropagation());
     lock.addEventListener('click', (e) => { e.stopPropagation(); toggleLock(n); });
     eye.addEventListener('click', (e) => { e.stopPropagation(); toggleHidden(n); });
-    row.addEventListener('pointerenter', () => { if (!drag) state.hovered = rowHover = n; });
+    // The Canvas row is a header, not a layer: hovering it outlines nothing (like a page in Figma's Pages list).
+    if (n !== canvasArea()) row.addEventListener('pointerenter', () => { if (!drag) state.hovered = rowHover = n; });
     row.addEventListener('pointerleave', () => { if (!drag && state.hovered === n) state.hovered = rowHover = null; });
     row.addEventListener('pointerdown', (e) => pressRow(e, entry));
 
