@@ -17,7 +17,7 @@ export const firstFamily = (stack) => (stack || '').split(',')[0].replace(/["']/
 const families = (stack) => (stack || '').split(',').map((f) => f.replace(/["']/g, '').trim()).filter((f) => f && !GENERIC.test(f));
 
 // ---------- This computer ----------
-export const localSupported = () => typeof window.queryLocalFonts === 'function';
+const localSupported = () => typeof window.queryLocalFonts === 'function';
 let ready = null; // the loaded list
 let local = null; // Promise<Map family → [{ name, weight, italic }]>
 let localState = 'idle'; // idle | loading | ready | denied | unsupported
@@ -29,7 +29,7 @@ const WEIGHT_WORDS = [
   [/(semi|demi)[\s-]?bold/, 600], [/(extra|ultra)[\s-]?bold/, 800], [/(black|heavy)/, 900],
   [/medium/, 500], [/bold/, 700],
 ];
-export function styleWeight(style) {
+function styleWeight(style) {
   const s = style.toLowerCase();
   for (const [re, w] of WEIGHT_WORDS) if (re.test(s)) return w;
   return 400;
@@ -117,7 +117,7 @@ export function loadGoogle() {
 }
 export const googleFamilies = () => (google ? [...google.keys()] : []);
 export const googleStyles = (family) => google?.get(family) || null;
-export const isGoogle = (family) => !!google?.has(family);
+const isGoogle = (family) => !!google?.has(family);
 
 // Load a Google font on the page (all its styles), once. Families the code
 // already loads, or installed on this computer, don't need it.

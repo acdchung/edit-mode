@@ -66,6 +66,8 @@ try {
   check('a button with an icon is a text layer too', await p.evaluate(() => { const r = document.querySelector('edit-mode-root').shadowRoot; return [...r.querySelectorAll('section h4')].some(h => h.textContent === 'Text' && !h.closest('section').hidden); }));
   await key('Enter');
   check('…editing it', await editing());
+  const iconWhileEditing = await p.$eval('.cta-primary', e => [...e.querySelectorAll('svg')].filter(s => getComputedStyle(s).display !== 'none' && s.getBoundingClientRect().width > 0).length);
+  check('the icon stays visible while you type', iconWhileEditing === 1, `${iconWhileEditing} visible`);
   await p.keyboard.type('Go'); await key('Escape');
   const btn = await p.$eval('.cta-primary', e => ({ text: e.innerText.trim(), icons: [...e.querySelectorAll('svg')].filter(s => getComputedStyle(s).display !== 'none').length }));
   check('typing over all of it keeps the icon', btn.text === 'Go' && btn.icons === 1, JSON.stringify(btn));

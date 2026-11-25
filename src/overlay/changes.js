@@ -37,8 +37,8 @@ export const textOf = (el) => [...el.childNodes].map((n) => (n.nodeType === 3 ? 
 // are emptied (text) or hidden (<br>).
 const base = new WeakMap();
 const added = new WeakMap();
-export const keepNodes = (el) => { if (!base.has(el)) base.set(el, [...el.childNodes].filter((n) => n.nodeType === 3 || isBr(n))); };
-export function setText(el, value) {
+const keepNodes = (el) => { if (!base.has(el)) base.set(el, [...el.childNodes].filter((n) => n.nodeType === 3 || isBr(n))); };
+function setText(el, value) {
   keepNodes(el);
   for (const n of added.get(el) || []) n.remove();
   const own = base.get(el);
@@ -93,7 +93,7 @@ function richOk(n) {
   for (const k of n.childNodes) {
     if (k.nodeType === 3 || k.nodeType === 8 || isBr(k)) continue;
     if (k.nodeType !== 1) return false;
-    if (k.dataset?.emGone != null || rich.get(n)?.added?.has(k)) continue;
+    if (k.dataset?.emGone != null) continue;
     if (ATOM.test(k.nodeName)) continue;
     if (!INLINE.test(k.nodeName) || !richOk(k)) return false;
   }
@@ -103,7 +103,7 @@ export const isRich = (el) => !isText(el) && !!el.childNodes.length && richOk(el
   [...el.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim()) && [...el.children].some((k) => !isBr(k));
 // Is this text edited as rich text (styled words kept)? Once formatted, a plain text stays rich.
 export const editsRich = (el) => rich.has(el) || (!isText(el) && isRich(el));
-const rich = new WeakMap(); // el → { nodes: its own child nodes, texts: Map(text node → value), atoms: [svg…], baseHtml, added: Set }
+const rich = new WeakMap(); // el → { nodes: its own child nodes, texts: Map(text node → value), atoms: [svg…], baseHtml }
 const escapeText = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const escapeAttr = (t) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 function keepRich(el) {
@@ -112,13 +112,13 @@ function keepRich(el) {
   const walk = (n) => { for (const k of n.childNodes) { if (k.nodeType === 3) texts.set(k, k.nodeValue); else if (k.nodeType === 1 && !ATOM.test(k.nodeName)) walk(k); } };
   walk(el);
   const atoms = [...el.querySelectorAll('svg, img')].filter((a) => !a.parentElement.closest('svg'));
-  const r = { nodes: [...el.childNodes], texts, atoms, added: new Set(), gone: [] };
+  const r = { nodes: [...el.childNodes], texts, atoms };
   rich.set(el, r);
   r.baseHtml = richOf(el);
   return r;
 }
 // The markup of what shows (hidden originals left out).
-export function richOf(el) {
+function richOf(el) {
   const r = rich.get(el);
   const ser = (n) => [...n.childNodes].map((k) => {
     if (k.nodeType === 3) return escapeText(k.nodeValue);
@@ -144,7 +144,7 @@ function parseRich(el, html) {
   const t = document.createElement('template');
   t.innerHTML = html;
   for (const k of [...t.content.querySelectorAll('*')]) {
-    if (k.nodeName === KEEP) { const a = r.atoms[+k.getAttribute('n')]; if (a) { const c = a.cloneNode(true); c._emAtom = a; k.replaceWith(c); } else k.remove(); continue; }
+    if (k.nodeName === KEEP) { const a = r.atoms[+k.getAttribute('n')]; if (a) { const c = a.cloneNode(true); c._emAtom = a; delete c.dataset.emGone; c.style.removeProperty('display'); if (c.getAttribute('style') === '') c.removeAttribute('style'); k.replaceWith(c); /* a copy of the icon, visible: the original may already be set aside */ } else k.remove(); continue; }
     if (k.nodeName === 'BR' || INLINE.test(k.nodeName)) { for (const at of [...k.attributes]) if (!/^(class|href|style)$/.test(at.name)) k.removeAttribute(at.name); continue; }
     if (k.closest('svg, img')) continue;
     k.replaceWith(...k.childNodes); // anything else: its words only
@@ -154,13 +154,12 @@ function parseRich(el, html) {
 function restoreRich(el) {
   const r = rich.get(el);
   for (const n of [...el.childNodes]) if (!r.nodes.includes(n)) n.remove(); // the copy, and whatever the browser made while editing (a <b>…)
-  r.added.clear();
   for (const n of r.nodes) if (n.nodeType === 1 && n.dataset.emGone != null) { delete n.dataset.emGone; n.style.removeProperty('display'); if (n.getAttribute('style') === '') n.removeAttribute('style'); }
   for (const [n, v] of r.texts) n.nodeValue = v;
   if (r.nodes.some((n) => n.parentNode !== el)) el.replaceChildren(...r.nodes);
 }
 // Show `html` in the element (see above).
-export function setRich(el, html) {
+function setRich(el, html) {
   const r = keepRich(el);
   restoreRich(el);
   if (html === r.baseHtml) return;
@@ -181,10 +180,10 @@ function coverRich(el, html) {
     if (n.nodeType === 3) n.nodeValue = '';
     else if (n.nodeType === 1) { n.dataset.emGone = ''; n.style.setProperty('display', 'none', 'important'); }
   }
-  for (const n of parseRich(el, html)) { r.added.add(n); el.append(n); }
+  el.append(...parseRich(el, html));
 }
 // Editing starts: type into a copy (the app's nodes set aside).
-export function editRich(el) {
+function editRich(el) {
   const html = richOf(el);
   keepRich(el);
   restoreRich(el);

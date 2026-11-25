@@ -38,7 +38,7 @@ check('…⌘Z empties the canvas again', (await p.evaluate(() => document.query
 
 // Draw a rectangle on the empty canvas.
 await p.keyboard.press('Shift+Digit1'); await wait(300);
-const r = await p.evaluate(() => { const f = document.querySelector('[data-em-canvas]').getBoundingClientRect(); return { x: f.left + 40, y: f.top + 40 }; });
+const r = await p.evaluate(() => { const f = document.querySelector('[data-em-canvas]').getBoundingClientRect(); return { x: f.left + 40, y: f.top + 200 }; }); // below the panel's Canvas section (it shows while nothing is selected)
 await p.keyboard.press('r'); await wait(80);
 await p.mouse.move(r.x + 40, r.y + 20); await p.mouse.down(); await p.mouse.move(r.x + 80, r.y + 60, { steps: 3 }); await p.mouse.move(r.x + 140, r.y + 110, { steps: 4 }); await p.mouse.up();
 await wait(600);
