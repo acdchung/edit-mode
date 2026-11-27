@@ -153,7 +153,7 @@ Items 1–10 are done. Options, with my suggestion first:
 2. **B3e Preview in page:** the canvas version swapped into its real spot before Push (see B3 plan above).
 3. **A version switcher** for designs dropped onto the page (←/→ between versions; see "Drag designs into the page").
 4. **Image Crop mode** (the user rarely uses it).
-Small known gaps: mixed-style text changed on a canvas copy isn't compared for Push yet (compare.js handles plain text only); a rotated layer's selection frame is drawn around its tilted footprint, not rotated with it; with "All like this", a structure change to mixed text previews on the edited instance only.
+The small known gaps (mixed text on canvas copies, rotated selection frames, "All like this" previews of mixed text) were fixed 2026-11-27 (see Done).
 
 ## Later (agreed with the user, 2026-11-18)
 
@@ -168,6 +168,7 @@ Small known gaps: mixed-style text changed on a canvas copy isn't compared for P
 - ⌥-resize from the center.
 
 ## Done (highlights)
+- 2026-11-27, known gaps (`tests/gaps.mjs`): a rotated layer's selection frame (and hover and "All like this" frames) turns with it at its own size, with a level size label; its handles resize along its own sides, the opposite side staying put on the canvas. Mixed-style text changed on a canvas copy goes to Push as one rich text change (also after a reload; a bold word given to plain text on the copy too). "All like this" + a change to which words are styled previews on every instance with its own words. Found on the way: End / ⌘→ / ⌘↓ in text ending with an icon jumped to the start.
 - 2026-11-20, item 4: padding and gap handles on the canvas (`spacing.js`, `tests/item4.mjs`). With one auto-layout frame selected and the pointer over it: a purple bar per padding side and per main-axis gap; hover fills the zone and shows the value; drag changes it (Shift = steps of 8, ⌥ = opposite padding side too; one undo). Click a gap focuses the Gap field. Zero padding gets a 10px grab strip whose middle clears the frame's edge handles. Dragging an Auto gap sets `justify-content: flex-start` plus a fixed gap. Double-click on a zone still drills in; ⌘ lets clicks through. Follow-ups the same day: a drag whose release got lost no longer leaves handles behind with nothing selected (the drag is tracked on the window and ends when its frame stops being the selection), and the Gap field got back a menu with a single **Auto** choice. Cross-axis gaps in wrapping rows aren't offered (no Figma-style counter-axis spacing field yet).
 - 2026-11-20, audit follow-ups (`tests/demo2.mjs`): the Layers panel resizes from its right edge (remembered); the top row is "Page"; line height shows as the code writes it (1.35, not 17.6px).
 - 2026-11-20, QA + UX audit on the Payloom page (`tests/brutal3.mjs`, light random runs; `tests/demo1.mjs`): sizing modes now read what the CSS does (fixed-height buttons, grid cells, capped containers); no-op edits no longer leave hidden styles behind; stroke sides (All / one side / Custom per-side weights) for inside strokes. Panels no longer jump sides (2026-11-19).

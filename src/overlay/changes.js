@@ -118,14 +118,15 @@ function keepRich(el) {
   return r;
 }
 // The markup of what shows (hidden originals left out).
-function richOf(el) {
+function richOf(el, atomAt) {
   const r = rich.get(el);
+  atomAt ??= (k) => (r?.atoms || []).indexOf(k._emAtom || k);
   const ser = (n) => [...n.childNodes].map((k) => {
     if (k.nodeType === 3) return escapeText(k.nodeValue);
     if (k.nodeType !== 1) return '';
     if (k.dataset.emGone != null) return '';
     if (isBr(k)) return unused(k) ? '' : '<br>';
-    if (ATOM.test(k.nodeName)) { const i = (r?.atoms || []).indexOf(k._emAtom || k); return `<em-keep n="${i < 0 ? 0 : i}"></em-keep>`; }
+    if (ATOM.test(k.nodeName)) { const i = atomAt(k); return `<em-keep n="${i < 0 ? 0 : i}"></em-keep>`; }
     const tag = { b: 'strong', i: 'em', strike: 's' }[k.nodeName.toLowerCase()] || k.nodeName.toLowerCase(); // the browser's bold/italic/strike → semantic tags
     const attrs = ['class', 'href', 'style'].map((a) => {
       let v = k.getAttribute(a);
@@ -136,6 +137,22 @@ function richOf(el) {
     return `<${tag}${attrs}>${ser(k)}</${tag}>`;
   }).join('');
   return ser(el);
+}
+// The same markup, read from the DOM alone (a canvas copy after a reload has no editing
+// state). Icons are numbered as they sit among the element's own nodes (the ones set
+// aside, once its words were retyped); a copy of an icon takes its original's number.
+export function richMarkup(el) {
+  const atomsIn = (nodes) => nodes.flatMap((n) => (n.nodeType !== 1 ? [] : ATOM.test(n.nodeName) ? [n] : [...n.querySelectorAll('svg, img')].filter((a) => !a.parentElement.closest('svg'))));
+  const kids = [...el.childNodes];
+  const gone = kids.filter((n) => n.nodeType === 1 && n.dataset.emGone != null);
+  const own = atomsIn(gone.length ? gone : kids);
+  const clean = (a) => { const c = a.cloneNode(true); delete c.dataset.emGone; c.style.removeProperty('display'); if (c.getAttribute('style') === '') c.removeAttribute('style'); return c; };
+  return richOf(el, (k) => {
+    const i = own.indexOf(k._emAtom || k);
+    if (i >= 0) return i;
+    const ck = clean(k);
+    return own.findIndex((a) => clean(a).isEqualNode(ck));
+  });
 }
 // Same elements in the same places (only the words differ)?
 const shapeOf = (html) => html.replace(/>[^<]*</g, '><').replace(/^[^<]*/, '').replace(/[^>]*$/, '');
@@ -181,6 +198,29 @@ function coverRich(el, html) {
     else if (n.nodeType === 1) { n.dataset.emGone = ''; n.style.setProperty('display', 'none', 'important'); }
   }
   el.append(...parseRich(el, html));
+}
+// "All like this": the markup `html` (made on `el`) as another instance `x` would show
+// it, with its own words. Each of the app's text nodes in `el` (as the code rendered it)
+// is looked for, in order, among the new markup's words and swapped for `x`'s. Null
+// when a word that differs can't be found whole (it was retyped or split by new formatting).
+function asInstance(el, html, x) {
+  const a = [...keepRich(el).texts.values()], b = [...keepRich(x).texts.values()];
+  if (a.length !== b.length) return null;
+  const parts = html.split(/(<[^>]*>)/); // even: words, odd: tags
+  let seg = 0, off = 0;
+  for (let j = 0; j < a.length; j++) {
+    if (!a[j].trim()) continue;
+    const t = escapeText(a[j]), s = escapeText(b[j]);
+    let found = false;
+    for (let i = seg; i < parts.length && !found; i += 2) {
+      const k = parts[i].indexOf(t, i === seg ? off : 0);
+      if (k < 0) continue;
+      parts[i] = parts[i].slice(0, k) + s + parts[i].slice(k + t.length);
+      seg = i; off = k + s.length; found = true;
+    }
+    if (!found && t !== s) return null;
+  }
+  return parts.join('');
 }
 // Editing starts: type into a copy (the app's nodes set aside).
 function editRich(el) {
@@ -493,6 +533,17 @@ export function createChanges(onChange, { getSelection = () => [], setSelection 
       const prev = entries.get(`${one.key}|${RICH}`) || entries.get(`${targets(el, 'all').key}|${RICH}`);
       const from = prev?.from ?? earlier ?? before;
       const t = scope === 'all' && shapeOf(html) !== shapeOf(from) ? targets(el, 'all') : one;
+      // …and the others preview it too, each with its own words (when they can be found).
+      if (t !== one) {
+        const st = undoStack.at(-1);
+        for (const x of t.els) {
+          if (x === el || !st) continue;
+          const mine = asInstance(el, html, x);
+          if (mine == null) continue;
+          touch(st, x, RICH);
+          setRich(x, mine);
+        }
+      }
       entries.delete(`${one.key}|${RICH}`);
       entries.delete(`${targets(el, 'all').key}|${RICH}`);
       put(`${t.key}|${RICH}`, html === from ? null : { kind: 'text', rich: true, ...meta(el, t), from, to: html });

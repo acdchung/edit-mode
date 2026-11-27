@@ -11,7 +11,7 @@ Everything Edit Mode does, in detail. For a quick start, see the [README](../REA
 | Double-click | Go one level deeper. On selected text, edit it |
 | ⌘-click | Select the deepest element directly (hold ⌘ to preview it on hover) |
 | Esc / Enter | Select parent / first child (Enter on text starts editing it). Esc past the top level deselects |
-| While editing text | Enter starts a new line (a line break, `<br />` in the code); Esc, ⌘Enter or a click outside finishes. Text that already has line breaks in the code can be edited too, and so can text with styled words inside (a bold name, a link, a tag) or an icon: the styling stays, the icon can't be typed away, and pasting adds words only |
+| While editing text | Enter starts a new line (a line break, `<br />` in the code); Esc, ⌘Enter or a click outside finishes. Text that already has line breaks in the code can be edited too, and so can text with styled words inside (a bold name, a link, a tag) or an icon: the styling stays, the icon can't be typed away, and pasting adds words only. With **All like this**, changing which words are styled (bolding a word, say) shows on every instance, each keeping its own words; if it can't tell which words are whose (you retyped them), only the one you edited shows it until Push |
 | ⌫ / Delete | Delete element |
 | Arrows / Shift + arrows | Nudge 1px / 10px (margin); inside auto layout, move earlier/later. With several selected, all of them (as a block in auto layout) |
 | ⌘Z / ⌘⇧Z | Undo / redo |
@@ -53,7 +53,7 @@ Everything Edit Mode does, in detail. For a quick start, see the [README](../REA
 
 **Canvas colour:** with nothing selected, the panel shows **Canvas › Background**: click the swatch or type a hex to change the colour around the page (× goes back to the default grey). It's yours, not the app's: remembered in this browser, never pushed, and turning Edit Mode off leaves the page as it was.
 
-**Rotation and flip** (Layout, under the position): the rotation field reads like Figma's (positive turns counter-clockwise), then **Rotate 90° right**, **Flip horizontal** and **Flip vertical**. On the canvas or the page, the cursor turns into a rotate arrow just outside a corner handle: drag to rotate around the centre (⇧ snaps to 15°; several selected each turn around their own centre). W/H keep showing the layer's own size, not its tilted footprint. Push sends CSS `rotate` and `scale`, so a transform the code already has is left alone.
+**Rotation and flip** (Layout, under the position): the rotation field reads like Figma's (positive turns counter-clockwise), then **Rotate 90° right**, **Flip horizontal** and **Flip vertical**. On the canvas or the page, the cursor turns into a rotate arrow just outside a corner handle: drag to rotate around the centre (⇧ snaps to 15°; several selected each turn around their own centre). W/H keep showing the layer's own size, not its tilted footprint. The selection frame turns with the layer, its handles resize along the layer's own sides (the opposite side stays put on the canvas), and the size label stays level just below it. Push sends CSS `rotate` and `scale`, so a transform the code already has is left alone.
 
 **Panel** (top to bottom; colors, sizes and CSS variables already on the page are offered as quick picks):
 

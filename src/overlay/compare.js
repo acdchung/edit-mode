@@ -16,7 +16,7 @@
 // Things on the canvas outside any copy aren't compared (B3d: "Build this").
 
 import { ATTR, NOT_LAYER, canvasArea, describe } from './util.js';
-import { isText, textOf } from './changes.js';
+import { isRich, isText, richMarkup, textOf } from './changes.js';
 import { constraintOf, frameBox } from './constraints.js';
 
 const FROM = 'data-em-from';
@@ -199,6 +199,21 @@ export function compareCopy({ top, roots }, copy = { id: 0, name: copyName(top) 
   };
   const out = [];
 
+  // Mixed-style text (words beside bold bits, links, icons): one rich text change,
+  // its markup before and after, as a live edit sends it. What's inside (the bold
+  // word set aside, new formatting) is part of that markup, not separate changes.
+  const richEls = new Set();
+  for (const [c, o] of linked) {
+    if (isText(c) && isText(o.el)) continue;
+    if (!isRich(c) && !isRich(o.el)) continue;
+    const from = richMarkup(o.el), to = richMarkup(c);
+    if (from === to) continue;
+    richEls.add(c);
+    out.push({ kind: 'text', rich: true, ...ref(o), from, to });
+  }
+  const inRich = (n) => { for (let p = n.parentElement; p; p = p.parentElement) if (richEls.has(p)) return true; return false; };
+  for (const n of [...linked.keys()]) if (inRich(n)) linked.delete(n);
+
   // Placed freely: absolute on the canvas, in the flow on the page.
   const placed = new Set();
   for (const [c, o] of linked) {
@@ -268,7 +283,8 @@ export function compareCopy({ top, roots }, copy = { id: 0, name: copyName(top) 
   }
 
   // Deleted: an original child with no copy left (only the top one of what's gone).
-  for (const [, o] of linked) {
+  for (const [c, o] of linked) {
+    if (richEls.has(c)) continue; // a bold word typed away: part of the text's markup
     for (const k of o.el.children) {
       if (NOT_LAYER.test(k.tagName) || copyOf.has(k) || copy.builtEls?.has(k)) continue; // built from a design on the canvas: not this copy's to delete
       if (!k.getClientRects().length && getComputedStyle(k).display === 'none') continue; // hidden on the page as well
@@ -282,7 +298,7 @@ export function compareCopy({ top, roots }, copy = { id: 0, name: copyName(top) 
   const newIds = new Map();
   const idOf = (n) => newIds.get(n) ?? (newIds.set(n, `c${copy.id}-${++newSeq}`), newIds.get(n));
   for (const n of nodes) {
-    if (linked.has(n) || n.hasAttribute(FROM)) continue;
+    if (linked.has(n) || n.hasAttribute(FROM) || inRich(n)) continue;
     const up = linkedUp(n);
     if (!up) continue; // outside the copy's copied part (shouldn't happen)
     const parent = near(linked.get(up).el);

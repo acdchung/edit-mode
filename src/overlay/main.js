@@ -2708,7 +2708,12 @@ function init() {
       const els = state.multi.length > 1 ? state.multi.filter((k) => k.isConnected && visible(k)) : [el];
       const scope = els.length > 1 ? 'one' : state.scope;
       const start = els.map((k) => [k, box(k), isLoose(k) && frameBox(k)]); // CSS px
-      const r0 = unionRect(els);
+      // One rotated layer: the handles sit on its own (turned) edges, so the drag is read
+      // along its own axes, against its own size; no snapping (the guides are level).
+      const deg = els.length === 1 ? tiltOf(el) : 0;
+      const a = (deg * Math.PI) / 180, cos = Math.cos(a), sin = Math.sin(a);
+      const own = start[0][1];
+      const r0 = deg ? { left: 0, top: 0, width: own.width * view.z, height: own.height * view.z, right: own.width * view.z, bottom: own.height * view.z } : unionRect(els);
       const x0 = e.clientX;
       const y0 = e.clientY;
       const group = `resize:${Date.now()}`;
@@ -2716,8 +2721,9 @@ function init() {
 
       const move = (ev) => {
         if (!(ev.buttons & 1)) return up(); // the button is up (a lost release): hovering must never resize
-        const dx = ev.clientX - x0;
-        const dy = ev.clientY - y0;
+        const sx = ev.clientX - x0, sy = ev.clientY - y0;
+        const dx = deg ? sx * cos + sy * sin : sx;
+        const dy = deg ? -sx * sin + sy * cos : sy;
         let w = r0.width + (dir.includes('e') ? dx : dir.includes('w') ? -dx : 0);
         let h = r0.height + (dir.includes('s') ? dy : dir.includes('n') ? -dy : 0);
         const lock = (ev.shiftKey || state.ratio.has(el)) && r0.width && r0.height; // el: the primary // Shift or constrain proportions
@@ -2727,7 +2733,7 @@ function init() {
           if (corner ? Math.abs(w / r0.width - 1) > Math.abs(h / r0.height - 1) : /[ew]/.test(dir)) h = w / ratio;
           else w = h * ratio;
           snapper.clear();
-        } else if (!ev.ctrlKey) { // snap the dragged edge, or the size to another's (⌃ resizes freely)
+        } else if (!ev.ctrlKey && !deg) { // snap the dragged edge, or the size to another's (⌃ resizes freely)
           const at = (ww, hh) => {
             const left = dir.includes('w') ? r0.right - ww : r0.left, top = dir.includes('n') ? r0.bottom - hh : r0.top;
             return { left, top, width: ww, height: hh, right: left + ww, bottom: top + hh };
@@ -2747,6 +2753,13 @@ function init() {
               const to = {};
               if (lock || /[ew]/.test(dir)) Object.assign(to, { w: nw, x: dir.includes('w') ? fb.x + fb.w - nw : fb.x });
               if (lock || /[ns]/.test(dir)) Object.assign(to, { h: nh, y: dir.includes('n') ? fb.y + fb.h - nh : fb.y });
+              if (deg) { // turned about its centre: move the centre along its own axes, so the opposite edge stays put on screen
+                const ww = to.w ?? fb.w, hh = to.h ?? fb.h;
+                const ex = dir.includes('e') ? 1 : dir.includes('w') ? -1 : 0, ey = dir.includes('s') ? 1 : dir.includes('n') ? -1 : 0;
+                const hx = (ex * (ww - fb.w)) / 2, hy = (ey * (hh - fb.h)) / 2;
+                const cx = fb.x + fb.w / 2 + hx * cos - hy * sin, cy = fb.y + fb.h / 2 + hx * sin + hy * cos;
+                Object.assign(to, { x: cx - ww / 2, y: cy - hh / 2 });
+              }
               placeBox(k, setter(k), to);
               continue;
             }
@@ -2819,6 +2832,33 @@ function init() {
     });
   }
 
+  // Text that ends (or starts) with an icon (a button's arrow): Chrome sends End, ⌘→ and ⌘↓
+  // to the very start (and Home, ⌘←, ⌘↑ astray the other way). Put the caret past the icon
+  // instead, when the caret is on that icon's line (or for ⌘↓ / ⌘↑, always). ⇧ extends.
+  function edgeKey(e) {
+    const el = state.editing;
+    if (!el || e.altKey || e.ctrlKey) return false;
+    const toEnd = (e.metaKey && e.key === 'ArrowDown') || e.key === 'End' || (e.metaKey && e.key === 'ArrowRight');
+    const toStart = (e.metaKey && e.key === 'ArrowUp') || e.key === 'Home' || (e.metaKey && e.key === 'ArrowLeft');
+    if (!toEnd && !toStart) return false;
+    const shows = (n) => (n.nodeType === 1 ? n.dataset.emGone == null && getComputedStyle(n).display !== 'none' : n.nodeType === 3 && n.nodeValue !== '');
+    const kids = [...el.childNodes];
+    const edge = (toEnd ? kids.reverse() : kids).find(shows);
+    if (!edge || !/^(svg|img)$/i.test(edge.nodeName)) return false;
+    const s = getSelection();
+    if (!s.rangeCount) return false;
+    if (e.key === 'End' || e.key === 'Home' || e.key === 'ArrowRight' || e.key === 'ArrowLeft') { // only on the icon's line
+      const r = s.getRangeAt(0).cloneRange();
+      r.collapse(!toEnd);
+      const here = r.getClientRects()[0] ?? r.getBoundingClientRect(), at = edge.getBoundingClientRect();
+      if (here.height && Math.abs(here.top + here.height / 2 - (at.top + at.height / 2)) > Math.max(here.height, at.height) / 2 + 2) return false;
+    }
+    const spot = toEnd ? el.childNodes.length : 0;
+    if (e.shiftKey) s.extend(el, spot);
+    else s.collapse(el, spot);
+    return true;
+  }
+
   // ---------- Keyboard ----------
   // Figma's text shortcuts: ⌘B / ⌘I / ⌘U, ⇧⌘> / ⇧⌘< font size ±1 (⌥: ±10), ⌥⌘L / ⌥⌘T / ⌥⌘R align text.
   // True when the key was one of them and there's text selected.
@@ -2875,6 +2915,7 @@ function init() {
     if (state.editing) {
       if (inOverlay && typing) return; // the link field (⌘K) handles its own keys
       if (e.key === 'Escape' || (e.key === 'Enter' && mod)) { stop(); stopText(); }
+      else if (edgeKey(e)) stop(); // text that starts or ends with an icon: Chrome's End/Home go astray
       else if (mod && !e.altKey && formatKey(e)) stop(); // selected words: bold, italic, underline, strikethrough, link
       else if (textKey(e)) stop(); // no selection: ⌘B, ⌘I… style the whole text layer
       else if (e.key === 'Enter') { stop(); document.execCommand('insertLineBreak'); }
@@ -3043,6 +3084,44 @@ function init() {
     box.style.height = r.height + 'px';
   }
 
+  // A rotated layer's own turn (its `rotate`; flips don't change the frame).
+  const tiltOf = (el) => { const d = panel.rotationOf(el); return d % 360 ? d : 0; };
+  // A frame or hover box on an element. Rotated (Figma): drawn at the layer's own size and
+  // turned with it about the same point; its size label (if any) stays level, centred just
+  // below the tilted footprint. Returns the screen footprint.
+  function placeOn(f, el) {
+    const r = el.getBoundingClientRect();
+    const deg = tiltOf(el);
+    const label = f.querySelector(':scope > .size');
+    if (!deg) {
+      place(f, r);
+      if (f.style.transform) { f.style.transform = f.style.transformOrigin = ''; if (label) label.removeAttribute('style'); }
+      return r;
+    }
+    // Where its own box sits: the footprint's centre is its centre turned about the origin.
+    const z = view.z, [w, h] = ownSize(el).map((v) => v * z);
+    const [ox, oy] = getComputedStyle(el).transformOrigin.split(' ').map((v) => parseFloat(v) * z);
+    const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+    const vx = w / 2 - ox, vy = h / 2 - oy;
+    const left = r.left + r.width / 2 - ox - (vx * c - vy * s), top = r.top + r.height / 2 - oy - (vx * s + vy * c);
+    place(f, { left, top, width: w, height: h });
+    f.style.transformOrigin = `${ox}px ${oy}px`;
+    f.style.transform = `rotate(${deg}deg)`;
+    if (label) Object.assign(label.style, { left: '50%', top: '50%', transformOrigin: '0 0', transform: `rotate(${-deg}deg) translate(-50%, ${r.height / 2 + 7}px)` });
+    return r;
+  }
+  // Its own size in CSS px, read without touching it (box() swaps the rotation off for a
+  // moment: every frame, that would set off the canvas's autosave).
+  function ownSize(el) {
+    const cs = getComputedStyle(el);
+    const px = (p) => parseFloat(cs.getPropertyValue(p)) || 0;
+    const side = (a, b) => (cs.boxSizing === 'border-box' ? 0 : px(`padding-${a}`) + px(`padding-${b}`) + px(`border-${a}-width`) + px(`border-${b}-width`));
+    const w = parseFloat(cs.width), h = parseFloat(cs.height);
+    return [Number.isFinite(w) ? w + side('left', 'right') : el.offsetWidth, Number.isFinite(h) ? h + side('top', 'bottom') : el.offsetHeight];
+  }
+  // Its size label: the layer's own size (not the tilted footprint).
+  const sizeText = (el) => { if (!tiltOf(el)) { const r = el.getBoundingClientRect(); return `${fmtSize(r.width / view.z)} × ${fmtSize(r.height / view.z)}`; } const [w, h] = ownSize(el); return `${fmtSize(w)} × ${fmtSize(h)}`; };
+
   // Reuse divs in a layer so redrawing every frame stays cheap.
   function drawBoxes(layer, rects, cls) {
     while (layer.children.length > rects.length) layer.lastChild.remove();
@@ -3079,10 +3158,9 @@ function init() {
       layer.append(f);
     }
     els.forEach((x, i) => {
-      const r = x.getBoundingClientRect();
       const f = layer.children[i];
-      place(f, r);
-      f.lastChild.textContent = `${fmtSize(r.width / view.z)} × ${fmtSize(r.height / view.z)}`;
+      placeOn(f, x);
+      f.lastChild.textContent = sizeText(x);
     });
   }
 
@@ -3103,7 +3181,7 @@ function init() {
     }
 
     hoverBox.hidden = !state.on || !state.hovered || state.multi.includes(state.hovered) || !!state.editing || spacing.dragging || spacing.hovering;
-    if (!hoverBox.hidden) place(hoverBox, state.hovered.getBoundingClientRect());
+    if (!hoverBox.hidden) placeOn(hoverBox, state.hovered);
 
     // Several selected: the main frame (with the working handles) goes around
     // all of them, and each one also gets its own frame (DESIGN.md › Interaction).
@@ -3111,11 +3189,12 @@ function init() {
     const shown = many ? state.multi.filter((x) => x.isConnected && visible(x)) : [];
     frame.hidden = many ? !shown.length : !sel || !visible(sel);
     frame.classList.toggle('group', many);
-    const fr = frame.hidden ? null : many ? unionRect(shown) : sel.getBoundingClientRect();
-    if (fr) {
+    const fr = frame.hidden ? null : many ? unionRect(shown) : placeOn(frame, sel); // the footprint (measure, spacing)
+    if (fr && many) {
+      if (frame.style.transform) { frame.style.transform = frame.style.transformOrigin = ''; sizeLabel.removeAttribute('style'); }
       place(frame, fr);
       sizeLabel.textContent = `${fmtSize(fr.width / view.z)} × ${fmtSize(fr.height / view.z)}`;
-    }
+    } else if (fr) sizeLabel.textContent = sizeText(sel);
 
     const sibs = sel && !many && state.scope === 'all' ? family(sel).filter((x) => x !== sel && visible(x)) : [];
     drawFrames(sibLayer, sibs); // "All like this": each instance framed like a selected element (handles + size)
